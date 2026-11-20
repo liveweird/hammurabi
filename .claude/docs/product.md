@@ -62,6 +62,8 @@ stele of the Code of Hammurabi on a lapis disc — the sun disc of Shamash crown
   requires name, context, decision, consequences and an assigned Approver; alternatives stay optional.
 - **Comments vs issues:** comments/questions are accepted only before `ACTIVE`; issues/escalations only in `ACTIVE` (OPEN/RESOLVED, resolved
   by the Driver, the Approver or an ADMIN). Both stay readable forever.
+- **Discussion windows (0.3.0):** posting and editing follow the kind's window (comments/questions pre-active, issues/escalations `ACTIVE`); the STATE change (answer, resolve, reopen) and the delete are open in EVERY status, so an issue on an ADR
+  that later expired or was superseded can still be resolved and a question can be answered after activation (the open-issue count keeps counting until then). Edits and deletes of an entry are audit-only, not history events. Change on request.
 - **Not built (one-line map changes if wanted):** `IN_REVIEW → SOLUTION_DRAFT` ("send back") and `ACTIVE → WITHDRAWN`.
 - **User directory:** any signed-in user may look up `{id, name, email}` of active users (`GET /users/directory`, Adder's, for the DACI pickers); the
   name+email disclosure to every signed-in user that Adder's owner accepted is carried over (`security.md` "What the user directory discloses"). Collapse it to `{id, name}` if that changes.
@@ -70,13 +72,13 @@ stele of the Code of Hammurabi on a lapis disc — the sun disc of Shamash crown
 
 ## Roadmap
 
-Each increment is built and gated on its own. **Current version: 0.2.0.**
+Each increment is built and gated on its own. **Current version: 0.3.0.**
 
 | Ver | Scope |
 |---|---|
 | **0.1.0 Foundation** | Flow trimmed (Adder's bootstrap tree): auth and email MFA, password reset, users and feature flags, teams with a manager, EN/PL, light/dark, changelog, telemetry panel, the lapis brand and the Stele logo |
 | **0.2.0 ADR core** | `adrs/`: ids, fields, the lifecycle map (409 on an illegal move), DACI participants and their permission verdicts, `X-Expected-Revision`, field-level history, the expiry sweep; list, create and detail pages |
-| **0.3.0 Discussion** | Comments/questions before `ACTIVE`, issues/escalations in `ACTIVE` (Covenant's version reviews, ported) |
+| **0.3.0 Discussion** | `adr_discussion` (V12): comments/questions before `ACTIVE`, issues/escalations in `ACTIVE` (Covenant's version reviews, ported and reshaped); the Discussion and Issues tabs, `openIssueCount` on the ADR rows |
 | **0.4.0 Organise and find** | Tag categories (Toadie), successor links + `SUPERSEDED`, multi-criteria filters + full-text search (Adder), URL-synced filters, saved lenses (Toadie) |
 | **0.5.0 Notify** | The bell, email digest and preferences (Adder's `notifications/`) for DACI participants; expiry reminders |
 | **1.0.0 Checkup** | The family's technical checkup (docs, DRY/SRP, tests, UI consistency, security, guardrails, infra) |
@@ -94,7 +96,8 @@ port its implementation.
   an advisory lock), `infra/revision/ExpectedRevision.kt`'s first use; next: `infra/db/Fts.kt` + the search migration, the pickers
   (`UserDirectorySelect`), the `ThreadPane`/`ThreadSidePanel` detail layout, `EventTimeline`, Markdown building blocks, `notifications/`.
 - **Covenant** (`~/Sources/covenant`): `contracts/Lifecycle.kt` (the 409-on-illegal-move transition map), `ContractAccess.kt` (permission
-  verdicts) and `ReleaseLineReminders.kt` (the periodic date sweep) are ported (0.2.0, `adrs/`); next: `VersionReview*` (comments/approvals).
+  verdicts) and `ReleaseLineReminders.kt` (the periodic date sweep) are ported (0.2.0, `adrs/`); `VersionReview*` (the entry table, its routes and `VersionReviews.tsx`) is ported
+  and reshaped as the ADR discussion (0.3.0): Covenant's open/outdated/closed review and its approvals are gone, a kind (comment/question/issue/escalation) and a state (open/answered/resolved) take their place.
 - **Toadie** (`~/Sources/toadie`): `tags/` tag categories, `lenses/` saved filters, `lockingTransaction`, the `list-endpoints.md` filter shape.
 - **Lettuce** (`~/Sources/lettuce`): `infra/mail`, `infra/crypto`, `infra/paging` (through Flow); next: `MarkdownEditor`, sharing pickers.
 - **Astrolabe** (`~/Sources/astrolabe`): `planning/DependencyGraph.kt` (`cycleClosedBy`) for the successor chain.
@@ -103,6 +106,12 @@ Left in Flow on purpose: `ingest/`, `fetch/`, `jira/`, `gitlab/`, `norm/`, `iden
 `infra/outbound/` (the SSRF guard — port it with the first server-initiated call other than SMTP), `plugins/Role.kt`, `EncryptedAtRest`/`Reencrypt`.
 
 ## Release history
+
+### v0.3.0 — discussion (2026-11-20)
+
+Server (`adrs/`, migration V12): `adr_discussion` and `/api/v1/adrs/{id}/discussion` (list with `kind` any-of and `status` filters, post, read, edit, delete as a tombstone, and `PUT .../state` to answer, resolve and reopen), the window per kind
+(comments/questions pre-active, issues/escalations `ACTIVE`, else the typed 409 `discussion-closed`), eight discussion history events, `openIssueCount` / `unansweredQuestionCount` / `canComment` / `canRaiseIssue` on the ADR. Web: the Document /
+Discussion / Issues tabs of the ADR page, the composer, entry cards with edit, delete, answer and resolve (with an optional note), the Open issues column of the list, the new history sentences. E2E: `adr-discussion`.
 
 ### v0.2.0 — the ADR core (2026-11-20)
 

@@ -17,6 +17,24 @@ interface ChangelogEntry {
 
 export const CHANGELOG: readonly ChangelogEntry[] = [
   {
+    version: "0.3.0",
+    date: "2026-11-20",
+    en: `**Hammurabi 0.3.0: discussion.**
+
+- Every ADR page now has a Discussion tab: while an ADR is being drafted and reviewed, anyone can post a comment or ask a question, in Markdown with a preview.
+- A question can be marked answered by its author, the Driver, the Approver or an administrator, and reopened.
+- Once an ADR is active, the Issues tab takes issues and escalations. The Driver, the Approver or an administrator resolves one, optionally with a note, and can reopen it.
+- Authors edit their own entries; an author or an administrator can delete one, which leaves a "deleted" placeholder. Everything stays readable in every status.
+- The tabs show the unanswered questions and open issues, the ADR list has an Open issues column, and the history records every comment, question, issue and resolution.`,
+    pl: `**Hammurabi 0.3.0: dyskusja.**
+
+- Każdy ADR ma teraz kartę Dyskusja: gdy ADR jest szkicowany i przeglądany, każdy/a może dodać komentarz albo zadać pytanie, w Markdownie z podglądem.
+- Pytanie może oznaczyć jako z odpowiedzią jego autor/ka, Prowadzący/a, Zatwierdzający/a albo administrator/ka, a także otworzyć je ponownie.
+- Gdy ADR jest obowiązujący, karta Zgłoszenia przyjmuje zgłoszenia i eskalacje. Prowadzący/a, Zatwierdzający/a albo administrator/ka rozwiązuje zgłoszenie, opcjonalnie z uwagą, i może je otworzyć ponownie.
+- Autorzy/ki edytują własne wpisy; autor/ka albo administrator/ka może wpis usunąć, a wtedy zostaje informacja „usunięto”. Wszystko pozostaje do przeczytania w każdym statusie.
+- Karty pokazują pytania bez odpowiedzi i otwarte zgłoszenia, lista ADR-ów ma kolumnę Otwarte zgłoszenia, a historia zapisuje każdy komentarz, pytanie, zgłoszenie i rozwiązanie.`,
+  },
+  {
     version: "0.2.0",
     date: "2026-11-20",
     en: `**Hammurabi 0.2.0: Architecture Decision Records.**

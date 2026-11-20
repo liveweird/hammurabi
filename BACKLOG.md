@@ -19,7 +19,6 @@ The `backlog` mod (`liveweird/claude-mods`) summarises the tags on the status li
 
 ## ADR MVP (0.2–0.5)
 
-- [new] **0.3.0 Discussion.** Comments/questions before `ACTIVE`, issues/escalations in `ACTIVE`.
 - [new] **0.4.0 Organise and find.** Tag categories, successor links + `SUPERSEDED`, multi-criteria filters, full-text search, URL-synced filters, saved lenses.
 - [new] **0.5.0 Notify.** The bell, email digest and preferences for DACI participants; expiry reminders.
 - [new] **Markdown export of an ADR.** Render an ADR in the adr-tools format.

@@ -7,14 +7,18 @@ the decision, the alternatives considered and the accepted consequences; every c
 they are active (comments and questions) and challenged after (issues and escalations). The name is Hammurabi of Babylon, whose stele carried one of the oldest written codes:
 decisions written down so that they bind and can be looked up.
 
-## What's here today (0.2.0 — the ADR core)
+## What's here today (0.3.0 — discussion)
 
-Hammurabi's repository started as an exact copy of [Flow](https://github.com/liveweird/flow) (1.57.1, `4e43e480`), trimmed to its generic foundation (0.1.0); 0.2.0 builds the ADR core on it:
+Hammurabi's repository started as an exact copy of [Flow](https://github.com/liveweird/flow) (1.57.1, `4e43e480`), trimmed to its generic foundation (0.1.0); 0.2.0 built the ADR core on it and 0.3.0 adds the discussion:
 
 - **ADRs** (`/api/v1/adrs`; the list, create and detail pages): a gapless `ADR-0001` key, a name, the problem, context, decision, alternatives and consequences in Markdown, an expiry date, and the
   lifecycle `PROBLEM_RAISED` → `SOLUTION_DRAFT` → `IN_REVIEW` → `ACTIVE` (or `CANCELLED`, `WITHDRAWN`, and `EXPIRED` by a daily sweep). **DACI** decides who may do what — one Driver, one
   Approver, Contributors and Informed — and the server serves each caller's allowed moves. Content freezes once an ADR is active; concurrent edits are guarded by `X-Expected-Revision`; every
   change is an event in a paged, localized **history**. The list filters by name or key, status and the ADRs you take part in, with the filters in the URL.
+- **Discussion** (`/api/v1/adrs/{id}/discussion`; the Discussion and Issues tabs of the ADR page): while an ADR is being drafted and reviewed anyone signed in can post a **comment** or ask a
+  **question** (a question is marked answered by its author, the Driver, the Approver or an ADMIN); once it is active anyone can raise an **issue** or an **escalation**, which the Driver, the
+  Approver or an ADMIN resolves (with an optional note) and reopens. Markdown bodies, authors edit their own, an author or an ADMIN deletes (a tombstone stays), everything stays readable in every
+  status, and the ADR list counts the open issues.
 
 - **Sign-in** with a JWT access/refresh pair, a server-side revocation blocklist, per-account lockout and per-IP rate limits; opt-in **email MFA**; **self-service password reset** by an
   emailed single-use link.
@@ -26,7 +30,7 @@ Hammurabi's repository started as an exact copy of [Flow](https://github.com/liv
 
 ## Roadmap
 
-0.2.0 ADR core (ids, lifecycle, DACI, history, expiry) · 0.3.0 discussion (comments, issues) · 0.4.0 tags, successors, filters and search · 0.5.0 notifications · 1.0.0 checkup.
+0.2.0 ADR core (ids, lifecycle, DACI, history, expiry) · 0.3.0 discussion (comments, questions, issues, escalations) · 0.4.0 tags, successors, filters and search · 0.5.0 notifications · 1.0.0 checkup.
 The scope of each version and the decisions behind it: `.claude/docs/product.md`; the domain model: `.claude/docs/adr-model.md`; open items: `BACKLOG.md`. `CLAUDE.md`'s "Product" and
 "Donors" sections say which sibling project each capability ports from.
 

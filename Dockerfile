@@ -25,7 +25,10 @@ WORKDIR /src
 # Copy build scripts + wrapper first so the Gradle distribution download caches.
 COPY gradlew settings.gradle.kts build.gradle.kts gradle.properties gradle.lockfile settings-gradle.lockfile buildscript-gradle.lockfile ./
 COPY gradle/ gradle/
-RUN ./gradlew --version --no-daemon
+# gradle-retry.sh re-runs a Gradle command only when it failed on a transient network miss (Maven Central / plugin portal 404 or 5xx,
+# the distribution download); strict locking and dependency verification stay on (Adder's 1.0.0 checkup C-GATE-1, ci.md "Transient resolution failures").
+COPY scripts/gradle-retry.sh /usr/local/bin/gradle-retry
+RUN gradle-retry ./gradlew --version --no-daemon
 # Module build files, then sources.
 COPY core/build.gradle.kts core/gradle.lockfile core/buildscript-gradle.lockfile core/
 COPY server/build.gradle.kts server/gradle.lockfile server/buildscript-gradle.lockfile server/
@@ -34,7 +37,7 @@ COPY server/src/ server/src/
 # installDist keeps every dependency as its own JAR, so Flyway's ServiceLoader
 # plugin discovery works exactly as under `:server:run` (a fat JAR collapses the
 # duplicate META-INF/services descriptors and breaks Flyway at startup).
-RUN ./gradlew :server:installDist --no-daemon
+RUN gradle-retry ./gradlew :server:installDist --no-daemon
 
 # ── Stage 3: runtime ──────────────────────────────────────────────────────────
 # Same major as the toolchain (jvmToolchain(21)) and the test JVM — what is tested is what runs.

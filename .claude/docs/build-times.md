@@ -23,7 +23,7 @@ workspaces, so knip and eslint never see it). Budgets live in ONE place, `script
 
 ```
 node scripts/timings/ci-times.mjs --limit 20            # last 20 successful runs per workflow (ci, e2e)
-node scripts/timings/ci-times.mjs --branch main       # the trunk only (PR noise excluded)
+node scripts/timings/ci-times.mjs --branch master       # the trunk only (PR noise excluded)
 node scripts/timings/ci-times.mjs --steps web           # + the slowest steps of that job's latest run
 node scripts/timings/ci-times.mjs --workflows e2e --steps e2e   # the nightly's per-step rows (build / start / specs)
 node scripts/timings/ci-times.mjs --tsv                 # raw rows: created, sha, event, branch, job, seconds
@@ -112,7 +112,7 @@ running WHY number so a code comment can point at it (`Hammurabi WHY n`).
 
 ## Review cadence
 
-- Run `node scripts/timings/ci-times.mjs --branch main` at every milestone / PR, and in every
+- Run `node scripts/timings/ci-times.mjs --branch master` at every milestone / PR, and in every
   checkup; run `local-times.mjs report` when a local gate feels slower.
 - A `TREND` flag or a budget breach becomes a dated investigation entry in this doc (WHY, evidence,
   outcome) — **never just a raised budget.** A budget changes only with the measurement that justifies

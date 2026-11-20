@@ -23,7 +23,7 @@ const here = dirname(fileURLToPath(import.meta.url));
 
 const USAGE = `Usage: node scripts/timings/ci-times.mjs [options]
   --limit N          successful runs per workflow to analyse (default 30)
-  --branch NAME      only runs on this branch (e.g. main)
+  --branch NAME      only runs on this branch (e.g. master)
   --workflows LIST   comma-separated workflow names (default ci,e2e)
   --tsv              print the raw rows (created, sha, event, branch, job, seconds) instead of the table
   --steps JOB        also print the slowest steps of JOB in its latest successful run

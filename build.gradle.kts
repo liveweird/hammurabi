@@ -55,3 +55,24 @@ tasks.register("verifySettingsPluginAudit") {
         settingsPluginAudit.resolve()
     }
 }
+
+// Resolves EVERY resolvable configuration of every project (and each buildscript classpath) down to its artifact files, so a
+// missing or unreachable dependency THROWS here, under the strict locking and `--dependency-verification strict` the build
+// already enforces, and the Gradle cache is warm for what follows. The `dependencies` / `buildEnvironment` report tasks cannot
+// do this job: they print FAILED beside an unresolvable node and still exit 0. CI's `server` job runs this task behind
+// `scripts/gradle-retry.sh` before the long `check` build (`.claude/docs/ci.md` "Transient resolution failures"). It adds no
+// dependency and changes no lock state: it resolves exactly what is declared.
+tasks.register("resolveAllDependencies") {
+    group = "verification"
+    description = "Resolves every resolvable configuration of every project to its files; fails on any miss."
+    doLast {
+        var resolved = 0
+        allprojects.forEach { p ->
+            (p.configurations + p.buildscript.configurations).filter { it.isCanBeResolved }.forEach { configuration ->
+                configuration.incoming.files.files
+                resolved++
+            }
+        }
+        logger.lifecycle("Resolved $resolved configurations across ${allprojects.size} projects")
+    }
+}

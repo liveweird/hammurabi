@@ -11,8 +11,8 @@ import {
 import { MAILPIT_URL } from "../playwright.config";
 
 // Email MFA (opt-in via the per-user MFA feature flag) + the feature-flags admin surfaces.
-// The full sign-in roundtrip needs the compose stack's Mailpit catcher (E2E_MAILPIT_URL);
-// that test skips itself when Mailpit is unreachable. NEVER touch the seed admin's MFA flag —
+// The full sign-in roundtrip needs the stack's Mailpit catcher (E2E_MAILPIT_URL), which global setup REQUIRES
+// (the suite refuses to start without it; nothing here skips). NEVER touch the seed admin's MFA flag —
 // enabling it would make every other spec's login demand a code.
 
 test("admin toggles a user's MFA on the feature-flags screen and the per-user editor", async ({
@@ -49,12 +49,6 @@ test("admin toggles a user's MFA on the feature-flags screen and the per-user ed
 });
 
 test("an MFA-enabled account signs in with the emailed code", async ({ page }) => {
-  const mailpitUp = await fetch(`${MAILPIT_URL}/api/v1/messages`).then(
-    (r) => r.ok,
-    () => false,
-  );
-  test.skip(!mailpitUp, "Mailpit (compose stack) is not reachable — the code email is unobservable");
-
   await login(page);
   const user = await createUserViaUi(page, "E2E-Mfa");
 

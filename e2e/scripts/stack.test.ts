@@ -18,10 +18,13 @@ function neverCalled(): Promise<boolean> {
   return Promise.reject(new Error("must not probe a stack that was not named"));
 }
 
+const NEVER_PROBES = { app: neverCalled, mailpit: neverCalled };
+const READY = { app: async () => true, mailpit: async () => true };
+
 test("nothing set refuses, names both variables, and never probes", async () => {
   const problems = targetProblems({});
   assert.equal(problems.length, TARGET_VARIABLES.length);
-  await assert.rejects(requireReadyTarget(problems, readTarget({}).baseUrl, neverCalled), (error: Error) => {
+  await assert.rejects(requireReadyTarget(problems, readTarget({}), NEVER_PROBES), (error: Error) => {
     for (const name of TARGET_VARIABLES) assert.match(error.message, new RegExp(name));
     assert.match(error.message, /default stack is a working stack/);
     return true;
@@ -40,7 +43,7 @@ test("one blank or relative value is named and the others are not", async () => 
     const problems = targetProblems(env);
     assert.equal(problems.length, 1, `${JSON.stringify(bad)} -> ${problems.join("; ")}`);
     assert.match(problems[0], expected);
-    await assert.rejects(requireReadyTarget(problems, env.E2E_BASE_URL, neverCalled), (error: Error) => {
+    await assert.rejects(requireReadyTarget(problems, readTarget(env), NEVER_PROBES), (error: Error) => {
       const named = error.message.split("\n").filter((line) => line.startsWith("  - "));
       assert.equal(named.length, 1);
       assert.match(named[0], /E2E_MAILPIT_URL/);
@@ -52,20 +55,40 @@ test("one blank or relative value is named and the others are not", async () => 
 test("two good values and a ready stack pass without a service command", async () => {
   assert.deepEqual(targetProblems(NAMED), []);
   const probed: string[] = [];
-  await requireReadyTarget(targetProblems(NAMED), NAMED.E2E_BASE_URL, async (url) => {
+  const probe = async (url: string) => {
     probed.push(url);
     return true;
-  });
-  assert.deepEqual(probed, [NAMED.E2E_BASE_URL]);
+  };
+  await requireReadyTarget(targetProblems(NAMED), readTarget(NAMED), { app: probe, mailpit: probe });
+  assert.deepEqual(probed, [NAMED.E2E_BASE_URL, NAMED.E2E_MAILPIT_URL]);
 });
 
 test("a stack that is not ready fails and nothing is started", async () => {
   const probed: string[] = [];
-  await assert.rejects(requireReadyTarget([], NAMED.E2E_BASE_URL, async (url) => {
-    probed.push(url);
-    return false;
+  await assert.rejects(requireReadyTarget([], readTarget(NAMED), {
+    app: async (url) => {
+      probed.push(url);
+      return false;
+    },
+    mailpit: neverCalled,
   }), /not ready: start that stack first/);
   assert.deepEqual(probed, [NAMED.E2E_BASE_URL]);
+});
+
+test("a stack whose Mailpit does not answer fails fast and names E2E_MAILPIT_URL: the email specs never skip", async () => {
+  await assert.rejects(requireReadyTarget([], readTarget(NAMED), { ...READY, mailpit: async () => false }), (error: Error) => {
+    assert.match(error.message, /E2E_MAILPIT_URL \(http:\/\/stack\.example\.test:9001\) is not reachable/);
+    assert.match(error.message, /cannot run without it/);
+    return true;
+  });
+});
+
+test("a test that passed only on retry fails the run, and no spec skips itself", () => {
+  assert.equal(config.failOnFlakyTests, true);
+  const specs = join(root, "tests");
+  for (const file of readdirSync(specs).filter((name) => name.endsWith(".spec.ts"))) {
+    assert.doesNotMatch(readFileSync(join(specs, file), "utf8"), /test\.skip\(/, `${file} must not skip itself (Mailpit is required by global setup)`);
+  }
 });
 
 test("the suite registers no global teardown: a stack is never torn down", () => {

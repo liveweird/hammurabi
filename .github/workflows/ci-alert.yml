@@ -1,7 +1,7 @@
 name: ci-alert
 
 # Reusable (`workflow_call` only): opens or updates ONE GitHub issue per failing workflow, so a red nightly e2e run or a
-# red main `images` job does not wait for someone to look at the Actions tab (checkup 3, D8-5 / D5-1;
+# red job on a master push does not wait for someone to look at the Actions tab (checkup 3, D8-5 / D5-1;
 # `.claude/docs/ci.md` "Failure alerting"). The callers (`e2e.yml`, `ci.yml`) decide WHEN (`failure()` on the right
 # trigger) and grant `issues: write` on their calling job; nothing else here needs a token scope, a checkout or a secret.
 #
@@ -38,7 +38,7 @@ jobs:
         run: |
           set -euo pipefail
           gh label create "$LABEL" --force --color B60205 \
-            --description "A scheduled or main-branch CI run failed (opened by ci-alert.yml; closed by hand)"
+            --description "A scheduled or master-branch CI run failed (opened by ci-alert.yml; closed by hand)"
 
           cat > "$RUNNER_TEMP/body.md" <<BODY
           Run: $RUN_URL (attempt $RUN_ATTEMPT)

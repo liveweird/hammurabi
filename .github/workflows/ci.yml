@@ -6,17 +6,17 @@ name: ci
 # (the spec → schema.ts drift check, lint, knip, tests with coverage floors, build), and the
 # Docker-free e2e statics (lint, knip, typecheck, spec↔scenario parity), the Kubernetes manifest
 # validation (`k8s-static`), an `npm audit` of both npm workspaces, and an image build plus a Trivy
-# scan of it (`images`: main pushes and every pull request that changes more than Markdown). The blackbox Playwright suite runs nightly and on demand (e2e.yml).
+# scan of it (`images`: master pushes and every pull request that changes more than Markdown). The blackbox Playwright suite runs nightly and on demand (e2e.yml).
 on:
   push:
-    branches: [main]
+    branches: [master]
   pull_request:
 
-# A newer push to a pull request supersedes its older run; a push to main never cancels
-# (every main commit, and so every release commit, is fully verified — see the `changes` job).
-# A main run gets a group of its own (the run id): within one shared group GitHub keeps a single
+# A newer push to a pull request supersedes its older run; a push to master never cancels
+# (every master commit, and so every release commit, is fully verified — see the `changes` job).
+# A master run gets a group of its own (the run id): within one shared group GitHub keeps a single
 # PENDING run and cancels the older pending one, so `cancel-in-progress: false` alone would still drop
-# queued main commits.
+# queued master commits.
 concurrency:
   group: ci-${{ github.event_name == 'pull_request' && github.ref || github.run_id }}
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
@@ -27,9 +27,11 @@ permissions:
 jobs:
   changes:
     # Decides whether the server and images jobs run. A pull request that changes only Markdown skips
-    # both (the Testcontainers suite and the image build have nothing to verify). Pushes to main always
-    # run both, so every main commit (and so every release commit) is fully verified. Plain git, no
-    # third-party action.
+    # both (the Testcontainers suite and the image build have nothing to verify) - EXCEPT that a change to one of the
+    # three always-loaded instruction files (CLAUDE.md, .claude/docs/testing.md, .claude/docs/list-endpoints.md) still runs
+    # `server`: AlwaysLoadedDocsBudgetTest reads them and holds their combined size to a budget (C-GATE-3). `images` stays
+    # skipped. Pushes to master always run both, so every master commit (and so every release commit) is fully verified.
+    # Plain git, no third-party action.
     runs-on: ubuntu-24.04
     timeout-minutes: 5
     outputs:
@@ -52,6 +54,10 @@ jobs:
             if [ -n "$changed" ] && ! printf '%s\n' "$changed" | grep -qEv '\.md$'; then
               images=false
               server=false
+              # The Markdown files a server test reads (AlwaysLoadedDocsBudgetTest): keep this list in step with that test.
+              if printf '%s\n' "$changed" | grep -qxE 'CLAUDE\.md|\.claude/docs/testing\.md|\.claude/docs/list-endpoints\.md'; then
+                server=true
+              fi
             fi
           fi
           echo "server=$server" >> "$GITHUB_OUTPUT"
@@ -89,6 +95,13 @@ jobs:
           for state in gradle/verification-metadata.xml gradle.lockfile settings-gradle.lockfile buildscript-gradle.lockfile core/gradle.lockfile core/buildscript-gradle.lockfile server/gradle.lockfile server/buildscript-gradle.lockfile; do
             test -s "$state"
           done
+      # Resolve every configuration of every project to its files first, behind the bounded retry (scripts/gradle-retry.sh: 3
+      # attempts, only on a transient Maven Central / plugin-portal miss, strict verification stays on). `resolveAllDependencies`
+      # (root build.gradle.kts) throws on any miss, unlike the `dependencies` report tasks, which print FAILED and exit 0. The
+      # build below then starts from a warm cache, so a flaky resolution is retried here in seconds instead of failing a 25-minute
+      # run (`.claude/docs/ci.md` "Transient resolution failures").
+      - name: Resolve Gradle dependencies (bounded retry)
+        run: scripts/gradle-retry.sh ./gradlew --dependency-verification strict --no-daemon --console=plain resolveAllDependencies
       # `check` = compile + detekt + test + koverVerify + checkDependencyAlignment, plus `:server:installDist` (the packaging the
       # image uses); not `build`, whose extra assemble outputs (zips/tars, the never-used fat JAR) cost ~15 s and verify nothing
       # the image depends on (`.claude/docs/build-times.md` status check 2026-10-23).
@@ -127,7 +140,8 @@ jobs:
           # and tests on the JDK the repo was verified on; bump the three together.
           java-version: 21.0.13
           cache: gradle
-      - run: ./gradlew :verifySettingsPluginAudit --no-daemon
+      # Behind the bounded retry (scripts/gradle-retry.sh), like the `server` job's resolve step.
+      - run: scripts/gradle-retry.sh ./gradlew :verifySettingsPluginAudit --no-daemon
       - name: Scan Gradle lockfiles
         run: |
           mkdir -p "$RUNNER_TEMP/gradle-locks/core" "$RUNNER_TEMP/gradle-locks/server" "$RUNNER_TEMP/trivy-cache"
@@ -192,7 +206,7 @@ jobs:
       # type-aware (no parserOptions.project), so a file's result depends only on its own bytes plus the
       # config, which ESLint hashes into every entry together with its own and node's version; the key adds the
       # lockfile and the config file, so a plugin/dependency bump starts cold. Keyed per commit with a prefix
-      # restore: a PR run restores the newest main cache (caches written on the default branch are readable
+      # restore: a PR run restores the newest master cache (caches written on the default branch are readable
       # from every PR), lints only the files it changed and saves its own. Measured in the donor project:
       # a fully warm lint 12.1 s -> 0.6 s locally; the CI job's lint was 22-36 s.
       - name: Restore the ESLint cache
@@ -306,9 +320,9 @@ jobs:
   images:
     # Dockerfile drift guard: the image must still build — and, built, must carry no fixable
     # HIGH/CRITICAL vulnerability (the base-image digests are pinned, so this is where a stale digest
-    # or an unpatched OS package surfaces). On main pushes and on every pull request that changes
+    # or an unpatched OS package surfaces). On master pushes and on every pull request that changes
     # more than Markdown (`changes`), so a dependency or base-image bump that brings a fixable
-    # HIGH/CRITICAL is caught before the merge, not by the main run after it. ~3 min of runner time
+    # HIGH/CRITICAL is caught before the merge, not by the master run after it. ~3 min of runner time
     # per PR, in parallel with the longer `server` job, so it does not lengthen a PR's wall time.
     #
     # A plain `docker compose build` on the runner's own Docker, deliberately WITHOUT a BuildKit layer cache
@@ -354,13 +368,15 @@ jobs:
             image --scanners vuln --severity HIGH,CRITICAL --ignore-unfixed --exit-code 1 \
             --cache-dir /cache --no-progress hammurabi-app
 
-  # A red `images` job on a main push opens (or comments on) the one "main images job is failing" issue
-  # (`ci-alert.yml`; closing it is manual, `.claude/docs/ci.md` "Failure alerting"). Pull requests never reach it.
-  images-alert:
-    needs: images
-    if: ${{ failure() && github.event_name == 'push' && github.ref == 'refs/heads/main' }}
+  # Any red job on a master push opens (or comments on) the one "master CI is failing" issue (`ci-alert.yml`; closing it is
+  # manual, `.claude/docs/ci.md` "Failure alerting"). It `needs` every job above, so `failure()` is true when any of them
+  # failed; a skipped job does not count. Pull requests never reach it (`github.ref` is not master): their author sees the
+  # red check. Keep the `needs` list complete when a job is added.
+  alert:
+    needs: [changes, server, gradle-vulnerability-scan, web, e2e-static, k8s-static, images]
+    if: ${{ failure() && github.ref == 'refs/heads/master' }}
     permissions:
       issues: write
     uses: ./.github/workflows/ci-alert.yml
     with:
-      title: main images job is failing
+      title: master CI is failing

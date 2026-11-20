@@ -20,6 +20,10 @@ export default defineConfig({
   workers: Number(process.env.E2E_WORKERS ?? 4),
   forbidOnly: !!process.env.CI,
   retries: process.env.CI ? 2 : 0,
+  // A retry keeps one network blip from reddening the nightly, but a test that PASSED ONLY ON RETRY is a flake somebody must
+  // see: the run exits non-zero (and the nightly's alert issue opens) instead of staying green (1.0.0 checkup C-GATE-8).
+  // Unconditional: locally retries are 0, so no test can be flaky there.
+  failOnFlakyTests: true,
   reporter: [["list"], ["html", { open: "never" }]],
   timeout: 60_000,
   expect: { timeout: 10_000 },

@@ -3,7 +3,7 @@ name: e2e
 # Blackbox Playwright suite: brings the full stack up via docker compose and drives a real browser.
 on:
   # Not on push/PR: the compose stack + Playwright on a runner takes ~10+ minutes — ci.yml
-  # (server/web/e2e-static gates) is the PR gate. The suite runs NIGHTLY against main so a
+  # (server/web/e2e-static gates) is the PR gate. The suite runs NIGHTLY against master so a
   # UI regression is caught within a day, and on demand from the Actions tab → "e2e" → "Run workflow".
   schedule:
     - cron: "17 3 * * *"
@@ -91,6 +91,8 @@ jobs:
       - name: Start the stack
         run: docker compose up -d --wait --wait-timeout 300
 
+      # Red when a test fails, when a test passed only on a retry (`failOnFlakyTests` in playwright.config.ts: a flake must
+      # not hide behind the CI retries), and when Mailpit is unreachable (global setup requires it; the email specs never skip).
       - name: Run E2E
         working-directory: e2e
         run: npx playwright test
@@ -108,7 +110,7 @@ jobs:
           path: e2e/playwright-report/
           retention-days: 7
 
-      # The nightly CVE check (checkup 2, 2A5): ci.yml's `images` scan runs only on a main push, so an
+      # The nightly CVE check (checkup 2, 2A5): ci.yml's `images` scan runs only on a master push, so an
       # advisory published during a quiet week surfaces only with the next merge. Same scanner, flags and
       # gate as `images` (keep the two in step); it scans the image this run already built, and runs after
       # the suite so a red scan never hides a UI regression (or the other way round).

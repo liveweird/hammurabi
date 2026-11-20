@@ -7,7 +7,7 @@ Hammurabi starts at **0.1.0** (the foundation; `APP_VERSION` in `web/src/changel
 Every PR that changes what a user sees or gets (a feature, a fix, a changed figure, a UI change) bumps
 `APP_VERSION` and adds its own English and Polish entry at the top of `web/src/changelog/entries.ts`, in that PR:
 a **minor** bump for a feature, a **patch** bump for a fix. Documentation-, test-, CI- and dependency-only PRs keep
-the version. An entry is never reopened to fold in a later change: once a version is on `main`, the next change
+the version. An entry is never reopened to fold in a later change: once a version is on `master`, the next change
 gets the next version, so the displayed `v<APP_VERSION>` tells builds apart, not only the commit SHA. Versions are
 not roadmap milestones (the roadmap in `product.md` names the versions it intends, but a patch release in between is normal).
 
@@ -27,9 +27,9 @@ the same commit. Gradle and npm package versions are separate.
 
 ## Publishing a new version
 
-1. Merge the reviewed version/changelog change into `main` after its required checks pass.
+1. Merge the reviewed version/changelog change into `master` after its required checks pass.
    Record the full release commit SHA and verify that commit's `APP_VERSION` and newest
-   changelog entry match the intended version. Wait for CI on that exact main commit.
+   changelog entry match the intended version. Wait for CI on that exact master commit.
 2. Create an annotated `v<APP_VERSION>` tag at that explicit SHA, then push that tag only.
    Never let a moving branch name choose the release commit. Existing published tags are
    immutable by convention: do not move, replace or force-push them.

@@ -1,0 +1,41 @@
+{
+  "title": "Tagi",
+  "intro": "Jedyne tagi, które może mieć ADR, pogrupowane w kategorie. Każdy może je czytać; administratorzy/rki prowadzą kategorie i ich tagi (tag należy do dokładnie jednej kategorii).",
+  "empty": "Nie ma jeszcze kategorii tagów",
+  "loadFailed": "Nie udało się wczytać kategorii tagów",
+  "newCategory": "Nowa kategoria",
+  "createTitle": "Nowa kategoria tagów",
+  "editTitle": "Edytuj kategorię tagów",
+  "column": {
+    "name": "Kategoria",
+    "description": "Opis",
+    "tags": "Tagi"
+  },
+  "field": {
+    "tags": "Tagi",
+    "tagsHint": "Enter lub przecinek dodaje tag. Dozwolone: małe litery, cyfry, spacje oraz . _ / + # : - ; tag należy tylko do jednej kategorii.",
+    "tagsAria": "Tagi kategorii {{name}}"
+  },
+  "validation": {
+    "nameLength": "Nazwa musi mieć 1–60 znaków",
+    "descriptionLength": "Opis może mieć najwyżej 500 znaków",
+    "tagsRequired": "Dodaj co najmniej jeden tag",
+    "tagsCount": "Najwyżej {{max}} tagów",
+    "tag": "Tag „{{tag}}” musi mieć 1–{{max}} znaków: litery i cyfry, a w środku spacje oraz . _ / + # : -",
+    "tagsDuplicate": "Tagi nie mogą się powtarzać"
+  },
+  "saveForbidden": "Tylko administratorzy/rki mogą edytować kategorie tagów",
+  "saveConflict": "Nazwa kategorii albo jeden z jej tagów jest już zajęty",
+  "saveInvalid": "Co najmniej jedno pole jest nieprawidłowe",
+  "saveStale": "Inny administrator zmienił tę kategorię po jej otwarciu. Twoja zmiana nie została zapisana: zamknij to okno i otwórz kategorię ponownie, aby zobaczyć aktualną wersję.",
+  "saveGone": "Ta kategoria już nie istnieje — odśwież stronę",
+  "deleteTitle": "Usunąć kategorię tagów?",
+  "deleteFailed": "Nie udało się usunąć kategorii tagów",
+  "deleteStale": "Ta kategoria została zmieniona po jej otwarciu, więc nie została usunięta. Odśwież stronę i sprawdź jej tagi przed usunięciem.",
+  "deleteBody": "Kategoria „{{name}}” i jej tagi opuszczą rejestr. ADR-y, które mają te tagi, zachowają je jako wycofane, dopóki tagi nie zostaną zmienione.",
+  "toast": {
+    "created": "Utworzono kategorię tagów",
+    "saved": "Zapisano kategorię tagów",
+    "deleted": "Usunięto kategorię tagów"
+  }
+}

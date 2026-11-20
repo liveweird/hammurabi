@@ -1,22 +1,22 @@
-// ADR API (`/api/v1/adrs`, 0.2.0) — the record, its lifecycle transitions, its DACI participants and its history.
+// ADR API (`/api/v1/adrs`, 0.2.0) — the record, its lifecycle transitions, its DACI participants, its tags, its successor link and its history.
 // Thin endpoint wrappers: transport (authedFetch/ApiError) in ./http, types from ./schema. The document PUT, the transitions
-// and the participants PUT carry `X-Expected-Revision` (the revision the caller read); a real participant change bumps it.
+// the participants PUT, the tags PUT and the supersedes PUT carry `X-Expected-Revision` (the revision the caller read); a real change bumps it.
 
-import { buildQuery, jsonRequest, voidRequest } from "./http";
+import { buildQuery, jsonRequest, REVISION_HEADER, voidRequest } from "./http";
 import type { components, paths } from "./schema";
 
 export type AdrStatus = components["schemas"]["AdrStatus"];
 export type AdrRole = components["schemas"]["AdrRole"];
 export type AdrParticipant = components["schemas"]["AdrParticipant"];
 export type AdrParticipantRequest = components["schemas"]["AdrParticipantRequest"];
+export type AdrTag = components["schemas"]["AdrTag"];
+export type AdrRef = components["schemas"]["AdrRef"];
 export type AdrResponse = components["schemas"]["AdrResponse"];
 export type AdrPage = components["schemas"]["AdrPage"];
 export type AdrEventResponse = components["schemas"]["AdrEventResponse"];
 export type AdrEventPage = components["schemas"]["AdrEventPage"];
 export type AdrCreateBody = paths["/api/v1/adrs"]["post"]["requestBody"]["content"]["application/json"];
 export type AdrUpdateBody = paths["/api/v1/adrs/{id}"]["put"]["requestBody"]["content"]["application/json"];
-
-const REVISION_HEADER = "X-Expected-Revision";
 
 type AdrListQuery = {
   page: number;
@@ -29,6 +29,8 @@ type AdrListQuery = {
   participant?: number;
   /** Narrows `participant` to one DACI role (the server 400s a lone role). */
   role?: AdrRole;
+  /** Any-of; each tag name travels as its own repeated key. */
+  tag?: readonly string[];
 };
 
 export async function listAdrs(q: AdrListQuery): Promise<AdrPage> {
@@ -40,6 +42,7 @@ export async function listAdrs(q: AdrListQuery): Promise<AdrPage> {
     q: q.q,
     participant: q.participant,
     role: q.role,
+    tag: q.tag,
   });
   return jsonRequest<AdrPage>(`/api/v1/adrs?${params}`);
 }
@@ -77,6 +80,32 @@ export async function replaceAdrParticipants(id: number, revision: number, parti
     headers: { [REVISION_HEADER]: String(revision) },
     body: JSON.stringify({ participants }),
   });
+}
+
+/** A wholesale replace of the tag set (registry names; the server answers 400 for an unregistered or retired one) under the revision the caller read. */
+export async function replaceAdrTags(id: number, revision: number, tags: string[]): Promise<void> {
+  await voidRequest(`/api/v1/adrs/${id}/tags`, {
+    method: "PUT",
+    headers: { [REVISION_HEADER]: String(revision) },
+    body: JSON.stringify({ tags }),
+  });
+}
+
+/** Sets (or, with null, removes) the ADR this one replaces, under the revision the caller read. */
+export async function setAdrSupersedes(id: number, revision: number, supersedesId: number | null): Promise<void> {
+  await voidRequest(`/api/v1/adrs/${id}/supersedes`, {
+    method: "PUT",
+    headers: { [REVISION_HEADER]: String(revision) },
+    body: JSON.stringify({ supersedesId }),
+  });
+}
+
+/**
+ * The PREDECESSOR's owner detaches its pending successor (no revision header: the route names the one pending link and the server judges
+ * it under its locks). The successor's revision bumps, so its open editors conflict; this ADR's own revision does not move.
+ */
+export async function detachAdrSuccessor(id: number): Promise<void> {
+  await voidRequest(`/api/v1/adrs/${id}/successor`, { method: "DELETE" });
 }
 
 export async function deleteAdr(id: number): Promise<void> {

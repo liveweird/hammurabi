@@ -32,6 +32,7 @@ export default function SearchPicker({
   minTermHint,
   exclude,
   maxLength,
+  lazy = false,
 }: {
   label: string;
   description?: string;
@@ -64,7 +65,13 @@ export default function SearchPicker({
   exclude?: ReadonlySet<string>;
   /** The longest term the box accepts (the server's own limit on the search term). */
   maxLength?: number;
+  /**
+   * Hold the search back until the dropdown is first opened or the user types (a picker that sits in a panel on every page view must not
+   * fetch a list nobody asked to see). Default off: the unfiltered head loads with the control.
+   */
+  lazy?: boolean;
 }) {
+  const [engaged, setEngaged] = useState(!lazy);
   const [searchValue, setSearchValue] = useState(picked?.label ?? "");
   // The caller may change the pick without a choice here (clearing a row's own owner hands it back the dialog's): the box follows the
   // pick's label, the derived-state pattern (set during render, no effect), else it would show the old label for a value it no longer holds.
@@ -83,7 +90,7 @@ export default function SearchPicker({
     queryKey: [...queryKey, debounced],
     queryFn: () => search(debounced),
     placeholderData: keepPreviousData,
-    enabled: enabled && codePoints(debounced) >= minTermLength,
+    enabled: enabled && engaged && codePoints(debounced) >= minTermLength,
   });
   const loading = results.isLoading || results.isPlaceholderData;
   // The picked entry leads the options under its own (stable) label: a new term replaces the rows
@@ -111,7 +118,11 @@ export default function SearchPicker({
         clearable={clearable}
         clearButtonProps={{ "aria-label": clearLabel }}
         searchValue={searchValue}
-        onSearchChange={setSearchValue}
+        onSearchChange={(value) => {
+          setSearchValue(value);
+          if (value !== "") setEngaged(true);
+        }}
+        onDropdownOpen={() => setEngaged(true)}
         value={picked?.value ?? null}
         onChange={(value, option) => onPick(value !== null && option ? { value: option.value, label: option.label } : null)}
         nothingFoundMessage={nothingFound}

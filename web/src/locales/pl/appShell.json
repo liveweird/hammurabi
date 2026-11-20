@@ -10,7 +10,8 @@
     "featureFlags": "Flagi funkcji",
     "changelog": "Historia zmian",
     "teams": "Zespoły",
-    "adrs": "ADR-y"
+    "adrs": "ADR-y",
+    "tags": "Tagi"
   },
   "section": {
     "overview": "Przegląd",

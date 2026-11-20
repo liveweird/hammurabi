@@ -22,7 +22,8 @@
     "key": "Key",
     "status": "Status",
     "updated": "Updated",
-    "openIssues": "Open issues"
+    "openIssues": "Open issues",
+    "tags": "Tags"
   },
   "filter": {
     "q": "Name or key",
@@ -31,7 +32,9 @@
     "clearStatus": "Clear status filter",
     "mine": "Only ADRs I take part in",
     "role": "My role",
-    "clearRole": "Clear role filter"
+    "clearRole": "Clear role filter",
+    "tag": "Tags",
+    "clearTag": "Clear tag filter"
   },
   "status": {
     "PROBLEM_RAISED": "Problem raised",
@@ -112,7 +115,9 @@
     "status": "Status",
     "daci": "DACI",
     "details": "Details",
-    "history": "History"
+    "history": "History",
+    "tags": "Tags",
+    "successor": "Successor"
   },
   "daci": {
     "listAria": "{{role}} to add",
@@ -149,7 +154,7 @@
       "PARTICIPANT_REMOVED": "{{name}} removed ({{role}})",
       "PARTICIPANT_CHANGED": "{{name}} moved from {{from}} to {{to}}",
       "EXPIRED": "Expired: the expiry date {{expiresOn}} has passed",
-      "SUPERSEDED": "Superseded by a successor",
+      "SUPERSEDED": "Superseded by {{key}}",
       "COMMENTED": "Comment added",
       "QUESTION_ASKED": "Question asked",
       "QUESTION_ANSWERED": "Question answered",
@@ -159,7 +164,12 @@
       "ISSUE_RESOLVED": "Issue resolved",
       "ISSUE_REOPENED": "Issue reopened",
       "ESCALATION_RESOLVED": "Escalation resolved",
-      "ESCALATION_REOPENED": "Escalation reopened"
+      "ESCALATION_REOPENED": "Escalation reopened",
+      "TAGS_CHANGED": "Tags changed",
+      "SUCCESSOR_LINKED": "Set to replace {{key}}",
+      "SUCCESSOR_UNLINKED": "No longer replaces {{key}}",
+      "SUCCESSOR_DETACHED": "Pending successor {{key}} detached",
+      "SUCCESSOR_ACTIVATED": "Activated and superseded {{key}}"
     },
     "line": {
       "created": "{{key}} \"{{name}}\"",
@@ -167,7 +177,10 @@
       "expiryChanged": "Expiry date: {{from}} → {{to}}",
       "expirySet": "Expiry date set to {{to}}",
       "expiryCleared": "Expiry date removed (was {{from}})",
-      "textChanged": "{{field}} changed"
+      "textChanged": "{{field}} changed",
+      "adrName": "\"{{name}}\"",
+      "tagsAdded": "Added: {{tags}}",
+      "tagsRemoved": "Removed: {{tags}}"
     }
   },
   "validation": {
@@ -181,14 +194,18 @@
     "reload": "Reload the ADR",
     "createInvalid": "Check the fields: the problem is required, the lengths are limited and the people you name must be active users.",
     "saveInvalid": "Check the fields: the name and the problem are required, the lengths are limited and the expiry date must not be in the past.",
-    "transitionInvalid": "Not ready for that move: entering review or activation needs a context, a decision, consequences and an Approver, and an expiry date that is not in the past.",
+    "transitionInvalid": "Not ready for that move: entering review or activation needs a context, a decision, consequences and an Approver, an expiry date that is not in the past, and - when this ADR replaces another one - that ADR being active.",
     "participantsInvalid": "Check the participants: exactly one Driver, at most one Approver, each person once, and only active users can be added.",
     "revisionConflict": "Someone else changed this ADR after you opened it. Reload it to see the latest version; unsaved edits in the open form are discarded.",
     "frozen": "This ADR is frozen: its content can no longer be changed in its current status. Reload to see its latest state.",
     "illegalTransition": "This ADR cannot move there from its current status. Reload to see what is possible now.",
     "forbidden": "Your role on this ADR does not allow this.",
     "gone": "This ADR no longer exists.",
-    "nameTaken": "An ADR with this name already exists."
+    "nameTaken": "An ADR with this name already exists.",
+    "tagsInvalid": "Check the tags: use only tags from the registry (remove a retired one), each once, at most 20.",
+    "supersedesInvalid": "Check the link: pick another ADR that is active or still being drafted.",
+    "supersedesConflict": "That link is not possible: it would close a loop of successors, or that ADR already has a successor on its way.",
+    "detachGone": "This ADR has no pending successor any more. Reload to see its latest state."
   },
   "toast": {
     "created": "ADR raised",
@@ -196,7 +213,11 @@
     "moved": "Status changed",
     "participantsSaved": "Participants saved",
     "expirySaved": "Expiry date saved",
-    "deleted": "ADR deleted"
+    "deleted": "ADR deleted",
+    "tagsSaved": "Tags saved",
+    "linked": "Successor link saved",
+    "unlinked": "Successor link removed",
+    "detached": "Successor detached"
   },
   "openIssuesAria": "Open issues: {{count}}",
   "tab": {
@@ -277,6 +298,47 @@
       "OPEN": "Reopened",
       "ANSWERED": "Marked answered",
       "RESOLVED": "Resolved"
+    }
+  },
+  "tags": {
+    "none": "No tags",
+    "edit": "Edit tags",
+    "label": "Tags",
+    "placeholder": "Pick tags from the registry…",
+    "hint": "Only tags from the registry can be used; administrators curate it.",
+    "retiredHint": "A retired tag is no longer in the registry. It is dropped when you save.",
+    "retiredAria": "{{name}} (retired)",
+    "empty": "The registry has no tags yet.",
+    "save": "Save tags",
+    "clear": "Clear the tags",
+    "loadFailed": "Could not load the tag registry"
+  },
+  "successor": {
+    "supersedes": "This ADR supersedes",
+    "supersededBy": "Replaced by",
+    "pending": "Set to replace this ADR",
+    "none": "Replaces no ADR.",
+    "hint": "Takes effect when this ADR becomes active: the ADR it replaces is then superseded.",
+    "pickerLabel": "This ADR supersedes…",
+    "pickerPlaceholder": "Search ADRs by key or name…",
+    "pickerClear": "Clear the ADR",
+    "noMatch": "No matching ADRs",
+    "link": "Link",
+    "unlink": "Remove the link"
+  },
+  "banner": {
+    "superseded": {
+      "title": "This ADR is superseded",
+      "body": "The decision in this ADR was replaced by"
+    },
+    "pending": {
+      "title": "A successor is on its way",
+      "body": "is set to replace this ADR; once it becomes active, this ADR is superseded.",
+      "detach": "Detach",
+      "detachTitle": "Detach {{key}}?",
+      "detachMessage": "{{key}} stops being set to replace this ADR and this ADR stays as it is. The link is its Driver's to set again; nothing else in that draft changes.",
+      "detachConfirm": "Detach",
+      "cancel": "Keep it"
     }
   }
 }

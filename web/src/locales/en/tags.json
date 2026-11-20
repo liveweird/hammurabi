@@ -1,0 +1,41 @@
+{
+  "title": "Tags",
+  "intro": "The only tags an ADR may carry, grouped into categories. Everyone can read them; administrators curate the categories and their tags (a tag belongs to exactly one category).",
+  "empty": "No tag categories yet",
+  "loadFailed": "Could not load the tag categories",
+  "newCategory": "New category",
+  "createTitle": "New tag category",
+  "editTitle": "Edit tag category",
+  "column": {
+    "name": "Category",
+    "description": "Description",
+    "tags": "Tags"
+  },
+  "field": {
+    "tags": "Tags",
+    "tagsHint": "Press Enter or comma to add each tag. Lowercase letters, digits, spaces and . _ / + # : - are allowed; a tag belongs to only one category.",
+    "tagsAria": "Tags of {{name}}"
+  },
+  "validation": {
+    "nameLength": "Name must be 1–60 characters",
+    "descriptionLength": "Description must be at most 500 characters",
+    "tagsRequired": "Add at least one tag",
+    "tagsCount": "At most {{max}} tags",
+    "tag": "Tag \"{{tag}}\" must be 1–{{max}} characters: letters and digits, with spaces and . _ / + # : - inside",
+    "tagsDuplicate": "Tags must not repeat"
+  },
+  "saveForbidden": "Only administrators can edit tag categories",
+  "saveConflict": "The category name or one of its tags is already in use",
+  "saveInvalid": "One or more fields are invalid",
+  "saveStale": "Another administrator changed this category after you opened it. Your edit was not saved: close this dialog and open the category again to see the latest version.",
+  "saveGone": "This category no longer exists — reload the page",
+  "deleteTitle": "Delete tag category?",
+  "deleteFailed": "Could not delete the tag category",
+  "deleteStale": "This category was changed after you opened it, so it was not deleted. Reload the page and check its tags before deleting it.",
+  "deleteBody": "\"{{name}}\" and its tags will leave the registry. ADRs that carry those tags keep them, marked as retired, until the tags are edited.",
+  "toast": {
+    "created": "Tag category created",
+    "saved": "Tag category saved",
+    "deleted": "Tag category deleted"
+  }
+}

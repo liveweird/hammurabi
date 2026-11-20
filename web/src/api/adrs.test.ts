@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
 import { jsonResponse } from "../test/http";
-import { createAdr, deleteAdr, getAdr, listAdrEvents, listAdrs, replaceAdrParticipants, transitionAdr, updateAdr } from "./adrs";
+import { createAdr, deleteAdr, detachAdrSuccessor, getAdr, listAdrEvents, listAdrs, replaceAdrParticipants, replaceAdrTags, setAdrSupersedes, transitionAdr, updateAdr } from "./adrs";
 
 type FetchMock = ReturnType<typeof vi.fn>;
 
@@ -25,6 +25,12 @@ describe("ADR API wrappers", () => {
     mockFetch.mockResolvedValue(jsonResponse(200, { items: [], page: 1, pageSize: 20, total: 0 }));
     await listAdrs({ page: 2, pageSize: 40, sort: "-number", status: ["ACTIVE", "IN_REVIEW"], q: "adr-1", participant: 7, role: "DRIVER" });
     expect(lastCall()[0]).toBe("/api/v1/adrs?page=2&pageSize=40&sort=-number&status=ACTIVE&status=IN_REVIEW&q=adr-1&participant=7&role=DRIVER");
+  });
+
+  test("listAdrs repeats the tag key", async () => {
+    mockFetch.mockResolvedValue(jsonResponse(200, { items: [], page: 1, pageSize: 20, total: 0 }));
+    await listAdrs({ page: 1, pageSize: 20, tag: ["data", "high availability"] });
+    expect(lastCall()[0]).toBe("/api/v1/adrs?page=1&pageSize=20&tag=data&tag=high+availability");
   });
 
   test("listAdrs omits absent filters", async () => {
@@ -70,6 +76,29 @@ describe("ADR API wrappers", () => {
     expect(lastCall()[1].method).toBe("PUT");
     expect(header("X-Expected-Revision")).toBe("6");
     expect(JSON.parse(lastCall()[1].body as string)).toEqual({ participants: [{ userId: 5, role: "DRIVER" }] });
+  });
+
+  test("the tags PUT and the supersedes PUT are revision-guarded and send their whole body", async () => {
+    mockFetch.mockResolvedValue(new Response(null, { status: 204 }));
+    await replaceAdrTags(4, 8, ["data", "team"]);
+    expect(lastCall()[0]).toBe("/api/v1/adrs/4/tags");
+    expect(lastCall()[1].method).toBe("PUT");
+    expect(header("X-Expected-Revision")).toBe("8");
+    expect(JSON.parse(lastCall()[1].body as string)).toEqual({ tags: ["data", "team"] });
+    await setAdrSupersedes(4, 9, 2);
+    expect(lastCall()[0]).toBe("/api/v1/adrs/4/supersedes");
+    expect(header("X-Expected-Revision")).toBe("9");
+    expect(JSON.parse(lastCall()[1].body as string)).toEqual({ supersedesId: 2 });
+    await setAdrSupersedes(4, 10, null);
+    expect(JSON.parse(lastCall()[1].body as string)).toEqual({ supersedesId: null });
+  });
+
+  test("detaching the pending successor is a header-less DELETE on the predecessor's successor", async () => {
+    mockFetch.mockResolvedValue(new Response(null, { status: 204 }));
+    await detachAdrSuccessor(4);
+    expect(lastCall()[0]).toBe("/api/v1/adrs/4/successor");
+    expect(lastCall()[1].method).toBe("DELETE");
+    expect(header("X-Expected-Revision")).toBeNull();
   });
 
   test("listAdrEvents pages the history", async () => {

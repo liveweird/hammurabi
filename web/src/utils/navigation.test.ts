@@ -9,9 +9,9 @@ describe("visibleSections", () => {
     expect(paths).toEqual(["/", "/adrs", "/teams"]);
   });
 
-  test("an admin session gets Teams, Users and Feature flags in the Administration section", () => {
+  test("an admin session gets Teams, Tags, Users and Feature flags in the Administration section", () => {
     const admin = visibleSections(true).find((s) => s.label === "appShell.section.administration");
-    expect(admin?.items.map((l) => l.to)).toEqual(["/teams", "/users", "/feature-flags"]);
+    expect(admin?.items.map((l) => l.to)).toEqual(["/teams", "/tags", "/users", "/feature-flags"]);
   });
 
   test("the account leaves never sit in a section", () => {
@@ -29,6 +29,7 @@ describe("activeNavPath", () => {
     expect(activeNavPath("/users/3/edit", leaves)).toBe("/users");
     expect(activeNavPath("/feature-flags", leaves)).toBe("/feature-flags");
     expect(activeNavPath("/teams/3", leaves)).toBe("/teams");
+    expect(activeNavPath("/tags", leaves)).toBe("/tags");
     expect(activeNavPath("/adrs", leaves)).toBe("/adrs");
     expect(activeNavPath("/adrs/new", leaves)).toBe("/adrs");
     expect(activeNavPath("/adrs/12", leaves)).toBe("/adrs");

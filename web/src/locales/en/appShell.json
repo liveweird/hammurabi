@@ -10,7 +10,8 @@
     "featureFlags": "Feature flags",
     "changelog": "Changelog",
     "teams": "Teams",
-    "adrs": "ADRs"
+    "adrs": "ADRs",
+    "tags": "Tags"
   },
   "section": {
     "overview": "Overview",

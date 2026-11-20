@@ -22,9 +22,21 @@ const ROW = {
   statusChangedAt: Date.UTC(2026, 10, 2),
   driver: { userId: 5, name: "Dana Driver", role: "DRIVER" as const },
   approver: { userId: 6, name: "Alex Approver", role: "APPROVER" as const },
+  tags: [{ name: "data", retired: false }, { name: "old-tag", retired: true }],
   openIssueCount: 0,
 };
-const ROW_WITHOUT_PEOPLE = { ...ROW, id: 8, number: 8, key: "ADR-0008", name: "Pick a queue", status: "ACTIVE" as const, driver: null, approver: null, openIssueCount: 3 };
+const ROW_WITHOUT_PEOPLE = { ...ROW, id: 8, number: 8, key: "ADR-0008", name: "Pick a queue", status: "ACTIVE" as const, driver: null, approver: null, tags: [], openIssueCount: 3 };
+
+const REGISTRY = {
+  items: [
+    { id: 1, name: "Domain", description: null, tags: ["data", "security"] },
+    { id: 2, name: "Scope", description: null, tags: ["team"] },
+  ],
+};
+
+/** The list and, beside it, the registry the tag filter's picker reads. */
+const serve = (page: AdrPage) =>
+  stubFetch((r) => (r.url.startsWith("/api/v1/tag-categories") ? jsonResponse(200, REGISTRY) : jsonResponse(200, page)));
 
 function Probe() {
   const { pathname, search } = useLocation();
@@ -59,7 +71,7 @@ describe("Adrs list page", () => {
   });
 
   test("lists key, name link, status badge, driver, approver and the updated date, newest first by default", async () => {
-    const stub = stubFetch(() => jsonResponse(200, page));
+    const stub = serve(page);
     renderList();
     const link = await screen.findByRole("link", { name: "Open ADR-0007: Use PostgreSQL" });
     expect(link).toHaveAttribute("href", "/adrs/7");
@@ -71,19 +83,54 @@ describe("Adrs list page", () => {
     expect(within(row).getByText("2026-11-03")).toBeInTheDocument();
     // A row with nobody recorded shows dashes.
     const other = screen.getByRole("link", { name: "Open ADR-0008: Pick a queue" }).closest("tr")!;
-    expect(within(other).getAllByText("—")).toHaveLength(2);
+    expect(within(other).getAllByText("—")).toHaveLength(3);
     // The open issues are a badge, none is a dash: the first row has no issues, the second three.
     expect(within(other).getByText("Open issues: 3")).toBeInTheDocument();
     expect(within(row).queryByText(/^Open issues:/)).not.toBeInTheDocument();
     expect(within(row).getAllByText("—")).toHaveLength(1);
+    // The tags are neutral pills; a retired one is marked for assistive technology.
+    expect(within(row).getByText("data")).toBeInTheDocument();
+    expect(within(row).getByText("old-tag (retired)")).toBeInTheDocument();
+    expect(screen.getByRole("columnheader", { name: "Tags" })).toBeInTheDocument();
     expect(screen.getByRole("columnheader", { name: "Open issues" })).toBeInTheDocument();
     expect(listUrls(stub)).toEqual(["/api/v1/adrs?page=1&pageSize=20&sort=-number"]);
     expect(headingOutline()).toEqual([[2, "ADRs"]]);
     expect(screen.getByRole("table", { name: "ADRs" })).toBeInTheDocument();
   });
 
+  test("a URL with tags reproduces them in the request, and the picker writes them into the URL", async () => {
+    const stub = serve(page);
+    const user = userEvent.setup();
+    renderList("/adrs?tag=data");
+    await screen.findByRole("link", { name: "Open ADR-0007: Use PostgreSQL" });
+    await waitFor(() => expect(listUrls(stub)).toContain("/api/v1/adrs?page=1&pageSize=20&sort=-number&tag=data"));
+    await user.click(screen.getByRole("button", { name: /^Filters/ }));
+    await user.click(screen.getByRole("combobox", { name: "Tags" }));
+    expect(await screen.findByText("Scope")).toBeInTheDocument();
+    await user.click(await screen.findByRole("option", { name: "team" }));
+    expect(screen.getAllByTestId("at").at(-1)).toHaveTextContent("/adrs?tag=data&tag=team");
+    await waitFor(() => expect(listUrls(stub).some((url) => url.endsWith("&tag=data&tag=team"))).toBe(true));
+    await user.click(screen.getByLabelText("Clear tag filter"));
+    expect(screen.getAllByTestId("at").at(-1)).toHaveTextContent(/^\/adrs$/);
+  });
+
+  test("the tag filter stops at the server's limit of twenty tags", async () => {
+    const stub = serve(page);
+    const user = userEvent.setup();
+    const names = Array.from({ length: 20 }, (_, i) => `tag-${i + 1}`);
+    renderList(`/adrs?${names.map((name) => `tag=${name}`).join("&")}`);
+    await screen.findByRole("link", { name: "Open ADR-0007: Use PostgreSQL" });
+    await user.click(screen.getByRole("button", { name: /^Filters/ }));
+    const before = listUrls(stub).length;
+    await user.click(screen.getByRole("combobox", { name: "Tags" }));
+    const option = await screen.findByRole("option", { name: "team" });
+    await user.click(option);
+    expect(listUrls(stub)).toHaveLength(before);
+    expect(screen.getAllByTestId("at").at(-1)).not.toHaveTextContent("tag=team");
+  });
+
   test("New ADR leads to the create page", async () => {
-    stubFetch(() => jsonResponse(200, page));
+    serve(page);
     const user = userEvent.setup();
     renderList();
     await user.click(await screen.findByRole("link", { name: "New ADR" }));
@@ -91,14 +138,14 @@ describe("Adrs list page", () => {
   });
 
   test("a URL with filters reproduces them in the request: q, repeated status, my ADRs and my role", async () => {
-    const stub = stubFetch(() => jsonResponse(200, page));
+    const stub = serve(page);
     renderList("/adrs?q=db&status=ACTIVE&status=IN_REVIEW&mine=1&role=DRIVER");
     await screen.findByRole("link", { name: "Open ADR-0007: Use PostgreSQL" });
     await waitFor(() => expect(listUrls(stub)).toContain("/api/v1/adrs?page=1&pageSize=20&sort=-number&status=ACTIVE&status=IN_REVIEW&q=db&participant=5&role=DRIVER"));
   });
 
   test("the panel writes the filters into the URL and the list follows", async () => {
-    const stub = stubFetch(() => jsonResponse(200, page));
+    const stub = serve(page);
     const user = userEvent.setup();
     renderList();
     await screen.findByRole("link", { name: "Open ADR-0007: Use PostgreSQL" });
@@ -128,7 +175,7 @@ describe("Adrs list page", () => {
   });
 
   test("the role filter is off until 'mine' is on, and clearing the name filter empties the URL key", async () => {
-    stubFetch(() => jsonResponse(200, page));
+    serve(page);
     const user = userEvent.setup();
     renderList("/adrs?q=db");
     await screen.findByRole("link", { name: "Open ADR-0007: Use PostgreSQL" });
@@ -139,7 +186,7 @@ describe("Adrs list page", () => {
   });
 
   test("an unfiltered empty list and a filtered one say different things", async () => {
-    stubFetch(() => jsonResponse(200, adrPageFixture([])));
+    serve(adrPageFixture([]));
     const { unmount } = renderList();
     expect(await screen.findByText("No ADRs yet")).toBeInTheDocument();
     unmount();
@@ -155,7 +202,7 @@ describe("Adrs list page", () => {
   });
 
   test("sorting by a column re-queries with that sort", async () => {
-    const stub = stubFetch(() => jsonResponse(200, page));
+    const stub = serve(page);
     const user = userEvent.setup();
     renderList();
     await screen.findByRole("link", { name: "Open ADR-0007: Use PostgreSQL" });

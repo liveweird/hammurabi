@@ -53,7 +53,7 @@ describe("AdrDetails page", () => {
     localStorage.clear();
   });
 
-  test("the main pane holds the sections, the side panel Status, DACI, Details and History — one heading outline", async () => {
+  test("the main pane holds the sections, the side panel Status, DACI, Tags, Successor, Details and History — one heading outline", async () => {
     serve({ adr: adrFixture({ participants: PEOPLE, context: "Because." }) });
     renderDetails();
     expect(await screen.findByRole("heading", { level: 2, name: "Use PostgreSQL" })).toBeInTheDocument();
@@ -68,12 +68,35 @@ describe("AdrDetails page", () => {
       [3, "Consequences / side effects"],
       [3, "Status"],
       [3, "DACI"],
+      [3, "Tags"],
+      [3, "Successor"],
       [3, "Details"],
       [3, "History"],
     ]);
     expect(screen.getByText("We need a database.")).toBeInTheDocument();
     expect(screen.getByText("Because.")).toBeInTheDocument();
     expect(screen.getByRole("link", { name: "Back to the ADRs" })).toHaveAttribute("href", "/adrs");
+  });
+
+  test("a superseded ADR carries the banner naming its successor, and the side panel shows both ends of the link", async () => {
+    serve({
+      adr: adrFixture({
+        status: "SUPERSEDED",
+        allowedTransitions: [],
+        canEdit: false,
+        canEditTags: false,
+        canEditSuccessor: false,
+        supersedes: { id: 3, key: "ADR-0003", name: "Use MySQL", status: "SUPERSEDED" },
+        supersededBy: { id: 9, key: "ADR-0009", name: "Use CockroachDB", status: "ACTIVE" },
+      }),
+    });
+    renderDetails();
+    await screen.findByRole("heading", { level: 2, name: "Use PostgreSQL" });
+    const banner = screen.getByText("This ADR is superseded").closest("[role=status]") as HTMLElement;
+    expect(within(banner).getByRole("link", { name: "ADR-0009 Use CockroachDB" })).toHaveAttribute("href", "/adrs/9");
+    const successor = screen.getByRole("region", { name: "Successor" });
+    expect(within(successor).getByRole("link", { name: "ADR-0003 Use MySQL" })).toBeInTheDocument();
+    expect(within(successor).getByText("Replaced by")).toBeInTheDocument();
   });
 
   test("the main pane is three tabs; the discussion opens on demand and shows the counts the ADR carries", async () => {

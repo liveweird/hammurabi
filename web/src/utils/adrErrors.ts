@@ -24,14 +24,29 @@ export function adrConflict(err: unknown): AdrConflict | null {
 }
 
 /** Which write failed — each has its own 400 (and 409) meaning. */
-export type AdrWriteKind = "create" | "save" | "transition" | "participants" | "discussion";
+export type AdrWriteKind = "create" | "save" | "transition" | "participants" | "tags" | "supersedes" | "detach" | "discussion";
 
-const INVALID: Record<AdrWriteKind, ParseKeys> = {
+/** The 400 of each write; a detach has no body to be invalid, so it has none. */
+const INVALID: Record<Exclude<AdrWriteKind, "detach">, ParseKeys> = {
   create: "adrs.error.createInvalid",
   save: "adrs.error.saveInvalid",
   transition: "adrs.error.transitionInvalid",
   participants: "adrs.error.participantsInvalid",
+  tags: "adrs.error.tagsInvalid",
+  supersedes: "adrs.error.supersedesInvalid",
   discussion: "adrs.discussion.error.invalid",
+};
+
+/** The 404 of each write: the ADR is gone - or, for a detach, the pending successor is. */
+const NOT_FOUND: Record<AdrWriteKind, ParseKeys> = {
+  create: "adrs.error.gone",
+  save: "adrs.error.gone",
+  transition: "adrs.error.gone",
+  participants: "adrs.error.gone",
+  tags: "adrs.error.gone",
+  supersedes: "adrs.error.gone",
+  detach: "adrs.error.detachGone",
+  discussion: "adrs.discussion.error.gone",
 };
 
 const CONFLICT_KEY: Record<AdrConflict, ParseKeys> = {
@@ -47,9 +62,10 @@ export function adrWriteError(err: unknown, t: TFunction, kind: AdrWriteKind): s
   if (conflict) return t(CONFLICT_KEY[conflict]);
   return saveErrorMessage(err, t, {
     forbidden: "adrs.error.forbidden",
-    notFound: kind === "discussion" ? "adrs.discussion.error.gone" : "adrs.error.gone",
-    conflict: "adrs.error.nameTaken",
-    invalid: INVALID[kind],
+    notFound: NOT_FOUND[kind],
+    // The untyped 409s: a name clash (create, save) or a successor link that closes a cycle / meets a rival successor.
+    conflict: kind === "supersedes" ? "adrs.error.supersedesConflict" : "adrs.error.nameTaken",
+    invalid: kind === "detach" ? undefined : INVALID[kind],
     failedStatus: "common.error.saveFailedStatus",
     failed: "common.error.saveFailedNetwork",
   });

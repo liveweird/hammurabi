@@ -1,6 +1,7 @@
 import type { ParseKeys } from "i18next";
-import { IconGavel, IconHistory, IconHome2, IconKey, IconToggleLeft, IconUsers, IconUsersGroup, type Icon } from "@tabler/icons-react";
+import { IconGavel, IconHistory, IconHome2, IconKey, IconTags, IconToggleLeft, IconUsers, IconUsersGroup, type Icon } from "@tabler/icons-react";
 import { adrsPath } from "./adrLinks";
+import { tagsPath } from "./tagLinks";
 import { teamsPath } from "./teamLinks";
 import { usersPath } from "./userLinks";
 
@@ -34,7 +35,7 @@ export const homePath = "/";
  * always-open blocks (never collapsible groups): every leaf is always in the DOM, so tests and
  * deep links address the links directly, and a static label costs less vertical space than a
  * toggle. Home and the ADRs (the primary entry: every signed-in user reads and raises them) are visible to everyone; the Administration section holds Teams (everyone reads
- * the flat teams list; only its create/edit/delete are ADMIN) alongside the ADMIN-only Users and
+ * the flat teams list; only its create/edit/delete are ADMIN) alongside the ADMIN-only Tags (the tag registry), Users and
  * Feature flags leaves — a non-admin session sees just Teams there.
  */
 const NAV_SECTIONS: ReadonlyArray<NavSection> = [
@@ -49,6 +50,7 @@ const NAV_SECTIONS: ReadonlyArray<NavSection> = [
     label: "appShell.section.administration",
     items: [
       { to: teamsPath, label: "appShell.nav.teams", icon: IconUsersGroup },
+      { to: tagsPath, label: "appShell.nav.tags", icon: IconTags, adminOnly: true, keywords: ["category", "label", "adr"] },
       { to: usersPath, label: "appShell.nav.users", icon: IconUsers, adminOnly: true },
       { to: "/feature-flags", label: "appShell.nav.featureFlags", icon: IconToggleLeft, adminOnly: true },
     ],

@@ -14,7 +14,14 @@ describe("describeAdrEvent", () => {
     [{ type: "PARTICIPANT_REMOVED" as const, params: { userId: "7", name: "Cora", role: "INFORMED" } }, "Cora removed (Informed)"],
     [{ type: "PARTICIPANT_CHANGED" as const, params: { userId: "7", name: "Cora", from: "INFORMED", to: "APPROVER" } }, "Cora moved from Informed to Approver"],
     [{ type: "EXPIRED" as const, params: { expiresOn: "2026-12-31" } }, "Expired: the expiry date 2026-12-31 has passed"],
-    [{ type: "SUPERSEDED" as const, params: {} }, "Superseded by a successor"],
+    [{ type: "SUPERSEDED" as const, params: { successorId: "9", key: "ADR-0009", name: "Next" } }, "Superseded by ADR-0009"],
+    [{ type: "SUPERSEDED" as const, params: {} }, "Superseded by —"],
+    [{ type: "TAGS_CHANGED" as const, params: { added: "data" } }, "Tags changed"],
+    [{ type: "SUCCESSOR_LINKED" as const, params: { predecessorId: "3", key: "ADR-0003", name: "Old" } }, "Set to replace ADR-0003"],
+    [{ type: "SUCCESSOR_UNLINKED" as const, params: { predecessorId: "3", key: "ADR-0003", name: "Old" } }, "No longer replaces ADR-0003"],
+    [{ type: "SUCCESSOR_UNLINKED" as const, params: { successorId: "9", key: "ADR-0009", name: "Next" } }, "Pending successor ADR-0009 detached"],
+    [{ type: "SUCCESSOR_ACTIVATED" as const, params: { predecessorId: "3", key: "ADR-0003", name: "Old" } }, "Activated and superseded ADR-0003"],
+    [{ type: "SUCCESSOR_ACTIVATED" as const, params: {} }, "Activated and superseded —"],
     [{ type: "COMMENTED" as const, params: { entryId: "3", kind: "COMMENT" } }, "Comment added"],
     [{ type: "QUESTION_ASKED" as const, params: { entryId: "3", kind: "QUESTION" } }, "Question asked"],
     [{ type: "QUESTION_ANSWERED" as const, params: { entryId: "3", kind: "QUESTION" } }, "Question answered"],
@@ -66,6 +73,16 @@ describe("adrEventLines", () => {
   test("a name without sides and a field from a newer server degrade gracefully", () => {
     expect(adrEventLines(eventFixture({ type: "UPDATED", params: { changed: "name,tags" } }), t)).toEqual(['Name: "—" → "—"', "tags changed"]);
     expect(adrEventLines(eventFixture({ type: "UPDATED", params: {} }), t)).toEqual([]);
+  });
+
+  test("a tag change lists what was added and removed, a link event names the other ADR", () => {
+    expect(adrEventLines(eventFixture({ type: "TAGS_CHANGED", params: { added: "data,team", removed: "old tag" } }), t)).toEqual(["Added: data, team", "Removed: old tag"]);
+    expect(adrEventLines(eventFixture({ type: "TAGS_CHANGED", params: { removed: "x" } }), t)).toEqual(["Removed: x"]);
+    expect(adrEventLines(eventFixture({ type: "TAGS_CHANGED", params: {} }), t)).toEqual([]);
+    for (const type of ["SUPERSEDED", "SUCCESSOR_LINKED", "SUCCESSOR_UNLINKED", "SUCCESSOR_ACTIVATED"] as const) {
+      expect(adrEventLines(eventFixture({ type, params: { key: "ADR-0003", name: "Old" } }), t)).toEqual(['"Old"']);
+    }
+    expect(adrEventLines(eventFixture({ type: "SUCCESSOR_LINKED", params: {} }), t)).toEqual(['"—"']);
   });
 
   test("other events have no detail lines", () => {

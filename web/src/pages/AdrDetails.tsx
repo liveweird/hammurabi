@@ -12,6 +12,7 @@ import AdrContentSections from "../components/AdrContentSections";
 import AdrEditForm from "../components/AdrEditForm";
 import AdrMainPane, { type AdrTab } from "../components/AdrMainPane";
 import AdrSidePanel from "../components/AdrSidePanel";
+import AdrSupersededBanner from "../components/AdrSupersededBanner";
 import ConfirmDeleteModal from "../components/ConfirmDeleteModal";
 import EditPageLoadState from "../components/EditPageLoadState";
 import PageHeader from "../components/PageHeader";
@@ -94,6 +95,7 @@ export default function AdrDetails() {
           </>
         }
       />
+      <AdrSupersededBanner adr={data} />
       <Grid gap="lg">
         <Grid.Col span={{ base: 12, lg: 8 }}>
           <AdrMainPane adr={data} tab={tab} onTabChange={setTab}>

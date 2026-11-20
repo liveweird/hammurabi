@@ -60,6 +60,17 @@ describe("AdrParticipantsPanel", () => {
     expect(screen.queryByRole("button", { name: "Edit participants" })).not.toBeInTheDocument();
   });
 
+  test("a refetch that advances the revision while the editor is open does not turn the save into a lost update", async () => {
+    const stub = serve();
+    const user = userEvent.setup();
+    const { rerender } = renderWithProviders(<AdrParticipantsPanel adr={adrFixture({ participants: PEOPLE, revision: 4 })} />);
+    await user.click(screen.getByRole("button", { name: "Edit participants" }));
+    rerender(<AdrParticipantsPanel adr={adrFixture({ participants: PEOPLE, revision: 8 })} />);
+    await user.click(screen.getByRole("button", { name: "Save participants" }));
+    await waitFor(() => expect(stub.find("PUT", "/api/v1/adrs/1/participants")).toBeDefined());
+    expect(stub.find("PUT", "/api/v1/adrs/1/participants")?.headers.get("X-Expected-Revision")).toBe("4");
+  });
+
   test("the editor replaces the whole set under the held revision, hands over nothing else and closes", async () => {
     const stub = serve();
     const user = userEvent.setup();

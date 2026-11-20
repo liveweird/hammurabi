@@ -21,6 +21,7 @@ function Harness({
   clearable?: boolean;
   disabled?: boolean;
   error?: string;
+  lazy?: boolean;
 }) {
   const [picked, setPicked] = useState<PickedOption | null>(initial);
   return (
@@ -43,6 +44,23 @@ function Harness({
 
 describe("SearchPicker", () => {
   afterEach(() => localStorage.clear());
+
+  test("a lazy picker searches only once its dropdown opens", async () => {
+    const search = vi.fn(() => Promise.resolve(ROWS));
+    const user = userEvent.setup();
+    renderWithProviders(<Harness lazy search={search} />);
+    await new Promise((resolve) => setTimeout(resolve, 50));
+    expect(search).not.toHaveBeenCalled();
+    await user.click(screen.getByRole("combobox", { name: "Thing" }));
+    await waitFor(() => expect(search).toHaveBeenCalledWith(""));
+    expect(await screen.findByRole("option", { name: "Alpha" })).toBeInTheDocument();
+  });
+
+  test("a picker that is not lazy loads its head with the control", async () => {
+    const search = vi.fn(() => Promise.resolve(ROWS));
+    renderWithProviders(<Harness search={search} />);
+    await waitFor(() => expect(search).toHaveBeenCalledWith(""));
+  });
 
   test("a compact picker names its control by the label and has no visible caption", async () => {
     renderWithProviders(<Harness compact />);

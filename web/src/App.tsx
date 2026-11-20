@@ -26,6 +26,7 @@ const Adrs = lazy(() => import("./pages/Adrs"));
 const CreateAdr = lazy(() => import("./pages/CreateAdr"));
 const AdrDetails = lazy(() => import("./pages/AdrDetails"));
 const Teams = lazy(() => import("./pages/Teams"));
+const Tags = lazy(() => import("./pages/Tags"));
 const TeamDetails = lazy(() => import("./pages/TeamDetails"));
 const ResetPassword = lazy(() => import("./pages/ResetPassword"));
 const ConfirmPasswordReset = lazy(() => import("./pages/ConfirmPasswordReset"));
@@ -236,6 +237,7 @@ export default function App() {
             <Route path="teams/:id" element={<TeamDetails />} />
             {/* The management surface — ADMIN only, guarded once here (the pages no longer redirect themselves). */}
             <Route element={<RequireAdmin />}>
+              <Route path="tags" element={<Tags />} />
               <Route path="users" element={<Users />} />
               <Route path="users/new" element={<CreateUser />} />
               <Route path="users/:id/edit" element={<EditUser />} />

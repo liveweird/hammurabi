@@ -6,6 +6,8 @@ import AdrDetailsSection from "./AdrDetailsSection";
 import AdrHistory from "./AdrHistory";
 import AdrParticipantsPanel from "./AdrParticipantsPanel";
 import AdrStatusControl from "./AdrStatusControl";
+import AdrSuccessorPanel from "./AdrSuccessorPanel";
+import AdrTagsPanel from "./AdrTagsPanel";
 
 /** One panel section: its h3 (the page title is the h2) and its body. */
 function Section({ title, children }: { title: string; children: ReactNode }) {
@@ -20,7 +22,7 @@ function Section({ title, children }: { title: string; children: ReactNode }) {
   );
 }
 
-/** The ADR's side panel (Adder's `ThreadSidePanel` shape): Status, DACI, Details and History, each an h3 under the page's h2. */
+/** The ADR's side panel (Adder's `ThreadSidePanel` shape): Status, DACI, Tags, Successor, Details and History, each an h3 under the page's h2. */
 export default function AdrSidePanel({ adr }: { adr: AdrResponse }) {
   const { t } = useTranslation();
   return (
@@ -30,6 +32,12 @@ export default function AdrSidePanel({ adr }: { adr: AdrResponse }) {
       </Section>
       <Section title={t("adrs.side.daci")}>
         <AdrParticipantsPanel adr={adr} />
+      </Section>
+      <Section title={t("adrs.side.tags")}>
+        <AdrTagsPanel adr={adr} />
+      </Section>
+      <Section title={t("adrs.side.successor")}>
+        <AdrSuccessorPanel adr={adr} />
       </Section>
       <Section title={t("adrs.side.details")}>
         <AdrDetailsSection adr={adr} />

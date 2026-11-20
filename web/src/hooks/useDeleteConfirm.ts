@@ -19,10 +19,13 @@ export type DeleteConfirm<T> = {
 export function useDeleteConfirm<T>({
   mutationFn,
   onSuccess,
+  onError,
   successMessage,
 }: {
   mutationFn: (row: T) => Promise<unknown>;
   onSuccess: (row: T) => Promise<unknown> | void;
+  /** A failed delete (the modal keeps its own error notice): e.g. refresh the list a stale-revision refusal showed to be out of date. */
+  onError?: (error: Error, row: T) => void;
   successMessage?: string;
 }): DeleteConfirm<T> {
   const [target, setTarget] = useState<T | null>(null);
@@ -30,6 +33,7 @@ export function useDeleteConfirm<T>({
 
   const mutation = useMutation({
     mutationFn,
+    onError: (error: Error, row: T) => onError?.(error, row),
     onSuccess: async (_result: unknown, row: T) => {
       close();
       setTarget(null);

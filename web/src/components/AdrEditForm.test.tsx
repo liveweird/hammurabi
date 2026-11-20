@@ -34,6 +34,18 @@ describe("AdrEditForm", () => {
     });
   });
 
+  test("a refetch that advances the revision while the form is open does not turn the save into a lost update", async () => {
+    const stub = stubFetch((r) => (r.method === "PUT" ? noContent() : jsonResponse(200, { items: [] })));
+    const onClose = vi.fn();
+    const user = userEvent.setup();
+    const { rerender } = renderWithProviders(<AdrEditForm adr={adrFixture({ revision: 7 })} onClose={onClose} />);
+    await user.type(screen.getByRole("textbox", { name: /^Context/ }), "Why it matters");
+    rerender(<AdrEditForm adr={adrFixture({ revision: 11, context: "Someone else's text" })} onClose={onClose} />);
+    await user.click(screen.getByRole("button", { name: "Save" }));
+    await waitFor(() => expect(onClose).toHaveBeenCalled());
+    expect(stub.find("PUT", "/api/v1/adrs/1")?.headers.get("X-Expected-Revision")).toBe("7");
+  });
+
   test("validation blocks an empty name and problem without a request", async () => {
     const stub = stubFetch(() => noContent());
     const user = userEvent.setup();

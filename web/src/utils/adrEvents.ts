@@ -36,7 +36,15 @@ export function describeAdrEvent(event: AdrEventResponse, t: TFunction): string 
     case "EXPIRED":
       return t("adrs.history.event.EXPIRED", { expiresOn: p.expiresOn ?? DASH });
     case "SUPERSEDED":
-      return t("adrs.history.event.SUPERSEDED");
+      return t("adrs.history.event.SUPERSEDED", { key: p.key ?? DASH });
+    case "TAGS_CHANGED":
+      return t("adrs.history.event.TAGS_CHANGED");
+    case "SUCCESSOR_UNLINKED":
+      // Written on the predecessor too when its owner detached the pending successor: that one names the successor, not a predecessor.
+      return t(p.successorId === undefined ? "adrs.history.event.SUCCESSOR_UNLINKED" : "adrs.history.event.SUCCESSOR_DETACHED", { key: p.key ?? DASH });
+    case "SUCCESSOR_LINKED":
+    case "SUCCESSOR_ACTIVATED":
+      return t(`adrs.history.event.${event.type}`, { key: p.key ?? DASH });
     case "COMMENTED":
     case "QUESTION_ASKED":
     case "QUESTION_ANSWERED":
@@ -69,11 +77,32 @@ function changedLines(p: AdrEventResponse["params"], t: TFunction): string[] {
     });
 }
 
-/** The dimmed detail lines under an event's sentence: the new ADR's key and name, or an edit's changed fields. */
+/** The tag names a TAGS_CHANGED event added and removed, one line each (a side with none has no line). */
+function tagLines(p: AdrEventResponse["params"], t: TFunction): string[] {
+  return [
+    ...(p.added ? [t("adrs.history.line.tagsAdded", { tags: p.added.split(",").join(", ") })] : []),
+    ...(p.removed ? [t("adrs.history.line.tagsRemoved", { tags: p.removed.split(",").join(", ") })] : []),
+  ];
+}
+
+/** The dimmed detail lines under an event's sentence: the new ADR's key and name, an edit's changed fields, a tag change's names, or the other ADR's name for a link. */
 export function adrEventLines(event: AdrEventResponse, t: TFunction): string[] {
-  if (event.type === "CREATED") return [t("adrs.history.line.created", { key: event.params.key ?? DASH, name: event.params.name ?? DASH })];
-  if (event.type === "UPDATED") return changedLines(event.params, t);
-  return [];
+  const p = event.params;
+  switch (event.type) {
+    case "CREATED":
+      return [t("adrs.history.line.created", { key: p.key ?? DASH, name: p.name ?? DASH })];
+    case "SUPERSEDED":
+    case "SUCCESSOR_LINKED":
+    case "SUCCESSOR_UNLINKED":
+    case "SUCCESSOR_ACTIVATED":
+      return [t("adrs.history.line.adrName", { name: p.name ?? DASH })];
+    case "UPDATED":
+      return changedLines(p, t);
+    case "TAGS_CHANGED":
+      return tagLines(p, t);
+    default:
+      return [];
+  }
 }
 
 /** Who did it: the recorded name (with a note for a since-deleted account), or "the system" for the sweep. */

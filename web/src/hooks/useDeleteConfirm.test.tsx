@@ -78,6 +78,18 @@ describe("useDeleteConfirm", () => {
     expect(showSuccessToast).not.toHaveBeenCalled();
   });
 
+  test("a failed mutation reports the error and the row to onError", async () => {
+    const boom = new Error("boom");
+    const onError = vi.fn();
+    const { result } = renderHook(
+      () => useDeleteConfirm<Row>({ mutationFn: vi.fn().mockRejectedValue(boom), onSuccess: vi.fn(), onError }),
+      { wrapper: createWrapper() },
+    );
+    act(() => result.current.requestDelete(ROW));
+    act(() => result.current.confirmDelete());
+    await waitFor(() => expect(onError).toHaveBeenCalledWith(boom, ROW));
+  });
+
   test("a failed mutation keeps the modal open with the target and surfaces the error", async () => {
     const onSuccess = vi.fn();
     const { result } = renderHook(

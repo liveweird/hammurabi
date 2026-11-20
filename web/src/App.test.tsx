@@ -113,11 +113,12 @@ describe("App shell", () => {
       expect(screen.getByRole("link", { name: "Home" })).toHaveAttribute("href", "/");
     });
 
-    test("an admin session additionally sees Users and Feature flags in Administration", async () => {
+    test("an admin session additionally sees Tags, Users and Feature flags in Administration", async () => {
       localStorage.setItem("hammurabi.auth.roles", JSON.stringify(["ADMIN"]));
       renderApp("/");
       const admin = await screen.findByRole("group", { name: "Administration" });
       expect(within(admin).getByRole("link", { name: "Teams" })).toHaveAttribute("href", "/teams");
+      expect(within(admin).getByRole("link", { name: "Tags" })).toHaveAttribute("href", "/tags");
       expect(within(admin).getByRole("link", { name: "Users" })).toHaveAttribute("href", "/users");
       expect(within(admin).getByRole("link", { name: "Feature flags" })).toHaveAttribute("href", "/feature-flags");
     });

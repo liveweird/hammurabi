@@ -15,6 +15,9 @@ import {
 
 export const API_BASE = import.meta.env.VITE_API_BASE ?? "";
 
+/** The optimistic-concurrency header of the revision-guarded writes (an ADR's PUTs and transitions, a tag category's PUT and DELETE). */
+export const REVISION_HEADER = "X-Expected-Revision";
+
 type LoginSuccess = components["schemas"]["LoginResponse"];
 
 // Every request gets a deadline (v2.22.0) — without one a hung response leaves the promise

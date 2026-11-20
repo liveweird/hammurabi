@@ -33,8 +33,9 @@ describe("ADR write errors", () => {
     expect(adrWriteError(problem(400), t, "discussion")).toMatch(/at most 10,000 characters/);
   });
 
-  test("a plain 409 is a name clash; 403 and 404 have their own words", () => {
+  test("a plain 409 is a name clash - or, for the successor link, a loop or a rival; 403 and 404 have their own words", () => {
     expect(adrWriteError(problem(409), t, "create")).toBe("An ADR with this name already exists.");
+    expect(adrWriteError(problem(409), t, "supersedes")).toMatch(/close a loop of successors/);
     expect(adrWriteError(problem(403), t, "save")).toBe("Your role on this ADR does not allow this.");
     expect(adrWriteError(problem(404), t, "save")).toBe("This ADR no longer exists.");
   });
@@ -44,6 +45,8 @@ describe("ADR write errors", () => {
     expect(adrWriteError(problem(400), t, "save")).toMatch(/expiry date must not be in the past/);
     expect(adrWriteError(problem(400), t, "transition")).toMatch(/entering review or activation needs/);
     expect(adrWriteError(problem(400), t, "participants")).toMatch(/exactly one Driver/);
+    expect(adrWriteError(problem(400), t, "tags")).toMatch(/only tags from the registry/);
+    expect(adrWriteError(problem(400), t, "supersedes")).toMatch(/pick another ADR/);
   });
 
   test("anything else is the status or the network, never the server's text", () => {

@@ -7,6 +7,7 @@ import { IconGavel, IconPlus } from "@tabler/icons-react";
 import { listAdrs } from "../api/adrs";
 import { getUserId } from "../api/session";
 import AdrStatusBadge from "../components/AdrStatusBadge";
+import AdrTagPills from "../components/AdrTagPills";
 import ClearableTextInput from "../components/ClearableTextInput";
 import FilterPanel from "../components/FilterPanel";
 import PageHeader from "../components/PageHeader";
@@ -14,10 +15,12 @@ import RegistryListTable from "../components/RegistryListTable";
 import SortHeader from "../components/SortHeader";
 import { FILTER_DEBOUNCE_MS, usePagedSort } from "../hooks/usePagedSort";
 import { useAdrListParams } from "../hooks/useAdrListParams";
+import { useTagCategories } from "../hooks/useTagCategories";
 import { DISCUSSION_KIND_COLOR } from "../utils/adrDiscussion";
 import { activeAdrFilterCount } from "../utils/adrListParams";
 import { adrPath, newAdrPath } from "../utils/adrLinks";
 import { ADR_ROLES, ADR_STATUSES, isAdrRole, isAdrStatus } from "../utils/adrStatus";
+import { MAX_TAG_FILTERS, tagOptionGroups } from "../utils/adrTags";
 import { formatDate } from "../utils/formatDate";
 
 // `number` is the key's order (ADR-0042 is number 42); the default is newest first, like the server's.
@@ -28,7 +31,7 @@ const SETTINGS_KEY = "adrs";
 
 /**
  * The ADR list (`/adrs`): key, name, status badge, Driver, Approver, open issues and last update, newest first. The filters — a name-or-key
- * search, any-of statuses and "mine" (the ADRs the signed-in user takes part in, optionally in one DACI role) — live in the URL
+ * search, any-of statuses, any-of tags (a grouped picker over the registry) and "mine" (the ADRs the signed-in user takes part in, optionally in one DACI role) — live in the URL
  * (`useAdrListParams`); the page, the page size and the sort are `usePagedSort`'s. The name opens the ADR; anyone may raise one. A badge
  * counts the open issues and escalations of an ADR (the server's `openIssueCount`).
  */
@@ -38,15 +41,17 @@ export default function Adrs() {
   const [debouncedQ] = useDebouncedValue(params.q, FILTER_DEBOUNCE_MS);
   const participant = params.mine ? (getUserId() ?? undefined) : undefined;
   const statusKey = params.status.join(",");
+  const tagKey = params.tag.join(",");
+  const categories = useTagCategories();
   const { page, setPage, pageSize, setPageSize, sortField, sortDir, sortParam, toggleSort } = usePagedSort<SortField>(
     "number",
-    [debouncedQ, statusKey, params.mine, params.role],
+    [debouncedQ, statusKey, tagKey, params.mine, params.role],
     { key: SETTINGS_KEY, sortFields: SORT_FIELDS },
     "desc",
   );
 
   const { data, isLoading, isError, error } = useQuery({
-    queryKey: ["adrs", "list", page, pageSize, sortParam, debouncedQ.trim(), statusKey, participant, params.role],
+    queryKey: ["adrs", "list", page, pageSize, sortParam, debouncedQ.trim(), statusKey, tagKey, participant, params.role],
     queryFn: () =>
       listAdrs({
         page,
@@ -54,6 +59,7 @@ export default function Adrs() {
         sort: sortParam,
         q: debouncedQ.trim() || undefined,
         status: params.status,
+        tag: params.tag,
         participant,
         role: params.role ?? undefined,
       }),
@@ -92,6 +98,17 @@ export default function Adrs() {
           clearable
           clearButtonProps={{ "aria-label": t("adrs.filter.clearStatus") }}
         />
+        <MultiSelect
+          label={t("adrs.filter.tag")}
+          placeholder={params.tag.length === 0 ? t("common.state.any") : undefined}
+          data={tagOptionGroups(categories.data ?? [])}
+          value={params.tag}
+          onChange={(values) => update({ tag: values })}
+          maxValues={MAX_TAG_FILTERS}
+          searchable
+          clearable
+          clearButtonProps={{ "aria-label": t("adrs.filter.clearTag") }}
+        />
         <Switch
           label={t("adrs.filter.mine")}
           checked={params.mine}
@@ -118,7 +135,7 @@ export default function Adrs() {
         isLoading={isLoading}
         hasData={Boolean(data)}
         rowCount={data?.items.length ?? 0}
-        columnCount={7}
+        columnCount={8}
         emptyIcon={IconGavel}
         emptyLabel={activeAdrFilterCount(params) > 0 ? t("adrs.emptyFiltered") : t("adrs.empty")}
         header={
@@ -128,6 +145,7 @@ export default function Adrs() {
             {sortHeader("status", t("adrs.column.status"))}
             <Table.Th>{t("adrs.role.DRIVER")}</Table.Th>
             <Table.Th>{t("adrs.role.APPROVER")}</Table.Th>
+            <Table.Th>{t("adrs.column.tags")}</Table.Th>
             <Table.Th>{t("adrs.column.openIssues")}</Table.Th>
             {sortHeader("updatedAt", t("adrs.column.updated"))}
           </Table.Tr>
@@ -157,6 +175,9 @@ export default function Adrs() {
               <Text size="sm" c={adr.approver ? undefined : "dimmed"}>
                 {adr.approver?.name ?? "—"}
               </Text>
+            </Table.Td>
+            <Table.Td>
+              <AdrTagPills tags={adr.tags} none="—" />
             </Table.Td>
             <Table.Td>
               {adr.openIssueCount > 0 ? (

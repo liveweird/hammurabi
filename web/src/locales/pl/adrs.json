@@ -22,7 +22,8 @@
     "key": "Klucz",
     "status": "Status",
     "updated": "Zmieniono",
-    "openIssues": "Otwarte zgłoszenia"
+    "openIssues": "Otwarte zgłoszenia",
+    "tags": "Tagi"
   },
   "filter": {
     "q": "Nazwa lub klucz",
@@ -31,7 +32,9 @@
     "clearStatus": "Wyczyść filtr statusu",
     "mine": "Tylko ADR-y, w których biorę udział",
     "role": "Moja rola",
-    "clearRole": "Wyczyść filtr roli"
+    "clearRole": "Wyczyść filtr roli",
+    "tag": "Tagi",
+    "clearTag": "Wyczyść filtr tagów"
   },
   "status": {
     "PROBLEM_RAISED": "Zgłoszony problem",
@@ -112,7 +115,9 @@
     "status": "Status",
     "daci": "DACI",
     "details": "Szczegóły",
-    "history": "Historia"
+    "history": "Historia",
+    "tags": "Tagi",
+    "successor": "Następca"
   },
   "daci": {
     "listAria": "{{role}} do dodania",
@@ -149,7 +154,7 @@
       "PARTICIPANT_REMOVED": "Usunięto: {{name}} ({{role}})",
       "PARTICIPANT_CHANGED": "{{name}}: rola zmieniona z „{{from}}” na „{{to}}”",
       "EXPIRED": "Wygasł: minęła data wygaśnięcia {{expiresOn}}",
-      "SUPERSEDED": "Zastąpiony przez następcę",
+      "SUPERSEDED": "Zastąpiony przez {{key}}",
       "COMMENTED": "Dodano komentarz",
       "QUESTION_ASKED": "Zadano pytanie",
       "QUESTION_ANSWERED": "Odpowiedziano na pytanie",
@@ -159,7 +164,12 @@
       "ISSUE_RESOLVED": "Rozwiązano zgłoszenie",
       "ISSUE_REOPENED": "Otwarto zgłoszenie ponownie",
       "ESCALATION_RESOLVED": "Rozwiązano eskalację",
-      "ESCALATION_REOPENED": "Otwarto eskalację ponownie"
+      "ESCALATION_REOPENED": "Otwarto eskalację ponownie",
+      "TAGS_CHANGED": "Zmieniono tagi",
+      "SUCCESSOR_LINKED": "Ustawiono jako zastępujący {{key}}",
+      "SUCCESSOR_UNLINKED": "Już nie zastępuje {{key}}",
+      "SUCCESSOR_DETACHED": "Odłączono oczekującego następcę {{key}}",
+      "SUCCESSOR_ACTIVATED": "Aktywowano i zastąpiono {{key}}"
     },
     "line": {
       "created": "{{key}} „{{name}}”",
@@ -167,7 +177,10 @@
       "expiryChanged": "Data wygaśnięcia: {{from}} → {{to}}",
       "expirySet": "Ustawiono datę wygaśnięcia: {{to}}",
       "expiryCleared": "Usunięto datę wygaśnięcia (była: {{from}})",
-      "textChanged": "Zmieniono: {{field}}"
+      "textChanged": "Zmieniono: {{field}}",
+      "adrName": "„{{name}}”",
+      "tagsAdded": "Dodano: {{tags}}",
+      "tagsRemoved": "Usunięto: {{tags}}"
     }
   },
   "validation": {
@@ -181,14 +194,18 @@
     "reload": "Wczytaj ADR ponownie",
     "createInvalid": "Sprawdź pola: problem jest wymagany, długości są ograniczone, a wskazane osoby muszą mieć aktywne konta.",
     "saveInvalid": "Sprawdź pola: nazwa i problem są wymagane, długości są ograniczone, a data wygaśnięcia nie może być z przeszłości.",
-    "transitionInvalid": "Ten ruch nie jest jeszcze możliwy: przegląd i aktywacja wymagają kontekstu, decyzji, konsekwencji i Zatwierdzającego/ej oraz daty wygaśnięcia, która nie jest z przeszłości.",
+    "transitionInvalid": "Ten ruch nie jest jeszcze możliwy: przegląd i aktywacja wymagają kontekstu, decyzji, konsekwencji i Zatwierdzającego/ej, daty wygaśnięcia, która nie jest z przeszłości, a gdy ADR zastępuje inny — aktywności tamtego.",
     "participantsInvalid": "Sprawdź uczestników/czki: dokładnie jeden/a Prowadzący/a, najwyżej jeden/a Zatwierdzający/a, każda osoba raz, a dodać można tylko aktywne konta.",
     "revisionConflict": "Ktoś zmienił ten ADR, gdy go otworzyłeś/aś. Wczytaj go ponownie, aby zobaczyć najnowszą wersję; niezapisane zmiany w otwartym formularzu przepadną.",
     "frozen": "Ten ADR jest zamrożony: w obecnym statusie nie można już zmieniać jego treści. Wczytaj go ponownie, aby zobaczyć aktualny stan.",
     "illegalTransition": "Z obecnego statusu ten ADR nie może tam przejść. Wczytaj go ponownie, aby zobaczyć, co jest teraz możliwe.",
     "forbidden": "Twoja rola w tym ADR-ze na to nie pozwala.",
     "gone": "Ten ADR już nie istnieje.",
-    "nameTaken": "ADR o tej nazwie już istnieje."
+    "nameTaken": "ADR o tej nazwie już istnieje.",
+    "tagsInvalid": "Sprawdź tagi: używaj tylko tagów z rejestru (wycofany trzeba usunąć), każdy raz, najwyżej 20.",
+    "supersedesInvalid": "Sprawdź powiązanie: wybierz inny ADR, który jest aktywny albo jeszcze powstaje.",
+    "supersedesConflict": "To powiązanie jest niemożliwe: zamknęłoby pętlę następców albo ten ADR ma już następcę w drodze.",
+    "detachGone": "Ten ADR nie ma już oczekującego następcy. Odśwież, aby zobaczyć aktualny stan."
   },
   "toast": {
     "created": "ADR zgłoszony",
@@ -196,7 +213,11 @@
     "moved": "Status zmieniony",
     "participantsSaved": "Uczestnicy/czki zapisani/e",
     "expirySaved": "Data wygaśnięcia zapisana",
-    "deleted": "ADR usunięty"
+    "deleted": "ADR usunięty",
+    "tagsSaved": "Zapisano tagi",
+    "linked": "Zapisano powiązanie z poprzednikiem",
+    "unlinked": "Usunięto powiązanie z poprzednikiem",
+    "detached": "Odłączono następcę"
   },
   "openIssuesAria": "Otwarte zgłoszenia: {{count}}",
   "tab": {
@@ -277,6 +298,47 @@
       "OPEN": "Otwarto ponownie",
       "ANSWERED": "Oznaczono jako z odpowiedzią",
       "RESOLVED": "Rozwiązano"
+    }
+  },
+  "tags": {
+    "none": "Brak tagów",
+    "edit": "Edytuj tagi",
+    "label": "Tagi",
+    "placeholder": "Wybierz tagi z rejestru…",
+    "hint": "Można używać tylko tagów z rejestru; prowadzą go administratorzy/rki.",
+    "retiredHint": "Wycofany tag nie jest już w rejestrze. Zostanie usunięty przy zapisie.",
+    "retiredAria": "{{name}} (wycofany)",
+    "empty": "W rejestrze nie ma jeszcze tagów.",
+    "save": "Zapisz tagi",
+    "clear": "Wyczyść tagi",
+    "loadFailed": "Nie udało się wczytać rejestru tagów"
+  },
+  "successor": {
+    "supersedes": "Ten ADR zastępuje",
+    "supersededBy": "Zastąpiony przez",
+    "pending": "Ustawiony jako zastępujący ten ADR",
+    "none": "Nie zastępuje żadnego ADR-a.",
+    "hint": "Zaczyna działać, gdy ten ADR stanie się aktywny: zastępowany ADR zostanie wtedy zastąpiony.",
+    "pickerLabel": "Ten ADR zastępuje…",
+    "pickerPlaceholder": "Szukaj ADR-ów po kluczu lub nazwie…",
+    "pickerClear": "Wyczyść ADR",
+    "noMatch": "Brak pasujących ADR-ów",
+    "link": "Powiąż",
+    "unlink": "Usuń powiązanie"
+  },
+  "banner": {
+    "superseded": {
+      "title": "Ten ADR został zastąpiony",
+      "body": "Decyzję z tego ADR-a zastąpił"
+    },
+    "pending": {
+      "title": "Następca już czeka",
+      "body": "ma zastąpić ten ADR; gdy stanie się aktywny, ten ADR zostanie zastąpiony.",
+      "detach": "Odłącz",
+      "detachTitle": "Odłączyć {{key}}?",
+      "detachMessage": "{{key}} przestaje być ustawiony jako zastępujący ten ADR, a ten ADR pozostaje bez zmian. Powiązanie może ponownie ustawić jego Driver; nic innego w tym szkicu się nie zmienia.",
+      "detachConfirm": "Odłącz",
+      "cancel": "Zostaw"
     }
   }
 }

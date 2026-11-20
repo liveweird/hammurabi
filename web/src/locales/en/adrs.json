@@ -1,0 +1,190 @@
+{
+  "title": "ADRs",
+  "intro": "Architecture Decision Records: every decision, from the problem raised to the decision in force. Everyone can read them and raise a new one.",
+  "newAdr": "New ADR",
+  "createTitle": "Raise an ADR",
+  "createIntro": "Describe the problem or question. You become the Driver; the rest can be written, and the other roles named, later.",
+  "createMore": "Context, decision, alternatives and consequences",
+  "createDaciHint": "You are the Driver. Name the others now, or later from the ADR page.",
+  "nameDefaultHint": "Optional: the first line of the problem is used when this is empty.",
+  "backToList": "Back to the ADRs",
+  "notFound": "This ADR does not exist (or was deleted).",
+  "loadFailed": "Could not load the ADRs",
+  "empty": "No ADRs yet",
+  "emptyFiltered": "No ADRs match these filters",
+  "openAria": "Open {{key}}: {{name}}",
+  "edit": "Edit",
+  "editTitle": "Edit the ADR",
+  "deleteTitle": "Delete ADR?",
+  "deleteBody": "{{key}} \"{{name}}\" will be deleted. Its number is never reused.",
+  "deleteFailed": "Could not delete the ADR",
+  "column": {
+    "key": "Key",
+    "status": "Status",
+    "updated": "Updated"
+  },
+  "filter": {
+    "q": "Name or key",
+    "clearQ": "Clear name or key filter",
+    "status": "Status",
+    "clearStatus": "Clear status filter",
+    "mine": "Only ADRs I take part in",
+    "role": "My role",
+    "clearRole": "Clear role filter"
+  },
+  "status": {
+    "PROBLEM_RAISED": "Problem raised",
+    "SOLUTION_DRAFT": "Solution draft",
+    "IN_REVIEW": "In review",
+    "ACTIVE": "Active",
+    "CANCELLED": "Cancelled",
+    "WITHDRAWN": "Withdrawn",
+    "EXPIRED": "Expired",
+    "SUPERSEDED": "Superseded",
+    "missing": "Still needed to continue: {{list}}.",
+    "closed": "This ADR is closed: it is read-only.",
+    "noMoves": "No status change is available to you."
+  },
+  "transition": {
+    "PROBLEM_RAISED": "Reopen the problem",
+    "SOLUTION_DRAFT": "Move to draft",
+    "IN_REVIEW": "Send to review",
+    "ACTIVE": "Activate",
+    "CANCELLED": "Cancel ADR",
+    "WITHDRAWN": "Withdraw",
+    "EXPIRED": "Expire",
+    "SUPERSEDED": "Supersede"
+  },
+  "confirm": {
+    "CANCELLED": {
+      "title": "Cancel this ADR?",
+      "body": "A cancelled ADR is closed for good: nobody can edit it or move it again."
+    },
+    "WITHDRAWN": {
+      "title": "Withdraw this ADR?",
+      "body": "A withdrawn ADR is closed for good: nobody can edit it or move it again."
+    }
+  },
+  "requirement": {
+    "context": "context",
+    "decision": "decision",
+    "consequences": "consequences",
+    "approver": "an Approver"
+  },
+  "role": {
+    "DRIVER": "Driver",
+    "APPROVER": "Approver",
+    "CONTRIBUTOR": "Contributor",
+    "INFORMED": "Informed"
+  },
+  "roleGroup": {
+    "DRIVER": "Driver",
+    "APPROVER": "Approver",
+    "CONTRIBUTOR": "Contributors",
+    "INFORMED": "Informed"
+  },
+  "field": {
+    "name": "Name",
+    "problem": "Problem / question",
+    "context": "Context",
+    "decision": "Decision",
+    "alternatives": "Alternatives considered",
+    "consequences": "Consequences / side effects"
+  },
+  "fieldHint": {
+    "problem": "What needs deciding, in Markdown.",
+    "context": "Why it matters: constraints, assumptions, who it concerns. Needed to enter review.",
+    "decision": "What was decided. Needed to enter review.",
+    "alternatives": "The options that were weighed. Optional.",
+    "consequences": "What follows from the decision, good and bad. Needed to enter review."
+  },
+  "section": {
+    "empty": "Nothing written yet."
+  },
+  "markdown": {
+    "write": "Write",
+    "preview": "Preview",
+    "modeAria": "{{field}}: write or preview",
+    "nothingToPreview": "Nothing to preview."
+  },
+  "side": {
+    "status": "Status",
+    "daci": "DACI",
+    "details": "Details",
+    "history": "History"
+  },
+  "daci": {
+    "listAria": "{{role}} to add",
+    "removeAria": "Remove {{name}}",
+    "driverHint": "Drives the ADR. Exactly one; hand it over, never leave it empty.",
+    "approverHint": "Decides: activates or withdraws. At most one.",
+    "contributorHint": "Edit the content and take part in the discussion.",
+    "informedHint": "Only read and are kept informed.",
+    "save": "Save participants",
+    "edit": "Edit participants",
+    "noApprover": "Not assigned",
+    "none": "Nobody",
+    "you": "You"
+  },
+  "details": {
+    "key": "Key",
+    "created": "Raised",
+    "updated": "Last changed",
+    "statusChanged": "Status changed",
+    "expiresOn": "Expiry date",
+    "noExpiry": "No expiry date",
+    "expiryHint": "The last day the decision is in force. Empty clears it.",
+    "editExpiryAria": "Edit the expiry date"
+  },
+  "history": {
+    "empty": "No history yet.",
+    "system": "System",
+    "userDeleted": "{{name}} (deleted account)",
+    "event": {
+      "CREATED": "ADR raised",
+      "UPDATED": "Edited",
+      "TRANSITIONED": "Status changed from {{from}} to {{to}}",
+      "PARTICIPANT_ADDED": "{{name}} added as {{role}}",
+      "PARTICIPANT_REMOVED": "{{name}} removed ({{role}})",
+      "PARTICIPANT_CHANGED": "{{name}} moved from {{from}} to {{to}}",
+      "EXPIRED": "Expired: the expiry date {{expiresOn}} has passed",
+      "SUPERSEDED": "Superseded by a successor"
+    },
+    "line": {
+      "created": "{{key}} \"{{name}}\"",
+      "name": "Name: \"{{from}}\" → \"{{to}}\"",
+      "expiryChanged": "Expiry date: {{from}} → {{to}}",
+      "expirySet": "Expiry date set to {{to}}",
+      "expiryCleared": "Expiry date removed (was {{from}})",
+      "textChanged": "{{field}} changed"
+    }
+  },
+  "validation": {
+    "textLength": "At most {{max}} characters",
+    "nameLength": "The name must be 1–120 characters",
+    "problemRequired": "Describe the problem or question",
+    "driverRequired": "An ADR needs a Driver"
+  },
+  "error": {
+    "conflictTitle": "This ADR has moved on",
+    "reload": "Reload the ADR",
+    "createInvalid": "Check the fields: the problem is required, the lengths are limited and the people you name must be active users.",
+    "saveInvalid": "Check the fields: the name and the problem are required, the lengths are limited and the expiry date must not be in the past.",
+    "transitionInvalid": "Not ready for that move: entering review or activation needs a context, a decision, consequences and an Approver, and an expiry date that is not in the past.",
+    "participantsInvalid": "Check the participants: exactly one Driver, at most one Approver, each person once, and only active users can be added.",
+    "revisionConflict": "Someone else changed this ADR after you opened it. Reload it to see the latest version; unsaved edits in the open form are discarded.",
+    "frozen": "This ADR is frozen: its content can no longer be changed in its current status. Reload to see its latest state.",
+    "illegalTransition": "This ADR cannot move there from its current status. Reload to see what is possible now.",
+    "forbidden": "Your role on this ADR does not allow this.",
+    "gone": "This ADR no longer exists.",
+    "nameTaken": "An ADR with this name already exists."
+  },
+  "toast": {
+    "created": "ADR raised",
+    "saved": "ADR saved",
+    "moved": "Status changed",
+    "participantsSaved": "Participants saved",
+    "expirySaved": "Expiry date saved",
+    "deleted": "ADR deleted"
+  }
+}

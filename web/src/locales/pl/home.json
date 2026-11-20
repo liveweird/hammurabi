@@ -1,7 +1,11 @@
 {
   "title": "Hammurabi",
-  "empty": {
-    "label": "Witaj w Hammurabim",
-    "hint": "Rekordy decyzji architektonicznych (ADR) są w drodze. Na razie możesz się zalogować, zarządzać użytkownikami/czkami, zespołami i flagami funkcji oraz wypróbować przełączniki języka i motywu."
+  "welcome": {
+    "title": "Twój rejestr decyzji",
+    "body": "Hammurabi prowadzi Twoje rekordy decyzji architektonicznych (ADR): ktoś zgłasza problem, ktoś przygotowuje rozwiązanie, a następnie rozwiązanie przechodzi przegląd i zapada decyzja. Gdy decyzja obowiązuje, ludzie zgłaszają, jak się sprawdza.",
+    "daci": "Każdy ADR ma jednego Prowadzącego/ą, który/a go prowadzi, jednego Zatwierdzającego/ą, który/a decyduje, oraz dowolnie wielu Współautorów/ki i Informowanych.",
+    "browse": "Przeglądaj ADR-y",
+    "raise": "Zgłoś ADR",
+    "mine": "ADR-y, w których biorę udział"
   }
 }

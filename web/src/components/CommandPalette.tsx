@@ -4,8 +4,9 @@ import { useTranslation } from "react-i18next";
 import { ActionIcon, Kbd, Text, UnstyledButton } from "@mantine/core";
 import { useOs } from "@mantine/hooks";
 import { Spotlight, type SpotlightActionData, type SpotlightActionGroupData, type SpotlightFilterFunction } from "@mantine/spotlight";
-import { IconActivity, IconSearch } from "@tabler/icons-react";
+import { IconActivity, IconPlus, IconSearch } from "@tabler/icons-react";
 import { useAdmin } from "../auth";
+import { newAdrPath } from "../utils/adrLinks";
 import { ACCOUNT_NAV, visibleSections } from "../utils/navigation";
 import { setTelemetryPanelOpen, useTelemetryPanelOpen } from "../hooks/useTelemetryPanel";
 import { palette, paletteStore } from "../utils/commandPalette";
@@ -45,20 +46,28 @@ export default function CommandPalette() {
       };
     }),
   };
-  // Actions: the ADMIN-only toggle of the telemetry panel (the same flag as the account menu's item).
+  // Actions: raise an ADR (everyone), and for an ADMIN the toggle of the telemetry panel (the same flag as the account menu's item).
+  const telemetryAction: SpotlightActionData = {
+    id: "action:telemetry-panel",
+    label: t(telemetryOpen ? "telemetry.palette.hide" : "telemetry.palette.show"),
+    keywords: t("telemetry.palette.keywords").split(" "),
+    leftSection: <IconActivity size={18} stroke={1.5} />,
+    onClick: () => {
+      palette.close();
+      setTelemetryPanelOpen(!telemetryOpen);
+    },
+  };
   const actions: SpotlightActionGroupData = {
     group: t("appShell.palette.groupActions"),
     actions: [
       {
-        id: "action:telemetry-panel",
-        label: t(telemetryOpen ? "telemetry.palette.hide" : "telemetry.palette.show"),
-        keywords: t("telemetry.palette.keywords").split(" "),
-        leftSection: <IconActivity size={18} stroke={1.5} />,
-        onClick: () => {
-          palette.close();
-          setTelemetryPanelOpen(!telemetryOpen);
-        },
+        id: "action:new-adr",
+        label: t("appShell.palette.newAdr"),
+        keywords: t("appShell.palette.newAdrKeywords").split(" "),
+        leftSection: <IconPlus size={18} stroke={1.5} />,
+        onClick: () => go(newAdrPath),
       },
+      ...(admin ? [telemetryAction] : []),
     ],
   };
   // Pages match the folded query on their label or one of their extra keywords.
@@ -92,7 +101,7 @@ export default function CommandPalette() {
         shortcut="mod + K"
         query={query}
         onQueryChange={setQuery}
-        actions={admin ? [pages, actions] : [pages]}
+        actions={[pages, actions]}
         filter={filter}
         nothingFound={t("appShell.palette.nothingFound")}
         scrollable

@@ -9,7 +9,8 @@
     "changePassword": "Zmiana hasła",
     "featureFlags": "Flagi funkcji",
     "changelog": "Historia zmian",
-    "teams": "Zespoły"
+    "teams": "Zespoły",
+    "adrs": "ADR-y"
   },
   "section": {
     "overview": "Przegląd",
@@ -29,6 +30,8 @@
     "placeholder": "Szukaj lub przejdź do strony…",
     "groupPages": "Strony",
     "nothingFound": "Nic nie znaleziono",
-    "groupActions": "Akcje"
+    "groupActions": "Akcje",
+    "newAdr": "Zgłoś ADR",
+    "newAdrKeywords": "nowy utwórz adr decyzja rekord zgłoś"
   }
 }

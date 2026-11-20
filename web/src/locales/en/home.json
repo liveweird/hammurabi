@@ -1,7 +1,11 @@
 {
   "title": "Hammurabi",
-  "empty": {
-    "label": "Welcome to Hammurabi",
-    "hint": "Architecture Decision Records (ADRs) are coming. For now you can sign in, manage users, teams and feature flags, and try the language and theme switches."
+  "welcome": {
+    "title": "Your decision log",
+    "body": "Hammurabi keeps your Architecture Decision Records (ADRs): a problem is raised, a solution is drafted, reviewed and decided, and while the decision is in force people report how it works.",
+    "daci": "Every ADR has one Driver who drives it, one Approver who decides, and any number of Contributors and Informed people.",
+    "browse": "Browse the ADRs",
+    "raise": "Raise an ADR",
+    "mine": "ADRs I take part in"
   }
 }

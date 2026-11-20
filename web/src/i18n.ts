@@ -8,6 +8,7 @@ import LanguageDetector from "i18next-browser-languagedetector";
 // set (src/i18next.d.ts) AND the runtime fallback bundle; every other language is
 // auto-discovered from its `locales/<lang>/` folder by the glob further down.
 import enCommon from "./locales/en/common.json";
+import enAdrs from "./locales/en/adrs.json";
 import enAppShell from "./locales/en/appShell.json";
 import enAuth from "./locales/en/auth.json";
 import enChangelog from "./locales/en/changelog.json";
@@ -52,6 +53,7 @@ const LANGUAGE_STORAGE_KEY = "hammurabi.lang";
  */
 export const en = {
   common: enCommon,
+  adrs: enAdrs,
   appShell: enAppShell,
   auth: enAuth,
   changelog: enChangelog,

@@ -1,5 +1,6 @@
 import type { ParseKeys } from "i18next";
-import { IconHistory, IconHome2, IconKey, IconToggleLeft, IconUsers, IconUsersGroup, type Icon } from "@tabler/icons-react";
+import { IconGavel, IconHistory, IconHome2, IconKey, IconToggleLeft, IconUsers, IconUsersGroup, type Icon } from "@tabler/icons-react";
+import { adrsPath } from "./adrLinks";
 import { teamsPath } from "./teamLinks";
 import { usersPath } from "./userLinks";
 
@@ -32,14 +33,17 @@ export const homePath = "/";
  * The navigation model, shared by the sidebar and the command palette. Sections are labelled,
  * always-open blocks (never collapsible groups): every leaf is always in the DOM, so tests and
  * deep links address the links directly, and a static label costs less vertical space than a
- * toggle. Home is visible to everyone; the Administration section holds Teams (everyone reads
+ * toggle. Home and the ADRs (the primary entry: every signed-in user reads and raises them) are visible to everyone; the Administration section holds Teams (everyone reads
  * the flat teams list; only its create/edit/delete are ADMIN) alongside the ADMIN-only Users and
  * Feature flags leaves — a non-admin session sees just Teams there.
  */
 const NAV_SECTIONS: ReadonlyArray<NavSection> = [
   {
     label: "appShell.section.overview",
-    items: [{ to: homePath, label: "appShell.nav.home", icon: IconHome2 }],
+    items: [
+      { to: homePath, label: "appShell.nav.home", icon: IconHome2 },
+      { to: adrsPath, label: "appShell.nav.adrs", icon: IconGavel, keywords: ["decision", "architecture", "record", "adr"] },
+    ],
   },
   {
     label: "appShell.section.administration",

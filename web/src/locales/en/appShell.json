@@ -9,7 +9,8 @@
     "changePassword": "Change password",
     "featureFlags": "Feature flags",
     "changelog": "Changelog",
-    "teams": "Teams"
+    "teams": "Teams",
+    "adrs": "ADRs"
   },
   "section": {
     "overview": "Overview",
@@ -29,6 +30,8 @@
     "placeholder": "Search or jump to a page…",
     "groupPages": "Pages",
     "nothingFound": "Nothing found",
-    "groupActions": "Actions"
+    "groupActions": "Actions",
+    "newAdr": "Raise an ADR",
+    "newAdrKeywords": "new create adr decision record"
   }
 }

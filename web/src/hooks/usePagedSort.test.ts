@@ -24,6 +24,15 @@ describe("usePagedSort", () => {
     expect(result.current.sortParam).toBe("name");
   });
 
+  test("a descending initial direction serves a newest-first list, and a stored choice still wins", () => {
+    const { result } = renderHook(() => usePagedSort<SortField>("name", [""], PERSIST, "desc"));
+    expect(result.current.sortDir).toBe("desc");
+    expect(result.current.sortParam).toBe("-name");
+    localStorage.setItem(STORAGE_KEY, JSON.stringify({ sortField: "kind", sortDir: "asc", pageSize: 40 }));
+    const stored = renderHook(() => usePagedSort<SortField>("name", [""], PERSIST, "desc"));
+    expect(stored.result.current.sortParam).toBe("kind");
+  });
+
   test("toggleSort on the active field cycles asc → desc → asc; sortParam prefixes '-' for desc", () => {
     const { result } = renderPagedSort();
 

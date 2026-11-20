@@ -3,8 +3,8 @@
 Vite + React 19 + TypeScript SPA: the shell + auth, user/feature management, MFA, password reset,
 the changelog, the flat-teams registry and the ADMIN telemetry panel — the v0.1.0 foundation, trimmed from Flow
 (`~/Sources/flow` @ 4e43e480, 1.57.1, the donor: port building blocks from there, don't reinvent; Astrolabe's trim of the same
-shell is the precedent) — with a placeholder Home (a welcome and a note that ADRs are coming); the ADR feature itself
-arrives in later versions. Routes are lazy.
+shell is the precedent) — plus the 0.2.0 ADR core (the list, create and detail pages, "The ADR pages" below) behind a Home that welcomes
+and leads into them. Routes are lazy.
 
 - Dev server: `cd web && npm run dev` (port **5181** — not Vite's 5173 default, so Hammurabi can run
   beside the sibling stacks' 5173–5178 and 5180; the port table is in `.claude/docs/ci.md`). All backend routes live under the
@@ -62,7 +62,7 @@ arrives in later versions. Routes are lazy.
 - Pages are **lazy** (`React.lazy` in `App.tsx`); new routes register above the `path="*"`
   NotFound catch-all (LAST child, never feature-gated). **The nav model lives in
   `utils/navigation.ts`**, shared by the sidebar and the command palette: `NAV_SECTIONS` —
-  labelled, always-open sections (currently Overview and Administration: Teams, Users, Feature flags) of `NavLeaf`s (the
+  labelled, always-open sections (currently Overview: Home, ADRs; and Administration: Teams, Users, Feature flags) of `NavLeaf`s (the
   `label` is a typed i18n key; `adminOnly?` gates admin leaves, `keywords?` adds raw palette search terms for a renamed page's old name, and `visibleSections(isAdmin())`
   drops an emptied section) — plus `ACCOUNT_NAV` (Change password, Changelog), which the header
   `UserMenu` and the palette render and the sidebar never does. Sections are static captions
@@ -80,7 +80,7 @@ arrives in later versions. Routes are lazy.
   SegmentedControl, Change password, Changelog with the what's-new badge, for an ADMIN a "Telemetry panel" toggle, Sign out). The version
   stamp stays in the sidebar footer. **`components/CommandPalette.tsx`** wraps
   `@mantine/spotlight` (pinned to the core version — keep every `@mantine/*` on one version) over
-  a module-level store (`utils/commandPalette.ts`): the session's pages, plus an ADMIN-only show/hide action for the telemetry panel. No
+  a module-level store (`utils/commandPalette.ts`): the session's pages, plus the "Raise an ADR" action (everyone) and an ADMIN-only show/hide action for the telemetry panel. No
   `highlightQuery` — it splits labels into `<mark>` fragments that role/name locators cannot
   match.
 - **Page chrome**: every page is a `Stack gap="md"` on the canvas starting with
@@ -194,6 +194,22 @@ Every list page composes the same ported Lettuce blocks — copy `pages/Users.ts
   {{name}}"; items are plain `menuitem`s, only one row's menu is open at a time); a per-row
   `Switch` (Feature flags) is state, not an action.
 
+## The ADR pages (0.2.0)
+
+`pages/Adrs.tsx` (`/adrs`, the primary nav entry), `pages/CreateAdr.tsx` (`/adrs/new`) and `pages/AdrDetails.tsx` (`/adrs/:id`); routes in `utils/adrLinks.ts`, wrappers in `api/adrs.ts`, copy in `locales/*/adrs.json`.
+
+- **The list** is the Users/Teams table (`RegistryListTable`, `usePagedSort` with a descending initial direction: newest first) with its FILTERS in the URL
+  (`hooks/useAdrListParams.ts` over `utils/adrListParams.ts`: `q`, repeated `status`, `mine=1`, `role`), written by `replace`; page, page size and sort stay `usePagedSort`'s.
+- **The detail page**: the main pane is the five Markdown sections (`AdrContentSections`, user Markdown in the `message` variant so its headings never reshape the outline) or the inline editor (`AdrEditForm`,
+  `MarkdownField`: a Textarea with a Write/Preview toggle — no new dependency); the side panel is Status (`AdrStatusControl`: one button per `allowedTransitions`, cancelling and withdrawing confirm), DACI
+  (`AdrParticipantsPanel`/`Editor` over `UserDirectorySelect` and `UserMultiPicker`), Details (the expiry date has its own editor, `AdrExpiryEditor`) and History (`AdrHistory` over the ported
+  `EventTimeline`; `utils/adrEvents.ts` renders every event type and its params as localized text). All sections are h3 under the page's h2.
+- **What the user may do comes from the server's verdicts** (`allowedTransitions`, `canEdit`, `canManageParticipants`); `utils/adrAccess.ts` only narrows `canEdit` to the content editor by role (the wire carries no
+  per-field flag) and the expiry editor follows `canManageParticipants`, which is the same condition. The server re-judges every write.
+- **Every write carries the revision the page holds** (`X-Expected-Revision`: the document PUT, transitions and the participants replace) and refreshes the `["adrs"]` prefix. A typed 409 (`revision-conflict`,
+  `adr-frozen`, `illegal-transition`; `utils/adrErrors.ts`) renders through `AdrWriteError` as an orange notice with a reload button; every other failure is a red alert in fixed words.
+- **One status colour map** (`utils/adrStatus.ts`: gray, grape, cyan, teal, orange, red) feeds `AdrStatusBadge` everywhere; a new status colour goes through the vocabulary above.
+
 ## Registries (the Teams.tsx template)
 
 The small ADMIN-curated registries (Teams today; tag categories arrive with the ADR domain) compose
@@ -240,7 +256,7 @@ The SPA is **N-language by architecture** via react-i18next (`src/i18n.ts`); the
 are English (THE default and fallback everywhere) and Polish. All user-facing strings go through
 `const { t } = useTranslation()` / `<Trans>` — **no hardcoded UI text**. Conventions:
 
-- **Resources** live in `src/locales/{en,pl}/<area>.json`, one file per area (`appShell`, `auth`,
+- **Resources** live in `src/locales/{en,pl}/<area>.json`, one file per area (`adrs`, `appShell`, `auth`,
   `changelog`, `common`, `home`, `teams`, `telemetry`, `users`); `i18n.ts` merges them into a single
   `translation` namespace, so keys read `area.key` (e.g. `t("auth.signIn")`). Only EN is
   statically imported — its typed `en` tree is the key canon AND the runtime fallback; every other

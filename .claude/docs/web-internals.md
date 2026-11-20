@@ -181,9 +181,7 @@ When a feature needs one of these, port the sibling's `web/` implementation and 
 - **Lettuce's chat-shaped pieces** (`~/Sources/lettuce/web/src/components/`): `EmojiPicker`/`EmojiButton`/`EmojiTextarea`, `NotificationsButton` (0.6 mentions), and
   `safeBackParam` (the open-redirect guard for any future `?back=` param), `StatusPill`/`MetaStrip`/`FormFooter`/`ListToolbar`, and `useDiscardGuard` + `DiscardGuard` for
   dirty-form navigation (its in-app half is the data router's `useBlocker`, which the plain `BrowserRouter` does not have; only the `beforeunload` half,
-  `hooks/useBeforeUnloadGuard.ts`, was ported in Flow — port it again with the first dirty-form page, e.g. the ADR edit form).
-- **Toadie's `X-Expected-Revision` handling** for a whole-document PUT (the ADR edit form): the transport must read the revision from the GET and send it back; port its `web/`
-  half together with the server's.
+  `hooks/useBeforeUnloadGuard.ts`, was ported in Flow — port it again with the first dirty-form page that needs it — the ADR editor (0.2.0) does not guard a dirty leave yet).
 - **Covenant's catalog surface** (`covenant/web/src/`) — the filter-set/facets pattern
   (`hooks/useContractFilterState.ts` + `components/ContractFilterControls.tsx`) — port it with 0.4 Organise and find when the ADR list needs filters; today's Teams/Users lists are the
   `useRegistryListControls`/`Users.tsx` templates above, which is as far as the foundation goes.

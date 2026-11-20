@@ -1,0 +1,108 @@
+import { useState } from "react";
+import { useTranslation } from "react-i18next";
+import { useNavigate, useParams } from "react-router-dom";
+import { Button, Grid, Stack } from "@mantine/core";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { IconPencil, IconTrash } from "@tabler/icons-react";
+import { deleteAdr, getAdr, type AdrResponse } from "../api/adrs";
+import { ApiError } from "../api/http";
+import { getUserId } from "../api/session";
+import { useAdmin } from "../auth";
+import AdrContentSections from "../components/AdrContentSections";
+import AdrEditForm from "../components/AdrEditForm";
+import AdrSidePanel from "../components/AdrSidePanel";
+import ConfirmDeleteModal from "../components/ConfirmDeleteModal";
+import EditPageLoadState from "../components/EditPageLoadState";
+import PageHeader from "../components/PageHeader";
+import { useDeleteConfirm } from "../hooks/useDeleteConfirm";
+import { canEditContent } from "../utils/adrAccess";
+import { adrsPath } from "../utils/adrLinks";
+import { refreshQueriesAfterMutation } from "../utils/queryRefresh";
+import { loadErrorMessage, saveErrorMessage } from "../utils/saveError";
+
+/**
+ * One ADR (`/adrs/:id`). The main pane holds the five Markdown sections (or their editor while editing); the side panel holds Status,
+ * DACI, Details and History. What the signed-in user may do comes from the server's verdicts on the ADR (`allowedTransitions`, `canEdit`,
+ * `canManageParticipants`); only an ADMIN deletes. Every write refreshes the `["adrs"]` prefix, so the page, the history and the list
+ * follow, and each write carries the revision the page holds.
+ */
+export default function AdrDetails() {
+  const { t } = useTranslation();
+  const navigate = useNavigate();
+  const queryClient = useQueryClient();
+  const admin = useAdmin();
+  const { id: idParam } = useParams();
+  const id = Number(idParam);
+  const [editing, setEditing] = useState(false);
+  // Set once the ADR is deleted: the page is on its way out and must not fetch the 404 of the ADR it just removed.
+  const [deleted, setDeleted] = useState(false);
+  const adr = useQuery({ queryKey: ["adrs", "detail", id], queryFn: () => getAdr(id), enabled: Number.isInteger(id) && id > 0 && !deleted });
+
+  const remove = useDeleteConfirm<AdrResponse>({
+    mutationFn: (row) => deleteAdr(row.id),
+    onSuccess: async (row) => {
+      // Stop reading the ADR, leave, refresh the list and drop the deleted ADR's own queries (nothing observes them any more).
+      setDeleted(true);
+      navigate(adrsPath);
+      await refreshQueriesAfterMutation(queryClient, ["adrs", "list"]);
+      queryClient.removeQueries({ queryKey: ["adrs", "detail", row.id] });
+      queryClient.removeQueries({ queryKey: ["adrs", "events", row.id] });
+    },
+    successMessage: t("adrs.toast.deleted"),
+  });
+
+  if (adr.isLoading || adr.isError || !adr.data) {
+    const notFound = !Number.isInteger(id) || id <= 0 || (adr.error instanceof ApiError && adr.error.status === 404);
+    return (
+      <EditPageLoadState
+        isLoading={adr.isLoading}
+        message={notFound ? t("adrs.notFound") : loadErrorMessage(adr.error, t)}
+        backTo={adrsPath}
+        backLabel={t("adrs.backToList")}
+        title={t("adrs.title")}
+      />
+    );
+  }
+  const data = adr.data;
+  // Falls back to the sections the moment the verdict turns (a move to ACTIVE froze the content under an open editor).
+  const mayEdit = canEditContent(data, getUserId(), admin);
+
+  return (
+    <Stack gap="md">
+      <PageHeader
+        title={data.name}
+        description={data.key}
+        backTo={{ to: adrsPath, label: t("adrs.backToList") }}
+        actions={
+          <>
+            {mayEdit && !editing && (
+              <Button variant="default" leftSection={<IconPencil size={16} />} onClick={() => setEditing(true)}>
+                {t("adrs.edit")}
+              </Button>
+            )}
+            {admin && (
+              <Button variant="light" color="red" leftSection={<IconTrash size={16} />} onClick={() => remove.requestDelete(data)}>
+                {t("common.action.delete")}
+              </Button>
+            )}
+          </>
+        }
+      />
+      <Grid gap="lg">
+        <Grid.Col span={{ base: 12, lg: 8 }}>
+          {editing && mayEdit ? <AdrEditForm adr={data} onClose={() => setEditing(false)} /> : <AdrContentSections adr={data} />}
+        </Grid.Col>
+        <Grid.Col span={{ base: 12, lg: 4 }}>
+          <AdrSidePanel adr={data} />
+        </Grid.Col>
+      </Grid>
+      <ConfirmDeleteModal
+        confirm={remove}
+        title={t("adrs.deleteTitle")}
+        errorTitle={t("adrs.deleteFailed")}
+        errorMessage={(err) => saveErrorMessage(err, t, { forbidden: "adrs.error.forbidden", notFound: "adrs.error.gone", failedStatus: "common.error.actionFailedStatus", failed: "common.error.actionFailed" })}
+        body={(target) => t("adrs.deleteBody", { key: target.key, name: target.name })}
+      />
+    </Stack>
+  );
+}

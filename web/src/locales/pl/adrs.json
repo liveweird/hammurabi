@@ -1,0 +1,190 @@
+{
+  "title": "ADR-y",
+  "intro": "Rekordy decyzji architektonicznych: każda decyzja, od zgłoszonego problemu po obowiązującą decyzję. Każdy/a może je czytać i zgłosić nowy.",
+  "newAdr": "Nowy ADR",
+  "createTitle": "Zgłoś ADR",
+  "createIntro": "Opisz problem albo pytanie. Zostajesz Prowadzącym/ą; resztę treści możesz dopisać, a pozostałe role wskazać później.",
+  "createMore": "Kontekst, decyzja, alternatywy i konsekwencje",
+  "createDaciHint": "Ty jesteś Prowadzącym/ą. Pozostałe osoby wskaż teraz albo później na stronie ADR.",
+  "nameDefaultHint": "Opcjonalnie: gdy pole jest puste, użyjemy pierwszego wiersza problemu.",
+  "backToList": "Wróć do ADR-ów",
+  "notFound": "Ten ADR nie istnieje (albo ktoś go usunął).",
+  "loadFailed": "Nie udało się wczytać ADR-ów",
+  "empty": "Nie ma jeszcze ADR-ów",
+  "emptyFiltered": "Żaden ADR nie pasuje do tych filtrów",
+  "openAria": "Otwórz {{key}}: {{name}}",
+  "edit": "Edytuj",
+  "editTitle": "Edytuj ADR",
+  "deleteTitle": "Usunąć ADR?",
+  "deleteBody": "Usuniemy {{key}} „{{name}}”. Jego numer nigdy nie zostanie użyty ponownie.",
+  "deleteFailed": "Nie udało się usunąć ADR-a",
+  "column": {
+    "key": "Klucz",
+    "status": "Status",
+    "updated": "Zmieniono"
+  },
+  "filter": {
+    "q": "Nazwa lub klucz",
+    "clearQ": "Wyczyść filtr nazwy lub klucza",
+    "status": "Status",
+    "clearStatus": "Wyczyść filtr statusu",
+    "mine": "Tylko ADR-y, w których biorę udział",
+    "role": "Moja rola",
+    "clearRole": "Wyczyść filtr roli"
+  },
+  "status": {
+    "PROBLEM_RAISED": "Zgłoszony problem",
+    "SOLUTION_DRAFT": "Szkic rozwiązania",
+    "IN_REVIEW": "W przeglądzie",
+    "ACTIVE": "Obowiązujący",
+    "CANCELLED": "Anulowany",
+    "WITHDRAWN": "Wycofany",
+    "EXPIRED": "Wygasły",
+    "SUPERSEDED": "Zastąpiony",
+    "missing": "Do kontynuowania brakuje jeszcze: {{list}}.",
+    "closed": "Ten ADR jest zamknięty: można go tylko czytać.",
+    "noMoves": "Nie możesz zmienić statusu tego ADR-a."
+  },
+  "transition": {
+    "PROBLEM_RAISED": "Wróć do problemu",
+    "SOLUTION_DRAFT": "Przenieś do szkicu",
+    "IN_REVIEW": "Wyślij do przeglądu",
+    "ACTIVE": "Aktywuj",
+    "CANCELLED": "Anuluj ADR",
+    "WITHDRAWN": "Wycofaj",
+    "EXPIRED": "Wygaś",
+    "SUPERSEDED": "Zastąp"
+  },
+  "confirm": {
+    "CANCELLED": {
+      "title": "Anulować ten ADR?",
+      "body": "Anulowany ADR jest zamknięty na stałe: nikt nie może go już edytować ani przesunąć."
+    },
+    "WITHDRAWN": {
+      "title": "Wycofać ten ADR?",
+      "body": "Wycofany ADR jest zamknięty na stałe: nikt nie może go już edytować ani przesunąć."
+    }
+  },
+  "requirement": {
+    "context": "kontekst",
+    "decision": "decyzja",
+    "consequences": "konsekwencje",
+    "approver": "Zatwierdzający/a"
+  },
+  "role": {
+    "DRIVER": "Prowadzący/a",
+    "APPROVER": "Zatwierdzający/a",
+    "CONTRIBUTOR": "Współtwórca/czyni",
+    "INFORMED": "Informowany/a"
+  },
+  "roleGroup": {
+    "DRIVER": "Prowadzący/a",
+    "APPROVER": "Zatwierdzający/a",
+    "CONTRIBUTOR": "Współtwórcy/czynie",
+    "INFORMED": "Informowani/e"
+  },
+  "field": {
+    "name": "Nazwa",
+    "problem": "Problem / pytanie",
+    "context": "Kontekst",
+    "decision": "Decyzja",
+    "alternatives": "Rozważane alternatywy",
+    "consequences": "Konsekwencje / skutki uboczne"
+  },
+  "fieldHint": {
+    "problem": "Co wymaga rozstrzygnięcia, w Markdownie.",
+    "context": "Dlaczego to ważne: ograniczenia, założenia, kogo dotyczy. Wymagany do przeglądu.",
+    "decision": "Co postanowiono. Wymagana do przeglądu.",
+    "alternatives": "Opcje, które rozważano. Opcjonalnie.",
+    "consequences": "Co wynika z decyzji, dobrego i złego. Wymagane do przeglądu."
+  },
+  "section": {
+    "empty": "Nic jeszcze nie napisano."
+  },
+  "markdown": {
+    "write": "Pisz",
+    "preview": "Podgląd",
+    "modeAria": "{{field}}: pisanie lub podgląd",
+    "nothingToPreview": "Brak treści do podglądu."
+  },
+  "side": {
+    "status": "Status",
+    "daci": "DACI",
+    "details": "Szczegóły",
+    "history": "Historia"
+  },
+  "daci": {
+    "listAria": "{{role}} do dodania",
+    "removeAria": "Usuń: {{name}}",
+    "driverHint": "Prowadzi ADR. Dokładnie jedna osoba; można ją zmienić, ale nie zostawić pustego miejsca.",
+    "approverHint": "Decyduje: aktywuje albo wycofuje. Najwyżej jedna osoba.",
+    "contributorHint": "Edytują treść i biorą udział w dyskusji.",
+    "informedHint": "Tylko czytają i są informowani/e.",
+    "save": "Zapisz uczestników/czki",
+    "edit": "Edytuj uczestników/czki",
+    "noApprover": "Nie wskazano",
+    "none": "Nikt",
+    "you": "Ty"
+  },
+  "details": {
+    "key": "Klucz",
+    "created": "Zgłoszono",
+    "updated": "Ostatnia zmiana",
+    "statusChanged": "Zmiana statusu",
+    "expiresOn": "Data wygaśnięcia",
+    "noExpiry": "Brak daty wygaśnięcia",
+    "expiryHint": "Ostatni dzień obowiązywania decyzji. Puste pole usuwa datę.",
+    "editExpiryAria": "Edytuj datę wygaśnięcia"
+  },
+  "history": {
+    "empty": "Brak historii.",
+    "system": "System",
+    "userDeleted": "{{name}} (usunięte konto)",
+    "event": {
+      "CREATED": "Zgłoszono ADR",
+      "UPDATED": "Edytowano",
+      "TRANSITIONED": "Status zmieniony z „{{from}}” na „{{to}}”",
+      "PARTICIPANT_ADDED": "Dodano: {{name}} ({{role}})",
+      "PARTICIPANT_REMOVED": "Usunięto: {{name}} ({{role}})",
+      "PARTICIPANT_CHANGED": "{{name}}: rola zmieniona z „{{from}}” na „{{to}}”",
+      "EXPIRED": "Wygasł: minęła data wygaśnięcia {{expiresOn}}",
+      "SUPERSEDED": "Zastąpiony przez następcę"
+    },
+    "line": {
+      "created": "{{key}} „{{name}}”",
+      "name": "Nazwa: „{{from}}” → „{{to}}”",
+      "expiryChanged": "Data wygaśnięcia: {{from}} → {{to}}",
+      "expirySet": "Ustawiono datę wygaśnięcia: {{to}}",
+      "expiryCleared": "Usunięto datę wygaśnięcia (była: {{from}})",
+      "textChanged": "Zmieniono: {{field}}"
+    }
+  },
+  "validation": {
+    "textLength": "Najwyżej {{max}} znaków",
+    "nameLength": "Nazwa musi mieć od 1 do 120 znaków",
+    "problemRequired": "Opisz problem albo pytanie",
+    "driverRequired": "ADR potrzebuje Prowadzącego/ej"
+  },
+  "error": {
+    "conflictTitle": "Ten ADR się zmienił",
+    "reload": "Wczytaj ADR ponownie",
+    "createInvalid": "Sprawdź pola: problem jest wymagany, długości są ograniczone, a wskazane osoby muszą mieć aktywne konta.",
+    "saveInvalid": "Sprawdź pola: nazwa i problem są wymagane, długości są ograniczone, a data wygaśnięcia nie może być z przeszłości.",
+    "transitionInvalid": "Ten ruch nie jest jeszcze możliwy: przegląd i aktywacja wymagają kontekstu, decyzji, konsekwencji i Zatwierdzającego/ej oraz daty wygaśnięcia, która nie jest z przeszłości.",
+    "participantsInvalid": "Sprawdź uczestników/czki: dokładnie jeden/a Prowadzący/a, najwyżej jeden/a Zatwierdzający/a, każda osoba raz, a dodać można tylko aktywne konta.",
+    "revisionConflict": "Ktoś zmienił ten ADR, gdy go otworzyłeś/aś. Wczytaj go ponownie, aby zobaczyć najnowszą wersję; niezapisane zmiany w otwartym formularzu przepadną.",
+    "frozen": "Ten ADR jest zamrożony: w obecnym statusie nie można już zmieniać jego treści. Wczytaj go ponownie, aby zobaczyć aktualny stan.",
+    "illegalTransition": "Z obecnego statusu ten ADR nie może tam przejść. Wczytaj go ponownie, aby zobaczyć, co jest teraz możliwe.",
+    "forbidden": "Twoja rola w tym ADR-ze na to nie pozwala.",
+    "gone": "Ten ADR już nie istnieje.",
+    "nameTaken": "ADR o tej nazwie już istnieje."
+  },
+  "toast": {
+    "created": "ADR zgłoszony",
+    "saved": "ADR zapisany",
+    "moved": "Status zmieniony",
+    "participantsSaved": "Uczestnicy/czki zapisani/e",
+    "expirySaved": "Data wygaśnięcia zapisana",
+    "deleted": "ADR usunięty"
+  }
+}

@@ -78,6 +78,25 @@ describe("CommandPalette", () => {
     expect(await screen.findByRole("button", { name: /Show telemetry panel/ })).toBeInTheDocument();
   });
 
+  test("the palette lists the ADRs page and a Raise-an-ADR action for every session, found by its keywords", async () => {
+    vi.stubGlobal("fetch", vi.fn());
+    const user = userEvent.setup();
+    renderPalette();
+    palette.open();
+    await user.type(await screen.findByPlaceholderText("Search or jump to a page…"), "decision");
+    expect(await screen.findByRole("button", { name: /^ADRs$/ })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /Raise an ADR/ })).toBeInTheDocument();
+  });
+
+  test("picking Raise an ADR opens the create page", async () => {
+    vi.stubGlobal("fetch", vi.fn());
+    const user = userEvent.setup();
+    renderPalette();
+    palette.open();
+    await user.click(await screen.findByRole("button", { name: /Raise an ADR/ }));
+    expect(await screen.findByText("at /adrs/new")).toBeInTheDocument();
+  });
+
   test("a regular session's palette has no telemetry action", async () => {
     vi.stubGlobal("fetch", vi.fn());
     renderPalette();

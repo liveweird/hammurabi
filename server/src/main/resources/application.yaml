@@ -43,6 +43,9 @@ ktor:
       # — features
       - ch.nokillswit.users.UserRoutesKt.configureUserRoutes
       - ch.nokillswit.teams.TeamRoutesKt.configureTeamRoutes
+      # The ADR core (`.claude/docs/adr-model.md`): the /api/v1/adrs routes, then the expiry sweep (`adrs.expiry.*` below).
+      - ch.nokillswit.adrs.AdrRoutesKt.configureAdrRoutes
+      - ch.nokillswit.adrs.AdrExpirySweepKt.configureAdrExpirySweep
       - ch.nokillswit.auth.AuthRoutesKt.configureAuthRoutes
       - ch.nokillswit.auth.PasswordResetRoutesKt.configurePasswordResetRoutes
       # The telemetry read API (ADMIN, `.claude/docs/observability.md` "Telemetry"): reads what the sampler wrote.
@@ -192,6 +195,13 @@ telemetry:
   sampleIntervalSeconds: "$TELEMETRY_SAMPLE_INTERVAL_SECONDS:300"
   # How often the storage collector measures the database's schema sizes (900..86400).
   storageIntervalSeconds: "$TELEMETRY_STORAGE_INTERVAL_SECONDS:3600"
+
+adrs:
+  # The expiry sweep (adrs/AdrExpirySweep.kt, `.claude/docs/adr-model.md` "Expiry"): moves every ACTIVE ADR whose expiry date is before
+  # today (UTC) to EXPIRED. Validated on every boot, enabled or not: `intervalSeconds` is 1..86400.
+  expiry:
+    enabled: "$ADRS_EXPIRY_ENABLED:true"
+    intervalSeconds: "$ADRS_EXPIRY_INTERVAL_SECONDS:3600"
 
 web:
   # When set, the server serves the built React SPA from this directory (static

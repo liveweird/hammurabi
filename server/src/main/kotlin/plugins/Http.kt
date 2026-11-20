@@ -34,6 +34,18 @@ const val MAX_REQUEST_BODY_BYTES: Long = 512L * 1024
  */
 const val MAX_SMALL_REQUEST_BODY_BYTES: Long = 16L * 1024
 
+/**
+ * The ceiling of an ADR document write (`POST /api/v1/adrs`, `PUT /api/v1/adrs/{id}`), sized from its big fields: the problem, context,
+ * decision, alternatives and consequences carry at most 20,000 UTF-16 units each (`MAX_ADR_TEXT_LENGTH`) after normalisation, and a raw
+ * non-ASCII BMP unit is at most 3 bytes in UTF-8 (a line feed or tab is 2 as the JSON escape), so 300,000 bytes; the name adds at most 360,
+ * the expiry date a dozen and a create's at most 99 initial participants (`{"userId":4294967295,"role":"CONTRIBUTOR"}`, 43 bytes with the
+ * comma) about 4,300 - roughly 305 KB in all. 384 KiB (393,216 bytes) leaves a quarter of headroom for the CRLF pairs and trailing
+ * whitespace normalisation drops, and sits below [MAX_REQUEST_BODY_BYTES] (the body is buffered before it decodes, so the ceiling bounds
+ * what a few concurrent writers pin). Not covered, on purpose: a client that `\u`-escapes every non-ASCII character of five maximal
+ * fields (6 bytes a unit, about 600 KB), which no real client sends. Same 413.
+ */
+const val MAX_ADR_REQUEST_BODY_BYTES: Long = 384L * 1024
+
 private val SMALL_BODY_PATHS = setOf(
     "/api/v1/login",
     "/api/v1/login/mfa",
@@ -41,6 +53,11 @@ private val SMALL_BODY_PATHS = setOf(
     "/api/v1/password-reset",
     "/api/v1/password-reset/confirm",
 )
+
+private val ADR_DOCUMENT_PATH = Regex("^/api/v1/adrs(/[0-9]+)?$")
+
+/** The ADR transition `{to}` and the participants PUT (at most 100 `{userId, role}` entries, about 4.5 KB): small bodies. */
+private val ADR_SMALL_PATH = Regex("^/api/v1/adrs/[0-9]+/(transitions|participants)$")
 
 /**
  * The path as ROUTING sees it, which is what the ceilings must match: the raw request path split on `/`, empty segments dropped (routing
@@ -55,12 +72,21 @@ internal fun routedPath(rawPath: String): String = try {
 }
 
 /**
- * The body ceiling of this call: [MAX_SMALL_REQUEST_BODY_BYTES] for the anonymous auth POSTs, else [MAX_REQUEST_BODY_BYTES]. Matched
- * against the [routedPath], so an encoded spelling of the same route gets the same ceiling.
+ * The body ceiling of this call: [MAX_SMALL_REQUEST_BODY_BYTES] for the anonymous auth POSTs and the ADR transition and participants
+ * writes, [MAX_ADR_REQUEST_BODY_BYTES] for an ADR create or document PUT, else [MAX_REQUEST_BODY_BYTES]. Matched against the
+ * [routedPath], so an encoded spelling of the same route gets the same ceiling.
  */
 internal fun requestBodyLimit(call: ApplicationCall): Long {
-    if (call.request.httpMethod != HttpMethod.Post) return MAX_REQUEST_BODY_BYTES
-    return if (routedPath(call.request.path()) in SMALL_BODY_PATHS) MAX_SMALL_REQUEST_BODY_BYTES else MAX_REQUEST_BODY_BYTES
+    val method = call.request.httpMethod
+    val path = routedPath(call.request.path())
+    return when {
+        method == HttpMethod.Post && path in SMALL_BODY_PATHS -> MAX_SMALL_REQUEST_BODY_BYTES
+        method == HttpMethod.Post && ADR_SMALL_PATH.matches(path) -> MAX_SMALL_REQUEST_BODY_BYTES
+        method == HttpMethod.Put && ADR_SMALL_PATH.matches(path) -> MAX_SMALL_REQUEST_BODY_BYTES
+        method == HttpMethod.Post && path == "/api/v1/adrs" -> MAX_ADR_REQUEST_BODY_BYTES
+        method == HttpMethod.Put && ADR_DOCUMENT_PATH.matches(path) -> MAX_ADR_REQUEST_BODY_BYTES
+        else -> MAX_REQUEST_BODY_BYTES
+    }
 }
 
 /**

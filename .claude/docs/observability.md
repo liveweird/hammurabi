@@ -112,6 +112,12 @@ with `hasKeyValue` from `TestEnvironment.kt`). Emitted today:
   only when a PUT actually changes the manager; a manager assignment can grant team-scoped rights, so it is its own
   trail line, the `user.roles_changed` precedent) / `team.deleted` (byUserId/teamId) — every team mutation; a rejected save
   emits nothing,
+- `adr.created` (byUserId/adrId/number/participants - the count of initial participants) / `adr.updated` (byUserId/adrId/number/revision/fieldsChanged -
+  comma-joined field names, never a value; only when the document PUT changed something, a no-op audits nothing) / `adr.transitioned`
+  (byUserId/adrId/number/revision/from/to) / `adr.participants_changed` (byUserId/adrId/number/revision/added/removed/changed - `userId:ROLE` lists, `userId:FROM>TO` for a
+  role change, so a Driver or Approver handover is on the trail; only on an actual change) / `adr.deleted` (byUserId/adrId; ADMIN soft delete) /
+  `adr.expired` (adrId/number/expiresOn - NO `byUserId`: the system, the expiry sweep) - every ADR mutation after its commit; a refused or conflicting
+  write (403/409/400) emits none, a 403 is the generic `authz.denied`; content (the name and the Markdown fields) is never a field,
 - `bootstrap.admin_password_rotated` (userId/email — the fixed seed-admin email, never the password or
   its hash; `infra/db/Bootstrap.kt`, only when `ADMIN_INITIAL_PASSWORD` actually replaced the seed
   hash, so an idempotent re-boot emits nothing) — the boot-time credential event, so an admin-password reset leaves a trail beyond a log line
@@ -141,6 +147,8 @@ pure view state may stay unaudited, with a documented justification) — the cat
 (adr, participant, transition, discussion entry, tag, successor link: each gets its `area.event` names here in the commit that adds the route). Tested in
 `AuditTest` via a Logback `ListAppender` on the audit logger (the shared `LogCapture` helper in
 `TestEnvironment.kt`).
+
+**The ADR expiry sweep (WARN logs, `adrs/AdrExpirySweep.kt`, logger `ch.nokillswit.adrs.AdrExpirySweep`).** `Could not expire ADR <id>: <exception class>` when one ADR's own transaction fails (the rest still run; the class name only, a driver message can carry values) and `The ADR expiry sweep failed: <exception class>` when a whole pass fails (retried at the next interval). The sweep audits `adr.expired` per ADR it moves (above); a pass that moves nothing logs nothing. Config `adrs.expiry.enabled` (env `ADRS_EXPIRY_ENABLED`, default true) and `adrs.expiry.intervalSeconds` (`ADRS_EXPIRY_INTERVAL_SECONDS`, default 3600, 1..86400), validated on every boot, enabled or not; the loop runs on `backgroundScope("hammurabi-adr-expiry")`. Tests: `AdrExpirySweepTest`.
 
 **Health probes** (`plugins/Health.kt`): `GET /api/v1/health` answers `{status: ok}` whenever the
 process serves requests (the image's `HEALTHCHECK`, the compose healthcheck and the k8s liveness

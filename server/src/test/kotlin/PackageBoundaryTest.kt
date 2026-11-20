@@ -34,12 +34,12 @@ class PackageBoundaryTest {
      * a listed package the file no longer uses fails the test (a stale exception is dead permission).
      */
     private val infraCompositionRoot: Map<String, Set<String>> = mapOf(
-        "infra/db/Database.kt" to setOf("auth", "teams", "users"),
+        "infra/db/Database.kt" to setOf("adrs", "auth", "teams", "users"),
         "infra/db/Bootstrap.kt" to setOf("auth", "users"),
     )
 
     private val featurePackages = listOf(
-        "teams", "users", "auth", "authz", "telemetry",
+        "adrs", "teams", "users", "auth", "authz", "telemetry",
     )
 
     private fun packageOf(text: String): String? =

@@ -63,6 +63,9 @@ fun TestApplicationBuilder.configureApp(vararg overrides: Pair<String, String>) 
                 // The telemetry sampler is off for the suite (it would write a process row and samples into the shared database from
                 // every booted app); its tests build the sampler directly or opt in with "telemetry.enabled" to "true".
                 "telemetry.enabled" to "false",
+                // The ADR expiry sweep is off for the suite (a loop would expire ADRs other tests forced into the past and race their
+                // assertions); its tests build the sweep directly with a pinned clock or opt in with "adrs.expiry.enabled" to "true".
+                "adrs.expiry.enabled" to "false",
                 *overrides,
             )
         )

@@ -1,5 +1,10 @@
 package ch.nokillswit.infra.db
 
+import ch.nokillswit.adrs.AdrEventService
+import ch.nokillswit.adrs.AdrEventServiceKey
+import ch.nokillswit.adrs.AdrParticipantService
+import ch.nokillswit.adrs.AdrService
+import ch.nokillswit.adrs.AdrServiceKey
 import ch.nokillswit.auth.PasswordResetService
 import ch.nokillswit.auth.PasswordResetServiceKey
 import ch.nokillswit.auth.TokenBlocklistService
@@ -236,6 +241,10 @@ suspend fun Application.configureDatabase() {
     attributes.put(UserServiceKey, userService)
     val teamService = TeamService(database)
     attributes.put(TeamServiceKey, teamService)
+    // The ADR aggregate (V10/V11): the history service is shared by the writes and the expiry sweep (`adrs/AdrExpirySweep.kt`).
+    val adrEvents = AdrEventService(database)
+    attributes.put(AdrEventServiceKey, adrEvents)
+    attributes.put(AdrServiceKey, AdrService(database, AdrParticipantService(adrEvents), adrEvents))
     attributes.put(
         TokenBlocklistServiceKey,
         TokenBlocklistService(

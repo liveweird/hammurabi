@@ -339,7 +339,11 @@ business rule (the body is buffered before it decodes, so a few concurrent big b
 ceiling (the foundation's bodies are a few hundred bytes; a feature whose documents outgrow it, the ADR body, sizes its own ceiling from
 its field maxima in `requestBodyLimit`, the way Adder sized its thread and message writes), and **`MAX_SMALL_REQUEST_BODY_BYTES` = 16 KiB**
 applies to `POST` on the anonymous auth routes (`/login`, `/login/mfa`, `/refresh`, `/password-reset`, `/password-reset/confirm`): an
-unauthenticated caller reaches them, and their bodies are a handful of short fields. The ceilings match the path as ROUTING sees it
+unauthenticated caller reaches them, and their bodies are a handful of short fields, and to the ADR transition `POST` and the ADR participants `PUT`
+(`/adrs/{id}/transitions`, `/adrs/{id}/participants`: one status name, or at most 100 `{userId, role}` entries). **`MAX_ADR_REQUEST_BODY_BYTES` = 384 KiB** sizes the
+ADR document writes (`POST /adrs`, `PUT /adrs/{id}`): five Markdown fields of at most 20,000 UTF-16 units, 3 bytes each as raw UTF-8, is about 300 KB
+plus the name and at most 99 participants (the arithmetic is on the constant); a client that `\u`-escapes every non-ASCII character of five maximal fields
+(~600 KB) is not covered on purpose. `AdrTest` posts the maximal document and the oversize bodies of all four routes. The ceilings match the path as ROUTING sees it
 (`routedPath` in `Http.kt`: segments percent-decoded, empty segments dropped), so `/api/v1/%6Cogin` or `/api/v1//login/` meets the same
 ceiling as its plain spelling instead of slipping to the global one (`PayloadValidationTest`). **Request bodies are never decompressed** (checkup C-SEC-1, Adder's, ported): `Compression` is installed in `CompressResponse` mode, because its default also inflates a `Content-Encoding: gzip` request body after the ceiling counted only the wire bytes (8 KiB of gzip inflated to megabytes); and a request that carries any `Content-Encoding` other than `identity` is refused up front with a `415` problem (a `Setup`-phase interceptor in `plugins/Http.kt`, before any ceiling or parser), so a compressed or merely labelled body is never decoded and never parsed (`PayloadValidationTest`). Declared in the spec on every body-taking operation (13 today; the spec is the source of the count) and covered by the one
 `PayloadValidationTest` case.

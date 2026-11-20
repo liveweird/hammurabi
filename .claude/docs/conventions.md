@@ -16,8 +16,8 @@ soft-delete via `marked_as_deleted` + partial unique indexes, list = count + row
 predicate), a `V<n>__description.sql` migration (+ its checksum pin in `MigrationChecksumTest`),
 spec paths in `openapi/documentation.yaml`, `cd web && npm run gen:api` (same commit), lazy pages +
 `NAV_SECTIONS` entries (`web/src/utils/navigation.ts`), and an e2e spec + scenario doc +
-coverage-map line. Fuller shapes (sub-collections such as ADR participants, view endpoints, pure kernels) arrive with the ADR increments (`adr-model.md`).
+coverage-map line. The ADR core (`adrs/`, `adr-model.md`) is the first fuller shape: a sub-collection written as a diff (`AdrParticipantService`), a state machine (`AdrLifecycle`) and pure verdicts (`AdrAccess`) beside the service, an append-only event log (`infra/db/EventLog.kt`), a numbered counter under an advisory lock, an `X-Expected-Revision` document PUT, and a periodic sweep on `backgroundScope`.
 
 **Deliberate exceptions to the template.** None in v0.1.0. A new exception is added to this list with its reason in the commit that introduces it.
-Sibling precedents to port rather than reinvent when the ADR domain needs them (`product.md` "Donors"): Toadie's `X-Expected-Revision` whole-document
-PUT, Lettuce's `EventLog`, Covenant's 409-on-illegal-move lifecycle.
+Sibling precedents the ADR core ported (`product.md` "Donors"): Toadie's `X-Expected-Revision` whole-document
+PUT, Adder's `EventLog`, Covenant's 409-on-illegal-move lifecycle and its periodic date sweep.

@@ -115,6 +115,7 @@ internal fun Throwable.isQueryCanceled(): Boolean = hasSqlState(PG_QUERY_CANCELE
 private val UNIQUE_CONSTRAINT_DETAILS = mapOf(
     "uq_users_email_active" to "A user with this email already exists",
     "uq_teams_name_active" to "A team with this name already exists",
+    "uq_adrs_name_active" to "An ADR with this name already exists",
 )
 
 private fun Throwable.uniqueViolationDetail(): String {

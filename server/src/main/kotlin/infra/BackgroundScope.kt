@@ -16,7 +16,7 @@ import kotlinx.coroutines.withTimeoutOrNull
 const val BACKGROUND_JOIN_TIMEOUT_MS = 2_000L
 
 /**
- * The ONE way the application owns a background loop (today the telemetry sampler):
+ * The ONE way the application owns a background loop (today the telemetry sampler and the ADR expiry sweep):
  * a [SupervisorJob] scope named [name] that, on `ApplicationStopping`, first runs [beforeCancel] (state the loop's owner must close
  * while the loop still runs, e.g. a long-lived connection the loop holds), then cancels the scope and joins it. Each of the two waits is
  * bounded by [timeoutMillis] ([BACKGROUND_JOIN_TIMEOUT_MS]), and the cancel and the join always follow a [beforeCancel] that failed or

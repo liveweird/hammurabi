@@ -493,6 +493,171 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/adrs": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List ADRs
+         * @description Any authenticated user - ADRs are an open decision log.
+         *
+         *     Supports offset pagination, sorting and filtering.
+         *
+         *     - Sortable fields: `id`, `number`, `name`, `updatedAt`, `status` (in lifecycle order, not alphabetically). The default sort is
+         *       `number` descending (newest first); `id` ascending is always appended as a deterministic tiebreaker.
+         *     - Filters (optional, whitelisted):
+         *       - `status` - repeatable, any-of (`status=ACTIVE&status=IN_REVIEW`), at most one per status; an unknown value is `400`.
+         *       - `q` - case- and accent-insensitive substring of the name OR the key (`0042`, `adr-0042`), at most 100 characters.
+         *       - `participant` - a user id: the ADRs that user holds a role on; `role` narrows it to one DACI role (`400` without `participant`).
+         */
+        get: operations["listAdrs"];
+        put?: never;
+        /**
+         * Raise an ADR
+         * @description Any authenticated user; the caller becomes the Driver. Only `problem` is required: a missing `name` defaults to the first
+         *     line of the problem (cut to 120 characters). The ADR starts in `PROBLEM_RAISED`; its number is the next one of the global
+         *     gapless counter (`key` = `ADR-` + the number zero-padded to four digits). Optional `participants` (never a Driver and never the
+         *     caller) must be active users (`400` otherwise). A name already used by an active ADR (compared case- and accent-insensitively)
+         *     is `409`. Records a `CREATED` event.
+         */
+        post: operations["createAdr"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/adrs/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["parameters"]["ResourceId"];
+            };
+            cookie?: never;
+        };
+        /**
+         * Get an ADR
+         * @description Any authenticated user. Besides the record and its participants the answer carries what THIS caller may do now, so the client
+         *     renders buttons without re-deriving the DACI rules: `allowedTransitions` (the lifecycle map minus the moves only the system
+         *     makes, filtered by the caller's role), `canEdit` and `canManageParticipants`.
+         */
+        get: operations["getAdr"];
+        /**
+         * Edit an ADR (content and expiry date)
+         * @description A FULL REPLACE of the document under `X-Expected-Revision` (an omitted Markdown field is empty, an omitted `expiresOn` clears
+         *     the date). Guard order: the ADR must exist (`404`); the caller must hold an editing role on it - the Driver, a Contributor,
+         *     the Approver or `ADMIN` - else `403`, before the header and the body are read; then the header (`400`) and the body (`400`).
+         *     Under the lock the service then judges, in this order: a terminal ADR is `409` `urn:hammurabi:problem:adr-frozen`; a stale revision
+         *     is `409` `urn:hammurabi:problem:revision-conflict` (before any per-field judgement, so a stale save is never a false `403`); a
+         *     CONTENT change (name, problem, context, decision, alternatives, consequences) is `409` `adr-frozen` once the ADR is `ACTIVE`, and
+         *     `403` for anyone but the Driver, a Contributor or `ADMIN`; an expiry change is `403` for anyone but the Driver, the Approver or
+         *     `ADMIN` and `400` when the new date is in the past. A save that changes
+         *     nothing is `204` and records nothing (no revision bump, no event); a real change bumps the revision and records one `UPDATED`
+         *     event listing the changed fields (Markdown fields by name only, `name` and `expiresOn` with their old and new value).
+         */
+        put: operations["updateAdr"];
+        post?: never;
+        /**
+         * Delete an ADR (soft)
+         * @description `ADMIN` only, guard before the id lookup (uniform `403`). Soft delete: the ADR stops reading as active and frees its name, but
+         *     keeps its number (numbers are never reused). A second delete is `404`.
+         */
+        delete: operations["deleteAdr"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/adrs/{id}/transitions": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["parameters"]["ResourceId"];
+            };
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Move an ADR through its lifecycle
+         * @description The lifecycle map: `PROBLEM_RAISED` to `SOLUTION_DRAFT`, `IN_REVIEW` or `CANCELLED`; `SOLUTION_DRAFT` to `IN_REVIEW` or `CANCELLED`;
+         *     `IN_REVIEW` to `ACTIVE`, `CANCELLED` or `WITHDRAWN`; `ACTIVE` to `EXPIRED` or `SUPERSEDED`, which only the system requests (the
+         *     expiry sweep, a successor's activation) - a user asking for them gets the same `409`. Who: the Driver (or `ADMIN`) moves to
+         *     `SOLUTION_DRAFT`, `IN_REVIEW` and `CANCELLED`; the Approver (or `ADMIN`) to `ACTIVE` and `WITHDRAWN`.
+         *
+         *     Guard order: the ADR must exist (`404`); the caller must be the Driver, the Approver or `ADMIN`, else `403`, before the header and
+         *     body are read; then the header (`400`) and the body (`400`, `to` is a status name). Under the lock: the caller's role for the
+         *     TARGET (`403`), the lifecycle map (`409` `urn:hammurabi:problem:illegal-transition`), the stale revision (`409`
+         *     `urn:hammurabi:problem:revision-conflict`), then the target's requirements (`400` naming the missing fields): entering `IN_REVIEW` or
+         *     `ACTIVE` needs `context`, `decision`, `consequences` and an Approver, and entering `ACTIVE` an expiry date not in the past.
+         *     Bumps the revision and records a `TRANSITIONED` event. Answers the ADR as the caller now sees it.
+         */
+        post: operations["transitionAdr"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/adrs/{id}/participants": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["parameters"]["ResourceId"];
+            };
+            cookie?: never;
+        };
+        get?: never;
+        /**
+         * Replace an ADR's DACI participants
+         * @description A wholesale replace of the participant set: exactly ONE Driver (the role can be handed over, never left empty), at most one
+         *     Approver, any number of Contributors and Informed, each user once, at most 100 in all (`400` otherwise). A user new to the set (or
+         *     taking a new role) must be an active user (`400`). Who: the Driver, the Approver or `ADMIN`, else `403` before the header and the
+         *     body are read. The write is guarded by `X-Expected-Revision` exactly like the document PUT (REQUIRED: missing or malformed is
+         *     `400`, a stale one `409` `urn:hammurabi:problem:revision-conflict`), so a stale editor cannot silently drop people another
+         *     editor added. A terminal ADR is `409` `urn:hammurabi:problem:adr-frozen` (checked before the revision). The change is applied as
+         *     a diff and records one `PARTICIPANT_ADDED`, `PARTICIPANT_REMOVED` or `PARTICIPANT_CHANGED` event per participant; a real change
+         *     bumps the ADR's `revision` (and `updatedAt`), a set that changes nothing is `204`, bumps nothing and records nothing.
+         */
+        put: operations["replaceAdrParticipants"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/adrs/{id}/events": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["parameters"]["ResourceId"];
+            };
+            cookie?: never;
+        };
+        /**
+         * An ADR's history
+         * @description Any authenticated user. The immutable structural events of the ADR (`type` + string `params` the client renders in the viewer's
+         *     language), committed with the write they describe. A null `userId` is the system (the expiry sweep).
+         *
+         *     - Sortable fields: `id`, `createdAt`. The default sort is `createdAt` descending, then `id` descending (newest first).
+         */
+        get: operations["listAdrEvents"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/telemetry/current": {
         parameters: {
             query?: never;
@@ -770,6 +935,197 @@ export interface components {
             /** Format: int64 */
             total: number;
         };
+        /**
+         * @description The lifecycle. `EXPIRED` and `SUPERSEDED` are reached by the system only; `CANCELLED`, `WITHDRAWN`, `EXPIRED` and `SUPERSEDED` are terminal (read-only).
+         * @enum {string}
+         */
+        AdrStatus: "PROBLEM_RAISED" | "SOLUTION_DRAFT" | "IN_REVIEW" | "ACTIVE" | "CANCELLED" | "WITHDRAWN" | "EXPIRED" | "SUPERSEDED";
+        /**
+         * @description The DACI roles - one Driver, at most one Approver, any number of Contributors and Informed.
+         * @enum {string}
+         */
+        AdrRole: "DRIVER" | "APPROVER" | "CONTRIBUTOR" | "INFORMED";
+        AdrParticipantRequest: {
+            /** Format: int32 */
+            userId: number;
+            role: components["schemas"]["AdrRole"];
+        };
+        AdrParticipant: {
+            /** Format: int32 */
+            userId: number;
+            /** @description The user's display name as it is now (kept for a soft-deleted account). */
+            name: string;
+            role: components["schemas"]["AdrRole"];
+        };
+        AdrCreateRequest: {
+            /** @description 1 to 120 characters, single line, unique among active ADRs (case- and accent-insensitively). Omitted or blank = the problem's first line, cut to 120. */
+            name?: string | null;
+            /** @description The problem or question (Markdown); required, not blank. */
+            problem: string;
+            /** @description Why it matters, constraints, assumptions (Markdown); required to enter `IN_REVIEW`. */
+            context?: string;
+            /** @description The decision (Markdown); required to enter `IN_REVIEW`. */
+            decision?: string;
+            /** @description The alternatives considered (Markdown); optional. */
+            alternatives?: string;
+            /** @description The accepted consequences and side effects (Markdown); required to enter `IN_REVIEW`. */
+            consequences?: string;
+            /**
+             * Format: date
+             * @description The last day the decision is in force, `YYYY-MM-DD`; not in the past.
+             */
+            expiresOn?: string | null;
+            /** @description Extra participants - never a Driver (the caller is) and never the caller; each user once, at most one Approver. */
+            participants?: components["schemas"]["AdrParticipantRequest"][];
+        };
+        /** @description The complete new document (PUT is a full replace). */
+        AdrUpdateRequest: {
+            name: string;
+            problem: string;
+            context?: string;
+            decision?: string;
+            alternatives?: string;
+            consequences?: string;
+            /**
+             * Format: date
+             * @description The last day the decision is in force, `YYYY-MM-DD`; omitted = no expiry. A changed date must not be in the past.
+             */
+            expiresOn?: string | null;
+        };
+        AdrTransitionRequest: {
+            to: components["schemas"]["AdrStatus"];
+        };
+        AdrParticipantsRequest: {
+            /** @description The whole set - exactly one Driver, at most one Approver, each user once. */
+            participants: components["schemas"]["AdrParticipantRequest"][];
+        };
+        AdrResponse: {
+            /**
+             * Format: int32
+             * @description The row id; URLs use it.
+             */
+            id: number;
+            /**
+             * Format: int32
+             * @description The global gapless counter; never reused.
+             */
+            number: number;
+            /**
+             * @description `ADR-` + the number zero-padded to four digits.
+             * @example ADR-0042
+             */
+            key: string;
+            name: string;
+            problem: string;
+            context: string;
+            decision: string;
+            alternatives: string;
+            consequences: string;
+            status: components["schemas"]["AdrStatus"];
+            /**
+             * Format: date
+             * @description The last day the decision is in force; the sweep expires an `ACTIVE` ADR the day after.
+             */
+            expiresOn: string | null;
+            /**
+             * Format: int64
+             * @description Send it back as `X-Expected-Revision` on the document PUT, a transition and the participants PUT; every real change of any of them bumps it.
+             */
+            revision: number;
+            /**
+             * Format: int64
+             * @description Epoch millis
+             */
+            createdAt: number;
+            /**
+             * Format: int32
+             * @description The creating user (the first Driver).
+             */
+            createdBy: number;
+            /**
+             * Format: int64
+             * @description Epoch millis
+             */
+            updatedAt: number;
+            /**
+             * Format: int64
+             * @description Epoch millis
+             */
+            statusChangedAt: number;
+            /** @description Driver first, then the Approver, the Contributors and the Informed. */
+            participants: components["schemas"]["AdrParticipant"][];
+            /** @description The moves THIS caller may request now (the buttons); never `EXPIRED` or `SUPERSEDED`. */
+            allowedTransitions: components["schemas"]["AdrStatus"][];
+            /** @description This caller may PUT the document now (content in a pre-active status, or the expiry date in any non-terminal one). */
+            canEdit: boolean;
+            /** @description This caller may replace the participants now. */
+            canManageParticipants: boolean;
+        };
+        AdrListItem: {
+            /** Format: int32 */
+            id: number;
+            /** Format: int32 */
+            number: number;
+            /** @example ADR-0042 */
+            key: string;
+            name: string;
+            status: components["schemas"]["AdrStatus"];
+            /** Format: date */
+            expiresOn: string | null;
+            /** Format: int64 */
+            revision: number;
+            /** Format: int64 */
+            createdAt: number;
+            /** Format: int64 */
+            updatedAt: number;
+            /** Format: int64 */
+            statusChangedAt: number;
+            /** @description The Driver (null only for a row whose Driver was never recorded - not expected). */
+            driver: components["schemas"]["AdrParticipant"] | null;
+            /** @description The Approver; null until one is assigned. */
+            approver: components["schemas"]["AdrParticipant"] | null;
+        };
+        AdrPage: {
+            items: components["schemas"]["AdrListItem"][];
+            page: number;
+            pageSize: number;
+            /** Format: int64 */
+            total: number;
+        };
+        /**
+         * @description The kinds of history, with their `params` (all strings): `CREATED` {key, name}; `UPDATED` {changed: comma-joined field names, `name.from`/`name.to`/`expiresOn.from`/`expiresOn.to` where short}; `TRANSITIONED` {from, to}; `PARTICIPANT_ADDED` and `PARTICIPANT_REMOVED` {userId, name, role}; `PARTICIPANT_CHANGED` {userId, name, from, to}; `EXPIRED` {expiresOn}, a system event; `SUPERSEDED` is reserved for successor links.
+         * @enum {string}
+         */
+        AdrEventType: "CREATED" | "UPDATED" | "TRANSITIONED" | "PARTICIPANT_ADDED" | "PARTICIPANT_REMOVED" | "PARTICIPANT_CHANGED" | "EXPIRED" | "SUPERSEDED";
+        AdrEventResponse: {
+            /** Format: int32 */
+            id: number;
+            /**
+             * Format: int32
+             * @description The acting user; null = the system.
+             */
+            userId: number | null;
+            /** @description The actor's display name; null with `userId`. */
+            userName: string | null;
+            /** @description The acting account has since been soft-deleted (the name is still the one recorded). */
+            userDeleted: boolean;
+            type: components["schemas"]["AdrEventType"];
+            params: {
+                [key: string]: string;
+            };
+            /**
+             * Format: int64
+             * @description Epoch millis
+             */
+            createdAt: number;
+        };
+        AdrEventPage: {
+            items: components["schemas"]["AdrEventResponse"][];
+            page: number;
+            pageSize: number;
+            /** Format: int64 */
+            total: number;
+        };
         /** @description RFC 7807 problem detail. Served as `application/problem+json`; instance is the request path without query parameters. */
         ProblemDetail: {
             /**
@@ -778,6 +1134,8 @@ export interface components {
              *     `ProblemTypes`, pinned by `ProblemTypesTest`); the status in brackets is the one it answers.
              *
              *     - `urn:hammurabi:problem:revision-conflict` (409): a stale `X-Expected-Revision`.
+             *     - `urn:hammurabi:problem:illegal-transition` (409): an ADR lifecycle move the map does not allow, or one only the system makes.
+             *     - `urn:hammurabi:problem:adr-frozen` (409): a write the ADR's status closes - content once `ACTIVE`, anything once terminal.
              * @default about:blank
              */
             type: string;
@@ -1134,6 +1492,8 @@ export interface components {
         DirectoryPageSize: number;
         /** @description Free-text search (API-LIST-005), REQUIRED where declared (the user directory). Case- and accent-insensitive substring match; the endpoint declares which fields it searches. The value is trimmed before the length limits apply, so it needs 2 to 100 characters (code points) after trimming. */
         Q: string;
+        /** @description Free-text search (API-LIST-005), OPTIONAL where declared (the ADR list): a case- and accent-insensitive substring match on the fields the endpoint names (an ADR's name or key), at most 100 characters. */
+        OptionalQ: string;
         /**
          * @description The revision of the document the caller read (`revision`). Missing, repeated or malformed is a `400`; a stale one is a `409`
          *     of type `urn:hammurabi:problem:revision-conflict`. Every successful PUT bumps the revision.
@@ -1874,6 +2234,285 @@ export interface operations {
             400: components["responses"]["BadRequest"];
             401: components["responses"]["Unauthorized"];
             403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+            500: components["responses"]["InternalServerError"];
+        };
+    };
+    listAdrs: {
+        parameters: {
+            query?: {
+                /** @description 1-based page index. Defaults to 1. */
+                page?: components["parameters"]["Page"];
+                /** @description Rows per page. Defaults to 20, maximum 100. */
+                pageSize?: components["parameters"]["PageSize"];
+                /**
+                 * @description Sort spec. Format: `field` (ascending) or `-field` (descending). Multiple fields are
+                 *     comma-separated, leftmost wins: `sort=-updatedAt,name`. The endpoint declares its
+                 *     sortable-field whitelist; unknown fields are rejected with `400`. `id` ascending is
+                 *     always appended as a deterministic tiebreaker.
+                 */
+                sort?: components["parameters"]["Sort"];
+                /** @description Any-of filter on the lifecycle status; repeat the key for several. */
+                status?: components["schemas"]["AdrStatus"][];
+                /** @description Free-text search (API-LIST-005), OPTIONAL where declared (the ADR list): a case- and accent-insensitive substring match on the fields the endpoint names (an ADR's name or key), at most 100 characters. */
+                q?: components["parameters"]["OptionalQ"];
+                /** @description A user id - only the ADRs this user holds a DACI role on. */
+                participant?: number;
+                /** @description Narrows `participant` to one role (`400` without `participant`). */
+                role?: components["schemas"]["AdrRole"];
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description A page of ADRs */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AdrPage"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            500: components["responses"]["InternalServerError"];
+        };
+    };
+    createAdr: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AdrCreateRequest"];
+            };
+        };
+        responses: {
+            /** @description Created; `Location` points at the new ADR */
+            201: {
+                headers: {
+                    Location?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AdrResponse"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            409: components["responses"]["Conflict"];
+            413: components["responses"]["PayloadTooLarge"];
+            415: components["responses"]["UnsupportedMediaType"];
+            500: components["responses"]["InternalServerError"];
+        };
+    };
+    getAdr: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["parameters"]["ResourceId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The ADR */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AdrResponse"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            404: components["responses"]["NotFound"];
+            500: components["responses"]["InternalServerError"];
+        };
+    };
+    updateAdr: {
+        parameters: {
+            query?: never;
+            header: {
+                /**
+                 * @description The revision of the document the caller read (`revision`). Missing, repeated or malformed is a `400`; a stale one is a `409`
+                 *     of type `urn:hammurabi:problem:revision-conflict`. Every successful PUT bumps the revision.
+                 */
+                "X-Expected-Revision": components["parameters"]["ExpectedRevision"];
+            };
+            path: {
+                id: components["parameters"]["ResourceId"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AdrUpdateRequest"];
+            };
+        };
+        responses: {
+            /** @description Saved (or nothing to save) */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+            409: components["responses"]["Conflict"];
+            413: components["responses"]["PayloadTooLarge"];
+            415: components["responses"]["UnsupportedMediaType"];
+            500: components["responses"]["InternalServerError"];
+        };
+    };
+    deleteAdr: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["parameters"]["ResourceId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Deleted */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+            500: components["responses"]["InternalServerError"];
+        };
+    };
+    transitionAdr: {
+        parameters: {
+            query?: never;
+            header: {
+                /**
+                 * @description The revision of the document the caller read (`revision`). Missing, repeated or malformed is a `400`; a stale one is a `409`
+                 *     of type `urn:hammurabi:problem:revision-conflict`. Every successful PUT bumps the revision.
+                 */
+                "X-Expected-Revision": components["parameters"]["ExpectedRevision"];
+            };
+            path: {
+                id: components["parameters"]["ResourceId"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AdrTransitionRequest"];
+            };
+        };
+        responses: {
+            /** @description The ADR after the move */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AdrResponse"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+            409: components["responses"]["Conflict"];
+            413: components["responses"]["PayloadTooLarge"];
+            415: components["responses"]["UnsupportedMediaType"];
+            500: components["responses"]["InternalServerError"];
+        };
+    };
+    replaceAdrParticipants: {
+        parameters: {
+            query?: never;
+            header: {
+                /**
+                 * @description The revision of the document the caller read (`revision`). Missing, repeated or malformed is a `400`; a stale one is a `409`
+                 *     of type `urn:hammurabi:problem:revision-conflict`. Every successful PUT bumps the revision.
+                 */
+                "X-Expected-Revision": components["parameters"]["ExpectedRevision"];
+            };
+            path: {
+                id: components["parameters"]["ResourceId"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AdrParticipantsRequest"];
+            };
+        };
+        responses: {
+            /** @description Replaced (or already so) */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+            409: components["responses"]["Conflict"];
+            413: components["responses"]["PayloadTooLarge"];
+            415: components["responses"]["UnsupportedMediaType"];
+            500: components["responses"]["InternalServerError"];
+        };
+    };
+    listAdrEvents: {
+        parameters: {
+            query?: {
+                /** @description 1-based page index. Defaults to 1. */
+                page?: components["parameters"]["Page"];
+                /** @description Rows per page. Defaults to 20, maximum 100. */
+                pageSize?: components["parameters"]["PageSize"];
+                /**
+                 * @description Sort spec. Format: `field` (ascending) or `-field` (descending). Multiple fields are
+                 *     comma-separated, leftmost wins: `sort=-updatedAt,name`. The endpoint declares its
+                 *     sortable-field whitelist; unknown fields are rejected with `400`. `id` ascending is
+                 *     always appended as a deterministic tiebreaker.
+                 */
+                sort?: components["parameters"]["Sort"];
+            };
+            header?: never;
+            path: {
+                id: components["parameters"]["ResourceId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description A page of events */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AdrEventPage"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
             404: components["responses"]["NotFound"];
             500: components["responses"]["InternalServerError"];
         };

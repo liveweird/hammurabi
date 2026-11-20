@@ -197,6 +197,11 @@ above any legitimate statement (a lock wait behind another transaction) and belo
   verify (the timing equalizer, ~225 ms locally); a test that needs a dozen failures (rate limit,
   proxy trust) logs in as freshly seeded accounts (`TestUsers.seed`, cost 4) with a wrong password —
   the same 401 path at ~1 ms; soft-delete them afterwards.
+- ADR fixtures (`AdrFixtures.kt`, no shared state): `adrActor(prefix, role)` seeds a user and signs them in (`AdrActor(id, client)`), `adrCast()` the six people of one ADR
+  (ADMIN, Driver, Approver, Contributor, Informed, a stranger; `cast.raise()` makes an ADR with the other three roles attached), `HttpClient.createAdr` / `getAdr` / `saveAdr` /
+  `moveAdr` / `moveAdrNow` / `setParticipants` / `adrEvents` and `forceAdrStatus` / `forceAdrExpiry` / `rawAdrStatus` (direct table access: a state the API refuses to reach, e.g.
+  a past expiry). ADRs are SHARED suite state like teams: every name is unique (`adrName()`), a list assertion is scoped by a unique marker or participant, and the
+  suite runs no expiry loop (`configureApp` sets `adrs.expiry.enabled` to false; `AdrExpirySweepTest` builds `AdrExpirySweep` with a pinned `Clock` or opts in).
 - `TestTeams.seed(name)` — a fresh team fixture; beside it, raw-row readers for what
   the API hides (`TestTeams.rawRows`, `TestUsers.stampPasswordChangedAt`). Shared
   suite state (the seed admin) is never mutated destructively — tests mint UNIQUE rows and remove

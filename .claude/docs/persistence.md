@@ -14,10 +14,10 @@ in-network consumers use `postgres:5432`). There is one persistence stack:
   makes every long-lived database refuse to boot (a failure no fresh-container CI run can see).
   `MigrationChecksumTest` pins every file's checksum; a new migration adds one manifest line, and
   a red pin means REVERT the edit (clarifications go into this doc), never update the pinned
-  value. The range today is **V1–V9**: V1 `users`, V2 `revoked_tokens`, V3 the seed admin, V4 the
+  value. The range today is **V1–V11**: V1 `users`, V2 `revoked_tokens`, V3 the seed admin, V4 the
   `unaccent` extension, V5 `user_disabled_features` (V1–V5 are Flow's), V6 `teams` (with the optional
   manager), V7 `users.credential_revision`, V8 `password_reset_tokens`, V9 the `ops` telemetry
-  schema. (The bootstrap renumbered the donor's history; from V10 on, migrations are append-only like any other.)
+  schema, V10 `adrs` + `adr_participants`, V11 `adr_events`. (The bootstrap renumbered the donor's history; from V10 on, migrations are append-only like any other.)
 - **Exposed + R2DBC** (`infra/db/Database.kt` + the feature services) — runtime DB access.
   `Database.kt` connects the `R2dbcDatabase` and is the composition root: it constructs the
   services and publishes them into `Application.attributes` (`UserServiceKey`, `TeamServiceKey`,
@@ -97,7 +97,7 @@ go through R2DBC.
   (`ConnectionPoolTest` pins the ~2×). A caller that waits past the acquire deadline fails with the pool's timeout
   exception, which `plugins/ErrorHandling.kt`'s catch-all renders as a logged `500` — deliberately NOT a new declared status, since the
   OpenAPI conformance gate would need it on every operation. The pool is disposed on `ApplicationStopped`, so every `testApplication` the
-  suite boots releases its connections. Every background loop (today the telemetry sampler) therefore
+  suite boots releases its connections. Every background loop (today the telemetry sampler and the ADR expiry sweep) therefore
   lives in an `Application.backgroundScope(...)` (`infra/BackgroundScope.kt`), which cancels AND joins it (2 s) on `ApplicationStopping`, earlier. Exposed's `R2dbcDatabase.connect(connectionFactory, databaseConfig)` derives the dialect from
   `databaseConfig.connectionFactoryOptions` alone, so the parsed options (still `driver=postgresql`) are threaded into the config
   unchanged while traffic goes through the pool. The same config pins `defaultMaxAttempts = 1`: Exposed would otherwise retry ANY
@@ -160,6 +160,7 @@ place:
 - `auth/PasswordResetService` (V8) READS `users/UserService.Users` (the `active()` / `credential_revision` / `email` predicate
   of a grant's liveness, and `FOR UPDATE` on the user row) and WRITES `users.password_hash` / `password_changed_at` / `credential_revision`
   through `users`' `updatePasswordInTransaction` inside its own transaction (the grant is consumed in the same transaction).
+- `adrs/AdrParticipantService` (`adr_participants`) READS `users/UserService.Users` in the ADR write's own transaction: the display name of each participant (joined, a soft-deleted user keeps the name) and the `active()` check of every user a set adds or re-roles (a client-supplied FK is a `400`, never a constraint `500`); `adrs/AdrEventService`'s `EventLog` LEFT-joins `Users` for the actor's name and deletion flag (`infra/db/EventLog.kt`: the feature passes the actor table in, `infra/` names no feature). Both write only `adr_*`. `AdrService` writes `adrs.created_by` / `adr_participants.added_by` / `adr_events.user_id` (FKs to `users`, no `ON DELETE` rule: users soft-delete only).
 - `plugins/Health.kt` (`GET /api/v1/ready`, the readiness probe) READS `users/UserService.Users` (`id`, `LIMIT 1`), a bounded round trip
   that proves the database answers; it writes nothing and returns no row.
 - `telemetry/StorageCollectors.kt` (the storage panel) reads, OUTSIDE the telemetry cluster transaction (the heavy phase: each statement is a short
@@ -174,8 +175,8 @@ List each new cross-feature read/write here as it lands — the list IS the perm
 
 Hammurabi's PostgreSQL database is split across schemas:
 
-- **`public`** — the foundation tables (`users`, `teams`, `revoked_tokens`, `user_disabled_features`, `password_reset_tokens`) and, later,
-  the ADR tables (`adr-model.md`). Flyway's own history table also stays here — `flyway.schemas` is left at its default.
+- **`public`** — the foundation tables (`users`, `teams`, `revoked_tokens`, `user_disabled_features`, `password_reset_tokens`) and the
+  ADR tables (`adrs`, `adr_participants`, `adr_events` today; `adr-model.md`). Flyway's own history table also stays here — `flyway.schemas` is left at its default.
 - **`ops`** — Hammurabi's own operational telemetry (V9, "Telemetry (V9)" below): the process registry and the metric samples each
   process writes about itself. Numbers and labels only, never user or ADR data.
 
@@ -222,10 +223,11 @@ transaction under `TELEMETRY_LOCK_KEY`, and a row exactly at its cutoff stays. T
 
 ### Soft delete (convention)
 
-`users` and `teams` are **soft-deleted** — rows are flagged, never physically removed; every
+`users`, `teams` and `adrs` are **soft-deleted** — rows are flagged, never physically removed; every
 business entity follows the same convention. Only join/token tables (today: `revoked_tokens`, a
 pure token registry, `password_reset_tokens` (V8, expiring single-use credentials, not history), `user_disabled_features`, a pure flag join
-whose PUT is a wholesale replace, and the `ops.telemetry_*` samples (the prune above)) hard-delete — a new
+whose PUT is a wholesale replace, `adr_participants`, a current-fact join replaced as a diff whose every change is an `adr_events` row, and the
+`ops.telemetry_*` samples (the prune above)) hard-delete; `adr_events` is APPEND-ONLY (no update, no delete: history outlives its record's changes) — a new
 hard-delete table needs a documented justification, exactly like Lettuce's exceptions list. Pure operational history with no reader once
 old (job queues, samples) may be pruned by a fixed documented retention window, the same shape as the JWT blocklist's opportunistic
 pruning of expired `revoked_tokens` rows. To add soft-delete to a new entity, follow the established pattern
@@ -255,8 +257,8 @@ Exposed `.uniqueIndex()` on that column (Exposed defs are query-only — the DB 
 clash with an **active** row still raises `23505 → 409` (mapped centrally in
 `plugins/ErrorHandling.kt`, which names WHAT clashed per constraint — extend
 `UNIQUE_CONSTRAINT_DETAILS` when adding a partial unique index). In place today: `users.email`
-(`uq_users_email_active`, `V1`) and the team name (`uq_teams_name_active`, `V6` — an expression
-index over `LOWER(name)`).
+(`uq_users_email_active`, `V1`), the team name (`uq_teams_name_active`, `V6` — an expression
+index over `LOWER(name)`) and the ADR name (`uq_adrs_name_active`, `V10`, "ADRs (V10)" below).
 
 **`infra/db/Sql.kt`** (ported from Lettuce with the first list endpoint): `containsNormalized` —
 the case- AND accent-insensitive substring filter over `public.unaccent` (V4), its LIKE metacharacters escaped in SQL after the fold; every per-column
@@ -278,7 +280,7 @@ NOT with `FOR KEY SHARE`, so FK locks never stall it. `lockActiveForWrite` (`inf
 PostgreSQL does not count as key columns — a rename is still a non-key update. Plain `FOR UPDATE` is for a row nothing references from a
 long transaction (`users` is referenced only by columns no long transaction inserts — `updated_by_*`, `teams.manager_user_id`,
 `user_disabled_features.user_id`, `password_reset_tokens.user_id` (short inserts only): `UserService.lockedActiveAdminCount`), or for
-`SKIP LOCKED` claims. A new `FOR UPDATE` on an FK-referenced row needs that justification in a comment. Flow pinned both halves with `RowLockVersusDeriveTest` (a writer completes while another transaction holds `FOR KEY SHARE` on the row, and a second `FOR NO KEY UPDATE` writer still waits); Hammurabi re-adds that test with the first long ADR transaction.
+`SKIP LOCKED` claims. A new `FOR UPDATE` on an FK-referenced row needs that justification in a comment. Flow pinned both halves with `RowLockVersusDeriveTest` (a writer completes while another transaction holds `FOR KEY SHARE` on the row, and a second `FOR NO KEY UPDATE` writer still waits); Hammurabi's is `AdrRowLockTest`: every ADR write (document PUT, transition, participants, delete) locks the `adrs` row `FOR NO KEY UPDATE`, because `adr_participants` and `adr_events` inserts reference it.
 
 ### `infra/db/Jsonb.kt` and canonical JSON
 
@@ -305,9 +307,22 @@ digests agree — this is key-order independence, not general structural equalit
 does not normalize number spelling (`1`, `1.0` and `1e0` stay distinct token text). The output must stay byte-stable, since stored
 text and sha256 are compared against stored rows.
 
+### ADRs (V10, V11)
+
+`adrs` (`adrs/AdrService.kt`), `adr_participants` (`AdrParticipantService.kt`) and `adr_events` (`AdrEventService.kt`, V11); the domain is `adr-model.md`.
+
+- **Ids.** `adrs.id` is `SERIAL` like `teams` (the `UIntIdTable` the whole feature template, `EventLog` and `lockActiveForWrite` share); the human-readable id is `"number"`, `ADR-` + the number zero-padded to four digits (`adrKey`). `adr-model.md`'s first sketch said UUID row keys; the foundation's every helper is `UInt`-keyed, so the row id stays an integer and the number is what people see.
+- **The number counter and its lock.** ONE global counter: `MAX("number") + 1` over EVERY row (a soft-deleted ADR keeps its number; none is reused) taken under `pg_advisory_xact_lock(ADR_NUMBER_LOCK_KEY)` (the single-`bigint` form, the ASCII bytes of "ADRNUMBR"), the first statement of a create after its cheap reads. Transaction-scoped: released at commit or rollback, so a failed create never leaves the counter stuck. A row lock cannot serialise it (a create has no row yet, and `MAX` is no `FOR UPDATE`); a lock row in a one-row table would need a migration and the same wait. Writers of the counter queue only for one `INSERT` plus its participants and event. `uq_adrs_number` (unique over all rows) is the backstop: a bypass fails an insert instead of duplicating a number. Pinned by `AdrTest` (twelve parallel creates: distinct, gapless) and "never reused".
+- **The name.** Unique among ACTIVE rows, case- and accent-insensitively: `uq_adrs_name_active` over `public.adr_name_key(name)` (`lower(public.unaccent('public.unaccent'::regdictionary, name))`) `WHERE NOT marked_as_deleted`. `unaccent` is only STABLE and an expression index needs IMMUTABLE, so the wrapper is declared `IMMUTABLE` BY PROMISE, the way Adder's search configuration is: a PostgreSQL major upgrade that changes the unaccent rules needs a `REINDEX` of that index. A clash is the central `23505` to `409` ("An ADR with this name already exists", `UNIQUE_CONSTRAINT_DETAILS`).
+- **Dates.** `expires_on` is `VARCHAR(10)` holding a canonical ISO date (Covenant's date shape; `CHECK ~ '^[0-9]{4}-[0-9]{2}-[0-9]{2}$'`): it sorts chronologically, so the sweep compares text, and no date-time module joins the build. The Kotlin side parses it (`parseExpiresOn`: a real calendar date).
+- **Roles.** `adr_participants (adr_id, user_id, role, added_at, added_by)`, primary key `(adr_id, user_id)` (one role per user), two PARTIAL unique indexes pin at most one `DRIVER` and one `APPROVER` per ADR; "exactly one Driver" is the service's (`validateParticipantSet`). A replace is a diff written delete-then-insert for the removed and the changed users (a changed row keeps its `added_at`/`added_by`), so a Driver handover or a Driver/Approver swap never trips the unique indexes half-done. `idx_adr_participants_user (user_id, role)` serves the list's `participant` filter.
+- **History.** `adr_events (adr_id, user_id NULLABLE, created_at, event_type, params)`: the actor is NULL for a system event (the expiry sweep). `(adr_id, created_at, id)` serves the newest-first page. No CHECK on `event_type` or on `adrs.status` / `adr_participants.role` (the V5 rule: the Kotlin enums are the whitelists).
+- **Revision.** `adrs.revision` guards the document PUT, the transitions and the participants PUT (`X-Expected-Revision`); every real change of any of them bumps it (a no-op participants set only does not). The expiry sweep bumps it (a stale reader's next write conflicts).
+- **Sweep index.** `idx_adrs_expiry (expires_on) WHERE status = 'ACTIVE' AND expires_on IS NOT NULL AND NOT marked_as_deleted` serves the candidate scan.
+- **Locking.** Every ADR write: `FOR NO KEY UPDATE` on the `adrs` row ("Row locks vs. FK locks"), the caller's role re-read under it, then state, revision, requirements, writes and events in ONE transaction.
+
 ### Planned persistence (not yet built)
 
-The ADR tables arrive with v0.2–v0.5; their sketch (`adrs`, `adr_participants`, `adr_events`, `adr_discussion`, `adr_tags`, the `supersedes_id` link, the generated search vector;
-UUID row keys plus the gapless `number`, epoch-millis timestamps, `SoftDeletable`, partial unique indexes) is in `adr-model.md`. Nothing in this document changes until a migration lands; then the
-schema list, the soft-delete list and the cross-feature list above grow in the same commit. The ported-later infrastructure is named in `product.md` "Donors" (`infra/db/EventLog.kt`,
-`lockingTransaction`, the `X-Expected-Revision` write).
+The remaining ADR tables arrive with v0.3–v0.5; their sketch (`adr_discussion`, `adr_tags`, the `supersedes_id` link, the generated search vector;
+epoch-millis timestamps, `SoftDeletable`, partial unique indexes) is in `adr-model.md`. The schema list, the soft-delete list and the cross-feature list above grow in the same commit as each
+migration. The ported-later infrastructure is named in `product.md` "Donors" (`infra/db/Fts.kt`, `lockingTransaction`).

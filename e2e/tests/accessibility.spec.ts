@@ -26,6 +26,7 @@ const AUTHED_PAGES: { path: string; heading: string }[] = [
   { path: "/adrs", heading: "ADRs" },
   { path: "/adrs/new", heading: "Raise an ADR" },
   { path: "/teams", heading: "Teams" },
+  { path: "/tags", heading: "Tags" },
   { path: "/users", heading: "Users" },
   { path: "/users/new", heading: "New user" },
   { path: "/feature-flags", heading: "Feature flags" },

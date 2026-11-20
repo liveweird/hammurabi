@@ -265,7 +265,8 @@ export async function transitionViaApi(api: APIRequestContext, id: number, to: s
  * (children first) through a FRESH admin session. EVERY path is
  * attempted; 204 and 404 pass, since the test body may already have deleted a row through the UI — so callers must register
  * only paths built from a create response's id (a mistyped path would also answer 404 and go unnoticed). Any other status is
- * collected and thrown once at the end, listing all of them.
+ * collected and thrown once at the end, listing all of them. A tag category's DELETE is revision-guarded (`X-Expected-Revision`), so the
+ * helper reads the category's current revision first (an already-deleted one sends 1 and answers 404, which passes).
  */
 export async function deleteViaApi(paths: string[]): Promise<void> {
   if (paths.length === 0) return;
@@ -273,13 +274,22 @@ export async function deleteViaApi(paths: string[]): Promise<void> {
   const failures: string[] = [];
   try {
     for (const path of paths) {
-      const status = (await api.delete(path)).status();
+      const status = (await api.delete(path, { headers: await revisionGuard(api, path) })).status();
       if (status !== 204 && status !== 404) failures.push(`${path} -> ${status}`);
     }
   } finally {
     await api.dispose();
   }
   expect(failures, `teardown DELETEs that answered neither 204 nor 404`).toEqual([]);
+}
+
+/** The `X-Expected-Revision` header a revision-guarded teardown DELETE needs (only the tag categories' today), else none. */
+async function revisionGuard(api: APIRequestContext, path: string): Promise<Record<string, string> | undefined> {
+  const category = /^\/api\/v1\/tag-categories\/(\d+)$/.exec(path);
+  if (!category) return undefined;
+  const registry = (await (await api.get("/api/v1/tag-categories")).json()) as { items: { id: number; revision: number }[] };
+  const revision = registry.items.find((item) => item.id === Number(category[1]))?.revision ?? 1;
+  return { "X-Expected-Revision": String(revision) };
 }
 
 const AXE_TAGS = ["wcag2a", "wcag2aa", "wcag21a", "wcag21aa"];

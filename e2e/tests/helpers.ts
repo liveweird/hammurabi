@@ -199,18 +199,64 @@ export async function rowOperation(
 }
 
 /**
- * API-side seeding for specs whose subject is a PAGE, not the journey that creates its data (the
- * accessibility sweep): one admin-authenticated request context against the same stack. Every id
- * it creates is the caller's to delete directly through the same API — the Owns rule applies unchanged.
+ * API-side seeding for specs whose subject is a PAGE, not the journey that creates its data (the accessibility sweep, the ADR specs):
+ * one request context authenticated as `email` against the same stack. Every id it creates is the caller's to delete directly through
+ * the same API — the Owns rule applies unchanged.
  */
-export async function apiAsAdmin(): Promise<{ api: APIRequestContext; userId: number }> {
+export async function apiAs(email: string, password: string): Promise<{ api: APIRequestContext; userId: number }> {
   const anonymous = await playwrightRequest.newContext({ baseURL: BASE_URL });
-  const login = await anonymous.post("/api/v1/login", { data: { email: ADMIN, password: PASSWORD } });
+  const login = await anonymous.post("/api/v1/login", { data: { email, password } });
   expect(login.ok(), await login.text()).toBeTruthy();
   const { token, userId } = (await login.json()) as { token: string; userId: number };
   await anonymous.dispose();
   const api = await playwrightRequest.newContext({ baseURL: BASE_URL, extraHTTPHeaders: { Authorization: `Bearer ${token}` } });
   return { api, userId };
+}
+
+/** `apiAs` the seeded admin. */
+export async function apiAsAdmin(): Promise<{ api: APIRequestContext; userId: number }> {
+  return apiAs(ADMIN, PASSWORD);
+}
+
+/**
+ * Create a throwaway regular user through the admin API (no UI journey, no one-time reveal): the cast of the ADR specs. The name and
+ * the email carry `e2e`; the caller deletes the user (`/api/v1/users/<id>`) in its teardown.
+ */
+export async function createUserViaApi(admin: APIRequestContext, namePrefix: string): Promise<{ id: number; name: string; email: string; password: string }> {
+  const name = uniqueText(namePrefix);
+  const email = `${name.toLowerCase().replace(/[^a-z0-9-]/g, "-")}@hammurabi.local`;
+  const password = `pw-${randomUUID()}`;
+  const created = await admin.post("/api/v1/users", { data: { name, email, password, roles: [], language: "en" } });
+  expect(created.status(), await created.text()).toBe(201);
+  return { id: ((await created.json()) as { id: number }).id, name, email, password };
+}
+
+/** An ADR as the specs read it back from the API. */
+export interface AdrSeed {
+  id: number;
+  key: string;
+  name: string;
+  revision: number;
+}
+
+/** Raise an ADR through the API as the signed-in `api` user (who becomes its Driver). Callers delete it (`/api/v1/adrs/<id>`) as the admin. */
+export async function createAdrViaApi(api: APIRequestContext, body: Record<string, unknown>): Promise<AdrSeed> {
+  const created = await api.post("/api/v1/adrs", { data: body });
+  expect(created.status(), await created.text()).toBe(201);
+  return (await created.json()) as AdrSeed;
+}
+
+/** The ADR's current revision, for the next guarded write (`X-Expected-Revision`). */
+export async function adrRevision(api: APIRequestContext, id: number): Promise<number> {
+  const response = await api.get(`/api/v1/adrs/${id}`);
+  expect(response.ok(), await response.text()).toBeTruthy();
+  return ((await response.json()) as { revision: number }).revision;
+}
+
+/** One lifecycle move through the API under the ADR's current revision. */
+export async function transitionViaApi(api: APIRequestContext, id: number, to: string): Promise<void> {
+  const moved = await api.post(`/api/v1/adrs/${id}/transitions`, { data: { to }, headers: { "X-Expected-Revision": String(await adrRevision(api, id)) } });
+  expect(moved.status(), await moved.text()).toBe(200);
 }
 
 /**

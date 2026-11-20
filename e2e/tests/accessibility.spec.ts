@@ -1,8 +1,8 @@
 // Axe accessibility smoke: WCAG 2.0/2.1 A+AA scans over the login screen, the authenticated list
-// and form pages, the detail pages of one API-seeded fixture team, and the overlays (a registry editor
+// and form pages, the detail pages of one API-seeded fixture team and ADR, and the overlays (a registry editor
 // modal) — where focus traps, aria-modal and labels actually live, and the app shell at a phone width
-// (the burger); the page sets run in the light scheme and again in the dark one. Owns: the fixture team
-// (unique `e2e-axe-*` name), created and deleted via the API.
+// (the burger); the page sets run in the light scheme and again in the dark one. Owns: the fixture team and ADR
+// (unique `e2e-axe-*` names), created and deleted via the API.
 import type { APIRequestContext, Locator, Page } from "@playwright/test";
 import { apiAsAdmin, axeViolations, expect, expectScheme, login, type Scheme, test, uniqueText } from "./helpers";
 
@@ -23,6 +23,8 @@ test("login screen has no WCAG A/AA violations", async ({ page }) => {
 // One test per page keeps the report line-per-page.
 const AUTHED_PAGES: { path: string; heading: string }[] = [
   { path: "/", heading: "Hammurabi" },
+  { path: "/adrs", heading: "ADRs" },
+  { path: "/adrs/new", heading: "Raise an ADR" },
   { path: "/teams", heading: "Teams" },
   { path: "/users", heading: "Users" },
   { path: "/users/new", heading: "New user" },
@@ -85,6 +87,8 @@ test.describe("detail pages and overlays", () => {
   let adminId: number;
   let teamId: number;
   let teamName: string;
+  let adrId: number;
+  let adrName: string;
 
   test.beforeAll(async () => {
     ({ api, userId: adminId } = await apiAsAdmin());
@@ -92,15 +96,25 @@ test.describe("detail pages and overlays", () => {
     const created = await api.post("/api/v1/teams", { data: { name: teamName } });
     expect(created.status(), await created.text()).toBe(201);
     teamId = (await created.json() as { id: number }).id;
+    // An ADR with every section written and an expiry date, so the detail page scans with real content in all four side sections.
+    adrName = uniqueText("e2e-axe-adr");
+    const adr = await api.post("/api/v1/adrs", {
+      data: { name: adrName, problem: "Which **queue** do we run?", context: "Context.", decision: "Decision.", alternatives: "Alternatives.", consequences: "Consequences.", expiresOn: "2099-12-31" },
+    });
+    expect(adr.status(), await adr.text()).toBe(201);
+    adrId = (await adr.json() as { id: number }).id;
   });
   test.afterAll(async () => {
-    const response = await api.delete(`/api/v1/teams/${teamId}`);
-    expect([204, 404], `/api/v1/teams/${teamId} -> ${response.status()}`).toContain(response.status());
+    for (const path of [`/api/v1/adrs/${adrId}`, `/api/v1/teams/${teamId}`]) {
+      const response = await api.delete(path);
+      expect([204, 404], `${path} -> ${response.status()}`).toContain(response.status());
+    }
     await api.dispose();
   });
 
   const DETAIL_PAGES: { name: string; path: () => string; settled: (page: Page) => Locator }[] = [
     { name: "the team page", path: () => `/teams/${teamId}`, settled: (p) => p.getByRole("heading", { name: teamName }) },
+    { name: "the ADR page", path: () => `/adrs/${adrId}`, settled: (p) => p.getByRole("heading", { name: adrName }) },
     { name: "the edit-user page", path: () => `/users/${adminId}/edit`, settled: (p) => p.getByRole("heading", { name: "Edit user" }) },
     { name: "the user-features page", path: () => `/users/${adminId}/features`, settled: (p) => p.getByRole("heading", { name: "Feature flags" }) },
   ];

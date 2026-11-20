@@ -41,6 +41,13 @@ fun requireMayManage(standing: AdrStanding) {
     }
 }
 
+/** Who may change the tags and the successor link at all (coarse, before the body): the Driver, the Approver, ADMIN. */
+fun requireMayOrganise(standing: AdrStanding) {
+    if (!standing.holds(AdrRole.DRIVER, AdrRole.APPROVER)) {
+        throw ForbiddenException("Only the Driver, the Approver or an administrator may change this ADR's tags or successor")
+    }
+}
+
 /** The role a user needs to REQUEST a move into [target]; null = no role rule (the lifecycle map decides, a 409). */
 private fun roleToRequest(target: AdrStatus): AdrRole? = when (target) {
     AdrStatus.SOLUTION_DRAFT, AdrStatus.IN_REVIEW, AdrStatus.CANCELLED -> AdrRole.DRIVER
@@ -71,6 +78,22 @@ fun canEditExpiry(standing: AdrStanding, status: AdrStatus): Boolean =
     !status.terminal && standing.holds(AdrRole.DRIVER, AdrRole.APPROVER)
 
 fun canEdit(standing: AdrStanding, status: AdrStatus): Boolean = canEditContent(standing, status) || canEditExpiry(standing, status)
+
+/** Tags change in any non-terminal status (they are not part of the content freeze), by the Driver, the Approver or ADMIN. */
+fun canEditTags(standing: AdrStanding, status: AdrStatus): Boolean =
+    !status.terminal && standing.holds(AdrRole.DRIVER, AdrRole.APPROVER)
+
+/** The predecessor link changes only while the ADR is pre-active (it takes effect at activation), by the Driver, the Approver or ADMIN. */
+fun canEditSuccessor(standing: AdrStanding, status: AdrStatus): Boolean =
+    status.contentEditable && standing.holds(AdrRole.DRIVER, AdrRole.APPROVER)
+
+/**
+ * The predecessor's owners may DETACH its pending successor (`DELETE /adrs/{id}/successor`, 0.4.0): linking is the successor's, so a
+ * stranger could otherwise park a link on an ADR and block it for everyone else. The Driver, the Approver or ADMIN of the PREDECESSOR,
+ * on a non-terminal ADR that has a successor still pre-active ([pending]; one that activated already took effect).
+ */
+fun canDetachSuccessor(standing: AdrStanding, status: AdrStatus, pending: AdrRef?): Boolean =
+    !status.terminal && pending?.status?.contentEditable == true && standing.holds(AdrRole.DRIVER, AdrRole.APPROVER)
 
 /** The participants are replaceable on any non-terminal ADR by the Driver, the Approver or ADMIN. */
 fun canManageParticipants(standing: AdrStanding, status: AdrStatus): Boolean =

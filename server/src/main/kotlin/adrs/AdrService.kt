@@ -3,11 +3,9 @@ package ch.nokillswit.adrs
 import ch.nokillswit.authz.CallerPrincipal
 import ch.nokillswit.authz.ForbiddenException
 import ch.nokillswit.authz.NotFoundException
-import ch.nokillswit.infra.db.FieldChange
 import ch.nokillswit.infra.db.SoftDeletable
 import ch.nokillswit.infra.db.active
 import ch.nokillswit.infra.db.lockActiveForWrite
-import ch.nokillswit.infra.db.nameOnlyChange
 import ch.nokillswit.infra.db.nowMillis
 import ch.nokillswit.infra.db.scalarChange
 import ch.nokillswit.infra.paging.PageRequest
@@ -21,6 +19,7 @@ import org.jetbrains.exposed.v1.core.ResultRow
 import org.jetbrains.exposed.v1.core.and
 import org.jetbrains.exposed.v1.core.dao.id.UIntIdTable
 import org.jetbrains.exposed.v1.core.eq
+import org.jetbrains.exposed.v1.core.inList
 import org.jetbrains.exposed.v1.core.max
 import org.jetbrains.exposed.v1.core.statements.StatementType
 import org.jetbrains.exposed.v1.core.vendors.ForUpdateOption
@@ -45,18 +44,6 @@ val AdrServiceKey = AttributeKey<AdrService>("AdrService")
  */
 internal const val ADR_NUMBER_LOCK_KEY = 0x4144524E554D4252L
 
-/** What a create made: the row id (the URL) and the allocated number. */
-data class CreatedAdr(val id: UInt, val number: Int)
-
-/** What a document PUT changed (null from [AdrService.update] = nothing did): the audit line reads it. */
-data class AdrChange(val id: UInt, val number: Int, val revision: Long, val changed: List<String>)
-
-/** What a transition did. */
-data class AdrTransitionOutcome(val id: UInt, val number: Int, val revision: Long, val from: AdrStatus, val to: AdrStatus)
-
-/** What a participants PUT did (null from [AdrService.replaceParticipants] = nothing). */
-data class AdrParticipantsChange(val id: UInt, val number: Int, val revision: Long, val diff: ParticipantDiff)
-
 /**
  * The ADR aggregate's writes and reads (V10). Every write is ONE transaction that locks the ADR row (`FOR NO KEY UPDATE`, so the
  * participants' FK checks never queue behind it, persistence.md "Row locks vs. FK locks"), re-reads the caller's role under that lock and
@@ -66,10 +53,12 @@ data class AdrParticipantsChange(val id: UInt, val number: Int, val revision: Lo
  * lock: the per-target or per-field verdict (403), the typed state conflicts (409), the stale revision (409) and the requirements (400).
  */
 class AdrService(
-    private val database: R2dbcDatabase,
+    internal val database: R2dbcDatabase,
     private val participants: AdrParticipantService,
     private val events: AdrEventService,
     private val discussion: AdrDiscussionService,
+    private val tags: AdrTagService,
+    internal val successors: AdrSuccessorService,
     private val clock: Clock = Clock.systemUTC(),
 ) {
     object Adrs : UIntIdTable("adrs"), SoftDeletable {
@@ -90,6 +79,9 @@ class AdrService(
         val createdAt = long("created_at")
         val updatedAt = long("updated_at")
         val statusChangedAt = long("status_changed_at")
+
+        /** The ADR this one replaces (V14); set while pre-active, takes effect on activation. A self-reference. */
+        val supersedesId = optReference("supersedes_id", this)
         override val markedAsDeleted = bool("marked_as_deleted").default(false)
     }
 
@@ -111,13 +103,24 @@ class AdrService(
         createdAt = this[Adrs.createdAt],
         updatedAt = this[Adrs.updatedAt],
         statusChangedAt = this[Adrs.statusChangedAt],
+        supersedesId = this[Adrs.supersedesId]?.value,
     )
 
     private suspend fun activeRow(id: UInt): ResultRow? =
         Adrs.selectAll().where { (Adrs.id eq id) and Adrs.active() }.toList().singleOrNull()
 
-    /** The row under the write lock plus the caller's fresh standing; a missing or deleted ADR is a 404. */
-    private suspend fun lockedActive(id: UInt, caller: CallerPrincipal): Pair<AdrRecord, AdrStanding> {
+    /** The live ADR [id] as a record, or null when it is missing or soft-deleted (a plain read; the caller holds any lock). */
+    internal suspend fun activeRecord(id: UInt): AdrRecord? = activeRow(id)?.toRecord()
+
+    /**
+     * The row under the write lock plus the caller's fresh standing; a missing or deleted ADR is a 404. With [alsoLock] (the predecessor an
+     * activation supersedes) BOTH rows are locked first, in id order, so two activations touching the same pair cannot deadlock.
+     */
+    internal suspend fun lockedActive(id: UInt, caller: CallerPrincipal, alsoLock: UInt? = null): Pair<AdrRecord, AdrStanding> {
+        if (alsoLock != null) {
+            Adrs.select(Adrs.id).where { Adrs.id inList listOf(id, alsoLock) }.orderBy(Adrs.id)
+                .forUpdate(ForUpdateOption.PostgreSQL.ForNoKeyUpdate).toList()
+        }
         val row = Adrs.selectAll().where { (Adrs.id eq id) and Adrs.active() }
             .forUpdate(ForUpdateOption.PostgreSQL.ForNoKeyUpdate).toList().singleOrNull()
             ?: throw NotFoundException("ADR not found")
@@ -134,7 +137,10 @@ class AdrService(
     /** The ADR as [caller] sees it, or null when missing/deleted. */
     suspend fun read(id: UInt, caller: CallerPrincipal): AdrResponse? = suspendTransaction(database) {
         val record = activeRow(id)?.toRecord() ?: return@suspendTransaction null
-        val view = AdrView(record, participants.forAdr(id))
+        val view = AdrView(
+            record, participants.forAdr(id), tags.forAdrs(listOf(id))[id].orEmpty(),
+            successors.refOf(record.supersedesId), successors.successorOf(id),
+        )
         val counts = discussion.countsOf(listOf(id))[id] ?: DiscussionCounts()
         view.toResponse(AdrStanding(caller, view.participants.firstOrNull { it.userId == caller.userId }?.role), counts)
     }
@@ -145,6 +151,7 @@ class AdrService(
         val rows = Adrs.selectAll().where { predicate }.applyPaging(paging, ADR_SORT_COLUMNS).toList().map { it.toRecord() }
         val leads = participants.leadsOf(rows.map { it.id })
         val counts = discussion.countsOf(rows.map { it.id })
+        val tagsOf = tags.forAdrs(rows.map { it.id })
         AdrListResult(
             items = rows.map { record ->
                 val lead = leads[record.id].orEmpty()
@@ -161,6 +168,7 @@ class AdrService(
                     statusChangedAt = record.statusChangedAt,
                     driver = lead.firstOrNull { it.role == AdrRole.DRIVER },
                     approver = lead.firstOrNull { it.role == AdrRole.APPROVER },
+                    tags = tagsOf[record.id].orEmpty(),
                     openIssueCount = counts[record.id]?.openIssues ?: 0,
                 )
             },
@@ -215,15 +223,6 @@ class AdrService(
             CreatedAdr(id, number)
         }
     }
-
-    private fun contentChanges(before: AdrRecord, request: AdrUpdateRequest): List<FieldChange> = listOfNotNull(
-        scalarChange("name", before.name, request.name),
-        nameOnlyChange("problem", before.problem, request.problem),
-        nameOnlyChange("context", before.context, request.context),
-        nameOnlyChange("decision", before.decision, request.decision),
-        nameOnlyChange("alternatives", before.alternatives, request.alternatives),
-        nameOnlyChange("consequences", before.consequences, request.consequences),
-    )
 
     /**
      * The document PUT under `X-Expected-Revision`. Under the lock, in order: the coarse guard again (403), a terminal ADR (409
@@ -282,23 +281,44 @@ class AdrService(
      */
     suspend fun transition(id: UInt, caller: CallerPrincipal, expectedRevision: Long, to: AdrStatus): AdrTransitionOutcome =
         suspendTransaction(database) {
-            val (before, standing) = lockedActive(id, caller)
+            // An activation also moves the ADR it replaces, so both rows are locked together (the peek is a plain read: the revision
+            // check below catches a link changed in between, since every link change bumps the revision).
+            val peeked = if (to == AdrStatus.ACTIVE) successors.predecessorIdOf(id) else null
+            val (before, standing) = lockedActive(id, caller, alsoLock = peeked)
             requireMayTransition(standing)
             requireMayRequest(standing, to)
             before.status.requireTransitionTo(to)
             requireRevision(expectedRevision, before.revision)
-            requireTransitionRequirements(to, before, participants.hasApprover(id), today())
+            val predecessor = if (to == AdrStatus.ACTIVE) successors.refOf(before.supersedesId) else null
+            requireTransitionRequirements(to, before, participants.hasApprover(id), today(), predecessor)
             val stamp = nowMillis()
-            val revision = before.revision + 1
-            Adrs.update({ Adrs.id eq id }) {
-                it[status] = to.name
-                it[statusChangedAt] = stamp
-                it[Adrs.revision] = revision
-                it[updatedAt] = stamp
-            }
+            val revision = bumpRevision(id, before.revision, stamp, moveTo = to)
             events.record(id, caller.userId, adrTransitionedEvent(before.status, to), stamp)
-            AdrTransitionOutcome(id, before.number, revision, before.status, to)
+            val superseded = predecessor?.let { supersede(it, AdrRef(id, adrKey(before.number), before.name, to), caller.userId, stamp) }
+            AdrTransitionOutcome(id, before.number, revision, before.status, to, superseded)
         }
+
+    /** Moves the ACTIVE [predecessor] (locked by the caller) to `SUPERSEDED` with its event; a [successor] activation's other half. */
+    private suspend fun supersede(predecessor: AdrRef, successor: AdrRef, byUserId: UInt, stamp: Long): AdrSuperseded {
+        val row = Adrs.selectAll().where { Adrs.id eq predecessor.id }.toList().single()
+        val revision = bumpRevision(predecessor.id, row[Adrs.revision], stamp, moveTo = AdrStatus.SUPERSEDED)
+        events.record(predecessor.id, byUserId, adrSupersededEvent(successor), stamp)
+        events.record(successor.id, byUserId, adrSuccessorActivatedEvent(predecessor), stamp)
+        return AdrSuperseded(predecessor.id, row[Adrs.number], revision)
+    }
+
+    /** One UPDATE of the row: the revision after [current], `updated_at` [stamp] and, for a move, the new status; returns the revision. */
+    internal suspend fun bumpRevision(id: UInt, current: Long, stamp: Long, moveTo: AdrStatus? = null): Long {
+        Adrs.update({ Adrs.id eq id }) {
+            it[revision] = current + 1
+            it[updatedAt] = stamp
+            if (moveTo != null) {
+                it[status] = moveTo.name
+                it[statusChangedAt] = stamp
+            }
+        }
+        return current + 1
+    }
 
     /**
      * Replaces the participants (a diff, [AdrParticipantService.replace]) under `X-Expected-Revision` and the lock: the guard again
@@ -321,12 +341,27 @@ class AdrService(
             val stamp = nowMillis()
             val diff = participants.replace(id, caller.userId, request.participants, stamp)
             if (diff.isEmpty) return@suspendTransaction null
-            val revision = before.revision + 1
-            Adrs.update({ Adrs.id eq id }) {
-                it[Adrs.revision] = revision
-                it[updatedAt] = stamp
-            }
-            AdrParticipantsChange(id, before.number, revision, diff)
+            AdrParticipantsChange(id, before.number, bumpRevision(id, before.revision, stamp), diff)
+        }
+    }
+
+    /**
+     * Replaces the tags (a diff, [AdrTagService.replace]) under `X-Expected-Revision` and the lock: the guard again (403), a terminal ADR
+     * (409 `adr-frozen`), the stale revision (409), then the names (400: unknown or retired). Tags are NOT part of the content freeze, so
+     * an `ACTIVE` ADR takes them. A real change bumps the revision; a no-op bumps nothing (null).
+     */
+    suspend fun replaceTags(id: UInt, caller: CallerPrincipal, expectedRevision: Long, raw: AdrTagsRequest): AdrTagsChange? {
+        val request = normalizedAdrTags(raw)
+        validateAdrTags(request)
+        return suspendTransaction(database) {
+            val (before, standing) = lockedActive(id, caller)
+            requireMayOrganise(standing)
+            before.status.requireWritable()
+            requireRevision(expectedRevision, before.revision)
+            val stamp = nowMillis()
+            val diff = tags.replace(id, caller.userId, request.tags, stamp)
+            if (diff.isEmpty) return@suspendTransaction null
+            AdrTagsChange(id, before.number, bumpRevision(id, before.revision, stamp), diff)
         }
     }
 

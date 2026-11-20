@@ -11,7 +11,7 @@ import java.time.LocalDate
  * fail is a `400` naming the missing fields ([missingForTransition]); the content freeze is a `409` of `adr-frozen`.
  *
  * ```
- * PROBLEM_RAISED -> SOLUTION_DRAFT -> IN_REVIEW -> ACTIVE -> EXPIRED (sweep) | SUPERSEDED (successor, 0.4.0)
+ * PROBLEM_RAISED -> SOLUTION_DRAFT -> IN_REVIEW -> ACTIVE -> EXPIRED (sweep) | SUPERSEDED (its successor became ACTIVE)
  *   PROBLEM_RAISED -> IN_REVIEW (a problem that arrives with its solution skips the draft)
  *   CANCELLED from the first three; WITHDRAWN from IN_REVIEW
  * ```
@@ -27,7 +27,7 @@ val ALLOWED_TRANSITIONS: Map<AdrStatus, Set<AdrStatus>> = mapOf(
     AdrStatus.SUPERSEDED to emptySet(),
 )
 
-/** The statuses only the system moves an ADR into (the expiry sweep; the successor activation of 0.4.0): never requested by a user. */
+/** The statuses only the system moves an ADR into (the expiry sweep; the activation of its successor): never requested by a user. */
 val SYSTEM_STATUSES: Set<AdrStatus> = setOf(AdrStatus.EXPIRED, AdrStatus.SUPERSEDED)
 
 /** No move leaves a terminal status, and nothing in it is writable. */
@@ -57,18 +57,29 @@ fun AdrStatus.requireWritable() {
     if (terminal) throw ConflictException("A $this ADR is read-only", ProblemTypes.ADR_FROZEN)
 }
 
-/** Once `ACTIVE` only the expiry date, the participants (and later tags and the successor link) change, never the content. */
+/** Once `ACTIVE` only the expiry date, the participants and the tags change, never the content (and the successor link no longer does). */
 fun AdrStatus.requireContentEditable() {
     if (!contentEditable) throw ConflictException("The content of a $this ADR is frozen", ProblemTypes.ADR_FROZEN)
+}
+
+/** The successor link is set before the decision is in force: once `ACTIVE` (or terminal) it is the typed `adr-frozen` 409. */
+fun AdrStatus.requireLinkable() {
+    if (!contentEditable) throw ConflictException("The successor link of a $this ADR is frozen", ProblemTypes.ADR_FROZEN)
 }
 
 /**
  * What stops [record] from entering [target]: the fields it must hold first, named for the `400`. Entering `IN_REVIEW` needs the
  * context, the decision, the consequences and an Approver (the name and the problem exist from creation); entering `ACTIVE` re-checks
- * the same (the content and the participants stay editable in review) and that a date already set is not in the past (the sweep would
- * expire the ADR at once). Empty = the move may proceed.
+ * the same (the content and the participants stay editable in review), that a date already set is not in the past (the sweep would
+ * expire the ADR at once) and that the ADR it replaces, if any, is `ACTIVE` (else there is nothing to supersede). Empty = it may proceed.
  */
-fun missingForTransition(target: AdrStatus, record: AdrRecord, hasApprover: Boolean, today: LocalDate): List<String> {
+fun missingForTransition(
+    target: AdrStatus,
+    record: AdrRecord,
+    hasApprover: Boolean,
+    today: LocalDate,
+    predecessor: AdrRef? = null,
+): List<String> {
     if (target != AdrStatus.IN_REVIEW && target != AdrStatus.ACTIVE) return emptyList()
     val missing = mutableListOf<String>()
     if (record.context.isBlank()) missing += "context"
@@ -78,10 +89,20 @@ fun missingForTransition(target: AdrStatus, record: AdrRecord, hasApprover: Bool
     if (target == AdrStatus.ACTIVE && record.expiresOn?.let { parseExpiresOn(it).isBefore(today) } == true) {
         missing += "expiresOn (must not be in the past)"
     }
+    // The ADR it replaces must still be in force, or there is nothing to supersede: unlink it (or wait for it to be activated first).
+    if (target == AdrStatus.ACTIVE && predecessor != null && predecessor.status != AdrStatus.ACTIVE) {
+        missing += "supersedes ${predecessor.key} (it is ${predecessor.status}, not ACTIVE: unlink it first)"
+    }
     return missing
 }
 
-fun requireTransitionRequirements(target: AdrStatus, record: AdrRecord, hasApprover: Boolean, today: LocalDate) {
-    val missing = missingForTransition(target, record, hasApprover, today)
+fun requireTransitionRequirements(
+    target: AdrStatus,
+    record: AdrRecord,
+    hasApprover: Boolean,
+    today: LocalDate,
+    predecessor: AdrRef? = null,
+) {
+    val missing = missingForTransition(target, record, hasApprover, today, predecessor)
     if (missing.isNotEmpty()) throw BadRequestException("An ADR cannot move to $target: missing ${missing.joinToString(", ")}")
 }

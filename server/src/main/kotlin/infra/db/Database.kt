@@ -7,12 +7,16 @@ import ch.nokillswit.adrs.AdrEventServiceKey
 import ch.nokillswit.adrs.AdrParticipantService
 import ch.nokillswit.adrs.AdrService
 import ch.nokillswit.adrs.AdrServiceKey
+import ch.nokillswit.adrs.AdrSuccessorService
+import ch.nokillswit.adrs.AdrTagService
 import ch.nokillswit.auth.PasswordResetService
 import ch.nokillswit.auth.PasswordResetServiceKey
 import ch.nokillswit.auth.TokenBlocklistService
 import ch.nokillswit.auth.TokenBlocklistServiceKey
 import ch.nokillswit.infra.config.requireConfigInt
 import ch.nokillswit.infra.config.requireConfigLong
+import ch.nokillswit.tags.TagCategoryService
+import ch.nokillswit.tags.TagCategoryServiceKey
 import ch.nokillswit.teams.TeamService
 import ch.nokillswit.teams.TeamServiceKey
 import ch.nokillswit.users.UserService
@@ -243,14 +247,18 @@ suspend fun Application.configureDatabase() {
     attributes.put(UserServiceKey, userService)
     val teamService = TeamService(database)
     attributes.put(TeamServiceKey, teamService)
-    // The ADR aggregate (V10-V12): the history service is shared by the writes and the expiry sweep (`adrs/AdrExpirySweep.kt`); the
+    // The ADR aggregate (V10-V14): the history service is shared by the writes and the expiry sweep (`adrs/AdrExpirySweep.kt`); the
     // discussion service (V12) writes its entries and serves the counts the ADR rows carry.
     val adrEvents = AdrEventService(database)
     attributes.put(AdrEventServiceKey, adrEvents)
     val adrParticipants = AdrParticipantService(adrEvents)
     val adrDiscussion = AdrDiscussionService(database, adrParticipants, adrEvents)
     attributes.put(AdrDiscussionServiceKey, adrDiscussion)
-    attributes.put(AdrServiceKey, AdrService(database, adrParticipants, adrEvents, adrDiscussion))
+    // The tag registry (V13, `tags/`) and the ADR's two organising links (V13 `adr_tags`, V14 `supersedes_id`).
+    attributes.put(TagCategoryServiceKey, TagCategoryService(database))
+    val adrTags = AdrTagService(adrEvents)
+    val adrSuccessors = AdrSuccessorService(adrEvents)
+    attributes.put(AdrServiceKey, AdrService(database, adrParticipants, adrEvents, adrDiscussion, adrTags, adrSuccessors))
     attributes.put(
         TokenBlocklistServiceKey,
         TokenBlocklistService(

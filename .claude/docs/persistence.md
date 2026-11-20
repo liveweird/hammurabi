@@ -14,10 +14,10 @@ in-network consumers use `postgres:5432`). There is one persistence stack:
   makes every long-lived database refuse to boot (a failure no fresh-container CI run can see).
   `MigrationChecksumTest` pins every file's checksum; a new migration adds one manifest line, and
   a red pin means REVERT the edit (clarifications go into this doc), never update the pinned
-  value. The range today is **V1–V12**: V1 `users`, V2 `revoked_tokens`, V3 the seed admin, V4 the
+  value. The range today is **V1–V14**: V1 `users`, V2 `revoked_tokens`, V3 the seed admin, V4 the
   `unaccent` extension, V5 `user_disabled_features` (V1–V5 are Flow's), V6 `teams` (with the optional
   manager), V7 `users.credential_revision`, V8 `password_reset_tokens`, V9 the `ops` telemetry
-  schema, V10 `adrs` + `adr_participants`, V11 `adr_events`, V12 `adr_discussion`. (The bootstrap renumbered the donor's history; from V10 on, migrations are append-only like any other.)
+  schema, V10 `adrs` + `adr_participants`, V11 `adr_events`, V12 `adr_discussion`, V13 `tag_categories` + `tags` + `adr_tags` (and the seed), V14 `adrs.supersedes_id`. (The bootstrap renumbered the donor's history; from V10 on, migrations are append-only like any other.)
 - **Exposed + R2DBC** (`infra/db/Database.kt` + the feature services) — runtime DB access.
   `Database.kt` connects the `R2dbcDatabase` and is the composition root: it constructs the
   services and publishes them into `Application.attributes` (`UserServiceKey`, `TeamServiceKey`,
@@ -161,6 +161,7 @@ place:
   of a grant's liveness, and `FOR UPDATE` on the user row) and WRITES `users.password_hash` / `password_changed_at` / `credential_revision`
   through `users`' `updatePasswordInTransaction` inside its own transaction (the grant is consumed in the same transaction).
 - `adrs/AdrParticipantService` (`adr_participants`) READS `users/UserService.Users` in the ADR write's own transaction: the display name of each participant (joined, a soft-deleted user keeps the name) and the `active()` check of every user a set adds or re-roles (a client-supplied FK is a `400`, never a constraint `500`); `adrs/AdrEventService`'s `EventLog` LEFT-joins `Users` for the actor's name and deletion flag (`infra/db/EventLog.kt`: the feature passes the actor table in, `infra/` names no feature). `adrs/AdrDiscussionService` (`adr_discussion`, V12) READS `users/UserService.Users` (the names and deletion flags of an entry's author and resolver, one batched `id IN (...)` per page, a soft-deleted user keeps the name), READS `adrs` (the status and number, locked `FOR NO KEY UPDATE` on a write) and `adr_participants` (the caller's role, through `AdrParticipantService.roleOf`), and WRITES `adr_discussion` plus `adr_events` (through `AdrEventService.record`, same transaction); `AdrService` READS `adr_discussion` for the counts (`AdrDiscussionService.countsOf`, which runs in the read's or list page's own transaction and spells the index predicate as literals so a prepared plan can use the partial index). Both write only `adr_*`. `AdrService` writes `adrs.created_by` / `adr_participants.added_by` / `adr_events.user_id` (FKs to `users`, no `ON DELETE` rule: users soft-delete only); `AdrDiscussionService` writes `adr_discussion.author_id` / `state_changed_by` likewise.
+- `adrs/AdrTagService` (`adr_tags`, V13) READS `tags/TagCategoryService.Tags` (`tags`: the live-name lookup of a tag write, and the name and retired flag joined into every ADR read and list page, in the ADR write's or read's own transaction) and WRITES `adr_tags` plus `adr_events` (through `AdrEventService.record`); `adr_tags.added_by` is an FK to `users`. The list's `tag` filter reads `adr_tags` ⋈ `tags` as a subquery of the `adrs` predicate (`AdrListQuery.kt`). `adrs/AdrSuccessorService` READS and WRITES `adrs` (`supersedes_id`, and the status moves of an activation, `AdrService.transition`) and `adr_events`, all inside the ADR write's transaction. `tags/` itself touches only `tag_categories` and `tags`.
 - `plugins/Health.kt` (`GET /api/v1/ready`, the readiness probe) READS `users/UserService.Users` (`id`, `LIMIT 1`), a bounded round trip
   that proves the database answers; it writes nothing and returns no row.
 - `telemetry/StorageCollectors.kt` (the storage panel) reads, OUTSIDE the telemetry cluster transaction (the heavy phase: each statement is a short
@@ -175,8 +176,8 @@ List each new cross-feature read/write here as it lands — the list IS the perm
 
 Hammurabi's PostgreSQL database is split across schemas:
 
-- **`public`** — the foundation tables (`users`, `teams`, `revoked_tokens`, `user_disabled_features`, `password_reset_tokens`) and the
-  ADR tables (`adrs`, `adr_participants`, `adr_events`, `adr_discussion` today; `adr-model.md`). Flyway's own history table also stays here — `flyway.schemas` is left at its default.
+- **`public`** — the foundation tables (`users`, `teams`, `revoked_tokens`, `user_disabled_features`, `password_reset_tokens`), the
+  ADR tables (`adrs`, `adr_participants`, `adr_events`, `adr_discussion`, `adr_tags` today; `adr-model.md`) and the tag registry (`tag_categories`, `tags`). Flyway's own history table also stays here — `flyway.schemas` is left at its default.
 - **`ops`** — Hammurabi's own operational telemetry (V9, "Telemetry (V9)" below): the process registry and the metric samples each
   process writes about itself. Numbers and labels only, never user or ADR data.
 
@@ -223,10 +224,10 @@ transaction under `TELEMETRY_LOCK_KEY`, and a row exactly at its cutoff stays. T
 
 ### Soft delete (convention)
 
-`users`, `teams`, `adrs` and `adr_discussion` (a deleted entry is a tombstone) are **soft-deleted** — rows are flagged, never physically removed; every
+`users`, `teams`, `adrs`, `tag_categories`, `tags` (a retired tag) and `adr_discussion` (a deleted entry is a tombstone) are **soft-deleted** — rows are flagged, never physically removed; every
 business entity follows the same convention. Only join/token tables (today: `revoked_tokens`, a
 pure token registry, `password_reset_tokens` (V8, expiring single-use credentials, not history), `user_disabled_features`, a pure flag join
-whose PUT is a wholesale replace, `adr_participants`, a current-fact join replaced as a diff whose every change is an `adr_events` row, and the
+whose PUT is a wholesale replace, `adr_participants` and `adr_tags`, current-fact joins replaced as a diff whose every change is an `adr_events` row, and the
 `ops.telemetry_*` samples (the prune above)) hard-delete; `adr_events` is APPEND-ONLY (no update, no delete: history outlives its record's changes) — a new
 hard-delete table needs a documented justification, exactly like Lettuce's exceptions list. Pure operational history with no reader once
 old (job queues, samples) may be pruned by a fixed documented retention window, the same shape as the JWT blocklist's opportunistic
@@ -317,7 +318,7 @@ text and sha256 are compared against stored rows.
 - **Dates.** `expires_on` is `VARCHAR(10)` holding a canonical ISO date (Covenant's date shape; `CHECK ~ '^[0-9]{4}-[0-9]{2}-[0-9]{2}$'`): it sorts chronologically, so the sweep compares text, and no date-time module joins the build. The Kotlin side parses it (`parseExpiresOn`: a real calendar date).
 - **Roles.** `adr_participants (adr_id, user_id, role, added_at, added_by)`, primary key `(adr_id, user_id)` (one role per user), two PARTIAL unique indexes pin at most one `DRIVER` and one `APPROVER` per ADR; "exactly one Driver" is the service's (`validateParticipantSet`). A replace is a diff written delete-then-insert for the removed and the changed users (a changed row keeps its `added_at`/`added_by`), so a Driver handover or a Driver/Approver swap never trips the unique indexes half-done. `idx_adr_participants_user (user_id, role)` serves the list's `participant` filter.
 - **History.** `adr_events (adr_id, user_id NULLABLE, created_at, event_type, params)`: the actor is NULL for a system event (the expiry sweep). `(adr_id, created_at, id)` serves the newest-first page. No CHECK on `event_type` or on `adrs.status` / `adr_participants.role` (the V5 rule: the Kotlin enums are the whitelists).
-- **Revision.** `adrs.revision` guards the document PUT, the transitions and the participants PUT (`X-Expected-Revision`); every real change of any of them bumps it (a no-op participants set only does not). The expiry sweep bumps it (a stale reader's next write conflicts).
+- **Revision.** `adrs.revision` guards the document PUT, the transitions, the participants PUT and (0.4.0) the tags and supersedes PUTs (`X-Expected-Revision`); every real change of any of them bumps it (a no-op set or link does not); an activation also bumps the superseded predecessor, and a detach bumps the (former) successor. The expiry sweep bumps it (a stale reader's next write conflicts).
 - **Sweep index.** `idx_adrs_expiry (expires_on) WHERE status = 'ACTIVE' AND expires_on IS NOT NULL AND NOT marked_as_deleted` serves the candidate scan.
 - **Discussion (V12).** `adr_discussion (adr_id, kind, status NULLABLE, body, resolution, author_id, created_at, edited_at, state_changed_by/at, marked_as_deleted, deleted_at)`; no CHECK on `kind`/`status` (the V5 rule), CHECKs on the
   body/resolution lengths and on a non-blank body unless deleted. A soft delete WIPES `body` and `resolution` and nulls `status`, `edited_at` and `state_changed_by/at` (`ck_adr_discussion_tombstone` pins it, with `deleted_at` stamped) (a tombstone is in no state, so no status filter and no count matches it; the text is gone from the store, not merely hidden).
@@ -326,8 +327,19 @@ text and sha256 are compared against stored rows.
   `FOR NO KEY UPDATE` (the window is judged under it) and never bumps `adrs.revision`; `AdrRowLockTest` pins both halves.
 - **Locking.** Every ADR write: `FOR NO KEY UPDATE` on the `adrs` row ("Row locks vs. FK locks"), the caller's role re-read under it, then state, revision, requirements, writes and events in ONE transaction.
 
+### Tag categories and tags (V13)
+
+`tag_categories` (`tags/TagCategoryService.kt`: name unique among ACTIVE rows case-insensitively, optional description, `revision BIGINT NOT NULL DEFAULT 1` - the `X-Expected-Revision` token of the category's PUT and DELETE, checked under the registry lock and bumped by every PUT and by the delete - `SoftDeletable`), `tags` (`category_id`, a normalised lower-case `name`, `marked_as_deleted`) and `adr_tags` (`adr_id` ON DELETE CASCADE, `tag_id` with no ON DELETE rule, `added_at/by`; primary key `(adr_id, tag_id)`; `idx_adr_tags_tag` serves the list's `tag` filter). The domain is `adr-model.md` "Tags".
+
+- **A tag is a row, retired not erased.** `uq_tags_name` is unique over EVERY row, deleted ones included: removing a tag from a category (or deleting the category) sets `marked_as_deleted`, the ADRs keep their `adr_tags` row and read the tag as retired, and adding the name to a category again REVIVES the row (moving it to the new category) instead of minting a twin. "Each tag in exactly one active category" is therefore one row plus the unique name.
+- **The registry lock.** Every registry write is `lockingTransaction` (`infra/db/Locking.kt`, Toadie's): READ COMMITTED after `LOCK TABLE tag_categories IN SHARE ROW EXCLUSIVE MODE`, which also covers an empty registry (a row lock would not) while plain SELECTs stay available. Registry writers queue on it, so a claim check (`applyTags`) and its writes are atomic; `uq_tag_categories_name_active` and `uq_tags_name` are the backstops (`23505` to `409`). An ADR tag write takes no registry lock: it reads the live names inside the ADR row lock, and a tag retired a moment later simply reads as retired - the same state a retirement leaves anyway.
+- **Seed.** V13 inserts the Domain and Scope categories and their eight tags with the migration's own timestamp. Tests never mutate them (they name their own categories and tags).
+
+### Successor links (V14)
+
+`adrs.supersedes_id` (a self-reference, nullable, no ON DELETE rule: ADRs soft-delete; `ck_adrs_supersedes_self` refuses `= id`) on the SUCCESSOR. `uq_adrs_supersedes_open (supersedes_id) WHERE supersedes_id IS NOT NULL AND NOT marked_as_deleted AND status NOT IN (CANCELLED, WITHDRAWN, EXPIRED, SUPERSEDED)` allows one successor in play per predecessor (the terminal names are spelled in the predicate; they are the frozen `AdrStatus` values); `idx_adrs_supersedes` serves the reverse lookup ("who replaces this one?"). Two locks, in this order and never the other way: the `ADRLINKS` advisory lock (`ADR_LINK_LOCK_KEY`, `pg_advisory_xact_lock`, the first statement of a link write, because a cycle spans rows) and then the ADR row lock `FOR NO KEY UPDATE`. An activation takes only row locks: the successor's and the predecessor's TOGETHER in one `ORDER BY id` statement, so two writers touching the same pair cannot deadlock (two activations along a chain, B replaces A and C replaces B, share only B's row, always taken in id order - `AdrSuccessorDetachTest` runs them at once, with the chain in both id orders); it peeks the predecessor id without a lock first (a link change bumps the successor's revision, so a stale peek is a revision `409`). A DETACH (`DELETE /adrs/{id}/successor`, the predecessor's owner) takes the link lock first and then both rows in the same id order, clears the successor's `supersedes_id` and bumps the successor's revision. The cycle check walks UP the `supersedes_id` chain from the requested predecessor, one primary-key lookup per step (O(depth)), skipping a link whose successor is deleted, `CANCELLED` or `WITHDRAWN`.
+
 ### Planned persistence (not yet built)
 
-The remaining ADR tables arrive with v0.4–v0.5; their sketch (`adr_tags`, the `supersedes_id` link, the generated search vector;
-epoch-millis timestamps, `SoftDeletable`, partial unique indexes) is in `adr-model.md`. The schema list, the soft-delete list and the cross-feature list above grow in the same commit as each
-migration. The ported-later infrastructure is named in `product.md` "Donors" (`infra/db/Fts.kt`, `lockingTransaction`).
+The remaining ADR table arrives with v0.5 find (the generated search vector; epoch-millis timestamps, `SoftDeletable`, partial unique indexes); v0.6 adds the notifications. The schema list, the soft-delete list and the cross-feature list above grow in the same commit as each
+migration. The ported-later infrastructure is named in `product.md` "Donors" (`infra/db/Fts.kt`).

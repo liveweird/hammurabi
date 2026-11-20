@@ -43,8 +43,26 @@ enum class AdrEventType {
     /** `{expiresOn}`: the sweep moved an ACTIVE ADR whose date passed; no actor (the system). */
     EXPIRED,
 
-    /** Reserved for the successor activation of 0.4.0 (a system event); nothing writes it yet. */
+    /**
+     * `{successorId, key, name}`: written on the PREDECESSOR when its successor became `ACTIVE`; the actor is the user who activated the
+     * successor (the move is automatic, but a person caused it).
+     */
     SUPERSEDED,
+
+    /** `{added: "a,b", removed: "c"}` (each key only when non-empty): the tag names a save added and removed. */
+    TAGS_CHANGED,
+
+    /** `{predecessorId, key, name}`: the ADR now replaces that one (set while pre-active; it takes effect on activation). */
+    SUCCESSOR_LINKED,
+
+    /**
+     * `{predecessorId, key, name}`: the ADR no longer replaces that one. Written on the PREDECESSOR as well when its owner detached the
+     * pending successor, then `{successorId, key, name}` (the SPA tells the two sides apart by the param).
+     */
+    SUCCESSOR_UNLINKED,
+
+    /** `{predecessorId, key, name}`: written on the SUCCESSOR in the same transaction that superseded the ADR it replaces. */
+    SUCCESSOR_ACTIVATED,
 
     /**
      * The discussion (0.3.0, `adr-model.md` "Discussion"), each `{entryId, kind}` (never the text; the entry is read through the discussion
@@ -86,6 +104,35 @@ fun adrParticipantChangedEvent(userId: UInt, name: String, from: AdrRole, to: Ad
     AdrEventType.PARTICIPANT_CHANGED,
     mapOf("userId" to userId.toString(), "name" to name, "from" to from.name, "to" to to.name),
 )
+
+fun adrTagsChangedEvent(added: List<String>, removed: List<String>) = AdrEventDescriptor(
+    AdrEventType.TAGS_CHANGED,
+    buildMap {
+        if (added.isNotEmpty()) put("added", added.joinToString(","))
+        if (removed.isNotEmpty()) put("removed", removed.joinToString(","))
+    },
+)
+
+private fun successorEvent(type: AdrEventType, other: AdrRef, otherIsSuccessor: Boolean = false) = AdrEventDescriptor(
+    type,
+    mapOf(
+        (if (otherIsSuccessor) "successorId" else "predecessorId") to other.id.toString(),
+        "key" to other.key,
+        "name" to other.name,
+    ),
+)
+
+fun adrSuccessorLinkedEvent(predecessor: AdrRef) = successorEvent(AdrEventType.SUCCESSOR_LINKED, predecessor)
+
+fun adrSuccessorUnlinkedEvent(predecessor: AdrRef) = successorEvent(AdrEventType.SUCCESSOR_UNLINKED, predecessor)
+
+/** The event on the PREDECESSOR when its owner detached [successor], the pending ADR that was set to replace it. */
+fun adrSuccessorDetachedEvent(successor: AdrRef) = successorEvent(AdrEventType.SUCCESSOR_UNLINKED, successor, otherIsSuccessor = true)
+
+fun adrSuccessorActivatedEvent(predecessor: AdrRef) = successorEvent(AdrEventType.SUCCESSOR_ACTIVATED, predecessor)
+
+/** The event on the superseded ADR: [successor] is the one that just became `ACTIVE`. */
+fun adrSupersededEvent(successor: AdrRef) = successorEvent(AdrEventType.SUPERSEDED, successor, otherIsSuccessor = true)
 
 fun adrExpiredEvent(expiresOn: String) = AdrEventDescriptor(AdrEventType.EXPIRED, mapOf("expiresOn" to expiresOn))
 

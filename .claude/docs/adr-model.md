@@ -19,8 +19,10 @@ Read before touching `adrs/` (server) or any ADR page (web).
 | alternatives considered | `alternatives` | Markdown, ≤ 20 000; optional |
 | accepted consequences / side effects | `consequences` | Markdown, ≤ 20 000; required to enter `IN_REVIEW` |
 | status | `status` | the lifecycle below |
+| tags | `tags` `[{name, retired}]` | the ADR's tags from the registry ("Tags" below), alphabetical; set by `PUT /adrs/{id}/tags`, never by the document PUT |
+| predecessor / successor | `supersedes` / `supersededBy` `{id, key, name, status}` | the successor link ("Successors" below); `supersedes_id` lives on the successor and is set by `PUT /adrs/{id}/supersedes` |
 | expiry date | `expiresOn` (`YYYY-MM-DD`, nullable) | the LAST day the decision is in force: the sweep expires an `ACTIVE` ADR whose date is before today (UTC), i.e. the day after. A CHANGED date must not be in the past (any non-terminal status); entering `ACTIVE` with a date already past is `400` (the sweep would expire it at once) |
-| revision | `revision` + `X-Expected-Revision` | optimistic concurrency on the document PUT, the transitions and the participants PUT (Adder/Toadie `infra/revision`, header required on all three); starts at 1, every real change and every sweep move bumps it, a no-op bumps nothing |
+| revision | `revision` + `X-Expected-Revision` | optimistic concurrency on the document PUT, the transitions, the participants PUT and (0.4.0) the tags and supersedes PUTs (Adder/Toadie `infra/revision`, header required on all five); starts at 1, every real change and every sweep move bumps it, a no-op bumps nothing |
 | audit | `createdAt`, `createdBy`, `updatedAt`, `statusChangedAt` | epoch millis like every sibling |
 
 The text fields are stored as sanitised (`sanitizeSingleLine` for the name, `sanitizeMultiLine` for the Markdown: CRLF to LF, control and hidden direction characters `400`, leading blank lines and trailing whitespace dropped); the optional ones are empty strings, never null. `problem` is required at create and on every PUT; the others default to empty. A create may carry all the content fields at once (a problem that arrives with its solution).
@@ -45,13 +47,17 @@ problem exist from creation, alternatives stay optional); entering `ACTIVE` re-c
 an Approver may have left) plus a date already set not in the past. The `400` names every missing field in its detail.
 
 **Content freeze** (`requireContentEditable`): name and the five Markdown fields change only in `PROBLEM_RAISED`, `SOLUTION_DRAFT` and
-`IN_REVIEW`; once `ACTIVE` a content change is `409 adr-frozen`, while the expiry date and the participants stay editable (tags and the successor link
-join them in 0.4.0).
+`IN_REVIEW`; once `ACTIVE` a content change is `409 adr-frozen`, while the expiry date, the participants and the tags stay editable. The successor link is the
+opposite: it is set only while the ADR is pre-active (a link on an `ACTIVE` ADR is `409 adr-frozen`), because it takes effect at activation.
 
 **Order inside a write** (`authorization.md`), under the row lock:
 - document PUT: the coarse role (403), a terminal ADR (409 `adr-frozen`), the **stale revision (409 `revision-conflict`)**, then per field the content freeze (409 `adr-frozen`) or the role (403) and a past expiry date (400) — the revision comes before the per-field judgements, so a stale save is never a false 403 (and never writes a false `authz.denied`) or 400;
 - transition: the coarse role (403), the per-target role (403), the lifecycle map (409 `illegal-transition` — also a move out of a terminal status, and a request for `EXPIRED`/`SUPERSEDED`), the stale revision (409), then the target's requirements (400);
-- participants: the coarse role (403), a terminal ADR (409 `adr-frozen`), the stale revision (409), then the users (400).
+- participants: the coarse role (403), a terminal ADR (409 `adr-frozen`), the stale revision (409), then the users (400);
+- tags (0.4.0): the coarse role (403), a terminal ADR (409 `adr-frozen`), the stale revision (409), then the names (400: unknown or retired, duplicate, over 20);
+- supersedes (0.4.0): the coarse role (403), a terminal ADR (409 `adr-frozen`), the stale revision (409), an `ACTIVE` ADR (409 `adr-frozen`), then the predecessor (400: itself, unknown or deleted, terminal; 409: closes a cycle, already has a successor in play);
+- detach successor (0.4.0, `DELETE /adrs/{id}/successor`, no header or body): judged on the PREDECESSOR - the coarse role (403), a terminal predecessor (409 `adr-frozen`), then no pending successor (404);
+- the activation also needs the ADR it replaces to be `ACTIVE` (below), judged with the other requirements (400).
 
 A save that changes nothing is `204`, bumps nothing and records nothing.
 
@@ -67,7 +73,9 @@ most one `APPROVER` (required to enter `IN_REVIEW`); any number of `CONTRIBUTOR`
 | edit content (pre-active states) | Driver, Contributors, ADMIN |
 | `→ SOLUTION_DRAFT`, `→ IN_REVIEW`, `→ CANCELLED` | Driver, ADMIN |
 | `→ ACTIVE`, `→ WITHDRAWN` | Approver, ADMIN |
-| change participants, expiry date, tags, successor | Driver, Approver, ADMIN (the Driver role can be handed over, never left empty) |
+| change participants, expiry date, tags, successor | Driver, Approver, ADMIN (the Driver role can be handed over, never left empty); the successor link is the SUCCESSOR's (the predecessor's roles do not matter) and only while it is pre-active |
+| detach a pending successor | Driver, Approver, ADMIN of the PREDECESSOR, while it is non-terminal and the successor is still pre-active (the answer to a link parked by a stranger; below) |
+| curate the tag registry (categories and their tags) | ADMIN only; any authenticated user reads it |
 | resolve or reopen an issue / escalation | Driver, Approver, ADMIN |
 | answer or reopen a question | its author, Driver, Approver, ADMIN |
 | edit a discussion entry | its author only |
@@ -76,8 +84,8 @@ most one `APPROVER` (required to enter `IN_REVIEW`); any number of `CONTRIBUTOR`
 
 Guards run before validation: a forbidden write is `403` even when its body is also invalid (`authorization.md`). A missing ADR is `404`.
 The verdict is also computed FOR THE CALLER and served on the ADR: `allowedTransitions` (the map minus the system's moves, filtered by the table
-above), `canEdit` (content in a pre-active status, or the expiry date in a non-terminal one) and `canManageParticipants`, so the SPA never re-derives it.
-The coarse guard before the body is "may touch this ADR at all" (edit: Driver, Contributor, Approver, ADMIN; transition and participants: Driver,
+above), `canEdit` (content in a pre-active status, or the expiry date in a non-terminal one), `canManageParticipants`, `canEditTags` (a non-terminal ADR), `canEditSuccessor` (a pre-active one) and `canDetachSuccessor` (this ADR is the PREDECESSOR of a pending successor and the caller holds one of the three roles on it), so the SPA never re-derives it.
+The coarse guard before the body is "may touch this ADR at all" (edit: Driver, Contributor, Approver, ADMIN; transition, participants, tags and supersedes: Driver,
 Approver, ADMIN); the per-target and per-field rows above are re-judged under the row lock (`403`).
 
 **Participants** (`PUT /adrs/{id}/participants`, a wholesale replace applied as a diff, under `X-Expected-Revision` — REQUIRED like the document PUT, so a stale editor cannot silently drop people another one added; a real change bumps the ADR revision, a no-op bumps nothing): exactly one Driver in the set (the creator at first),
@@ -92,8 +100,8 @@ Types and their string `params` (the SPA renders them in the viewer's language; 
 Driver), `UPDATED` `{changed: "name,context,…", <field>.from?, <field>.to?}` (field-level: the Markdown fields — problem, context, decision,
 alternatives, consequences — by NAME only, the short ones `name` and `expiresOn` with their sides, an absent side meaning unset; Toadie's
 `FieldChange` vocabulary, one event per save), `TRANSITIONED` `{from, to}`, `PARTICIPANT_ADDED` / `PARTICIPANT_REMOVED` `{userId, name, role}`,
-`PARTICIPANT_CHANGED` `{userId, name, from, to}`, `EXPIRED` `{expiresOn}` (system actor), `SUPERSEDED` (system actor; reserved, written from 0.4.0),
-the discussion's eight (0.3.0, below: `COMMENTED`, `QUESTION_ASKED`, `QUESTION_ANSWERED`, `QUESTION_REOPENED`, `ISSUE_RAISED`, `ESCALATED`, `ISSUE_RESOLVED`, `ISSUE_REOPENED`), later `TAGGED`, `SUCCESSOR_LINKED`. A no-op save records nothing, and so does a refused write. The
+`PARTICIPANT_CHANGED` `{userId, name, from, to}`, `EXPIRED` `{expiresOn}` (system actor), and from 0.4.0 `TAGS_CHANGED` `{added?, removed?}` (comma-joined tag names, each key only when non-empty), `SUCCESSOR_LINKED` / `SUCCESSOR_UNLINKED` `{predecessorId, key, name}` (on the successor; a detach also writes `SUCCESSOR_UNLINKED` `{successorId, key, name}` on the PREDECESSOR), `SUPERSEDED` `{successorId, key, name}` (on the superseded predecessor, actor = the user who activated the successor) and `SUCCESSOR_ACTIVATED` `{predecessorId, key, name}` (on the successor, same transaction),
+the discussion's eight (0.3.0, below: `COMMENTED`, `QUESTION_ASKED`, `QUESTION_ANSWERED`, `QUESTION_REOPENED`, `ISSUE_RAISED`, `ESCALATED`, `ISSUE_RESOLVED`, `ISSUE_REOPENED`). A no-op save records nothing, and so does a refused write. The
 actor is the acting user (`userId`, `userName`, `userDeleted`), or NULL for a system event. Read through `GET /api/v1/adrs/{id}/events` (paged,
 newest first by default, sortable by `id` and `createdAt`; any authenticated user). A soft delete is audit-only (the ADR is gone from every read).
 
@@ -107,9 +115,9 @@ predicate). "Today" is an injected `Clock`, so tests expire deterministically (`
 
 ## Endpoints (0.2.0, discussion 0.3.0)
 
-`GET /adrs` (paged; filters `status` any-of, `q` name-or-key, `participant` + `role`; sort `id`, `number` (default, newest first), `name`, `updatedAt`,
+`GET /adrs` (paged; filters `status` any-of, `tag` any-of, `q` name-or-key, `participant` + `role`; sort `id`, `number` (default, newest first), `name`, `updatedAt`,
 `status` in lifecycle order), `POST /adrs`, `GET /adrs/{id}`, `PUT /adrs/{id}` (document, `X-Expected-Revision`), `POST /adrs/{id}/transitions`
-(`{to}`, `X-Expected-Revision`, answers the ADR), `PUT /adrs/{id}/participants`, `GET /adrs/{id}/events`, `DELETE /adrs/{id}` (ADMIN), and the discussion routes below. The contract is
+(`{to}`, `X-Expected-Revision`, answers the ADR), `PUT /adrs/{id}/participants`, `PUT /adrs/{id}/tags` and `PUT /adrs/{id}/supersedes` (both under `X-Expected-Revision`, 0.4.0), `DELETE /adrs/{id}/successor` (0.4.0), `GET /adrs/{id}/events`, `DELETE /adrs/{id}` (ADMIN), the discussion routes below and the registry `GET|POST /tag-categories`, `PUT|DELETE /tag-categories/{id}` (both under `X-Expected-Revision`). The contract is
 `openapi/documentation.yaml`; the permission order `authorization.md`; the audit events `observability.md`.
 
 ## Discussion (`adr_discussion`, 0.3.0 — built)
@@ -141,18 +149,33 @@ predicate). "Today" is an injected `Clock`, so tests expire deterministically (`
 - **Body ceilings** (`plugins/Http.kt`): an entry post or edit 64 KiB (`MAX_DISCUSSION_REQUEST_BODY_BYTES`, sized so even a body whose every unit is `\u`-escaped, 60 000 bytes, fits), the state PUT the 16 KiB small ceiling.
 - **Web.** The ADR page's Discussion tab (comments and questions) and Issues tab (issues and escalations), `web/CLAUDE.md` "The ADR pages".
 
-## Tags (0.4.0)
+## Tags (0.4.0 - built)
 
-Toadie's ADMIN-curated tag categories (`tags/`): a category = name + its tags, each tag in exactly one category. `adr_tags` joins ADRs to
-tags; every write is strict (an unknown tag is `400`).
+Toadie's ADMIN-curated tag categories (`tags/`, V13), trimmed of everything Backstage: a **category** = a name (1-60, single line, unique among active categories
+case-insensitively) + an optional description (at most 500) + its **tags** (1-100); a **tag** is in exactly ONE category. `GET /tag-categories` is open to any authenticated user (the
+editor's picker, the list filter), every write is ADMIN-only with the guard before the header, the body and the id (`403` even for an unknown id), and the registry is capped at 100 categories. A category carries a `revision` (V13, starts at 1): its **PUT and DELETE take `X-Expected-Revision`** (required: `400` missing; order: guard `403` → header `400` → body `400` → existence `404` → stale revision `409` `revision-conflict` → the claims), judged under the registry lock, so an admin editing a stale copy gets a `409` instead of silently overwriting another admin's tag list; every PUT bumps it (the registry has no no-op rule), a delete bumps it too. The SPA sends the revision the category had when its editor or confirmation OPENED.
 
-## Successors (0.4.0)
+- **A tag name** is normalised at every entry (trimmed, control/hidden characters `400`, whitespace runs collapsed, lower-cased), 1-40 characters of letters and digits with spaces and `. _ / + # : -` inside (no comma: events join names with one). It is unique over EVERY row, retired ones included (`uq_tags_name`).
+- **Storage.** `tag_categories`, `tags` (one row per tag, `category_id`), `adr_tags` (ADR <-> tag, `persistence.md` "Tag categories (V13)"). Registry writes run in a `lockingTransaction` (a table lock, Toadie's protocol), so two admins editing at once queue; a cross-category claim is `409` naming the owner.
+- **Strict.** An ADR write carrying a name that is not a LIVE registry tag is `400` (unknown or retired), a duplicate is `400`, an ADR carries at most 20 (the count is judged BEFORE any name is normalised, so an oversized list is refused without sanitising it).
+- **Retired, not erased (the decision).** Removing a tag from a category, or deleting the category (a soft delete that frees its name), RETIRES the tag rows (`marked_as_deleted`). Toadie keeps stored references and reports them as findings; here an ADR keeps its `adr_tags` row and the API serves the tag as `retired: true` (the SPA draws it struck through and says "retired" to assistive technology) until the next tag write
+  drops it - and a tag write that still carries it is `400`, so the editor starts from the live tags and says the retired ones are dropped on save. Adding the name to a category again REVIVES the same row, so those ADRs show it live again; moving a tag between categories is two saves (drop, then add). The list's `tag` filter still matches a retired tag on the ADRs that kept it.
+- **Seed.** V13 inserts two small categories an ADMIN can rename, extend or delete: **Domain** (`data`, `security`, `infrastructure`, `frontend`, `integration`) and **Scope** (`team`, `system`, `organisation`).
+- **Setting them.** `PUT /adrs/{id}/tags` `{tags: [names]}` under `X-Expected-Revision` (a dedicated route, not a field of the document PUT: the document PUT is a content write for Contributors too and tags are the Driver's, Approver's and ADMIN's, in every non-terminal status - `ACTIVE` included, they are outside the content freeze). A wholesale replace applied as a diff; a real change bumps the revision and records one `TAGS_CHANGED` event; the same set is `204` and records nothing.
+- **Reading them.** The ADR and every list row carry `tags`; the list takes `tag` (repeatable, any-of, at most 20, normalised).
 
-`adrs.supersedes_id` on the successor (at most one predecessor; a predecessor has at most one non-terminal successor). A link that would close
-a cycle is refused (Astrolabe's `DependencyGraph.cycleClosedBy`). When the successor becomes `ACTIVE` and the predecessor is `ACTIVE`, the
-predecessor moves to `SUPERSEDED` in the same transaction; both get an event.
+## Successors (0.4.0 - built)
+
+`adrs.supersedes_id` (V14) on the SUCCESSOR names the ADR it replaces: one predecessor at most, set by `PUT /adrs/{id}/supersedes` `{supersedesId}` (omitted or null removes it) under `X-Expected-Revision`, by the successor's Driver, Approver or ADMIN, **only while the successor is pre-active** (it takes effect at activation; the product assumption that the link also changes once `ACTIVE` was dropped for this reason).
+
+- **Squatting and the detach (decision, `product.md` "Assumptions").** Linking needs no role on the PREDECESSOR, and a predecessor has one successor in play, so a stranger could park a draft on any ADR and block everyone else. The PREDECESSOR's Driver, Approver or ADMIN may therefore **detach** its pending successor: `DELETE /adrs/{id}/successor` (no header, no body; the route names the one pending link, and the service judges it under the locks). Under the `ADRLINKS` lock and BOTH rows (id order, the activation's pair order) it clears the successor's `supersedes_id`, **bumps the successor's revision** (its open editors and a racing activation conflict; the predecessor's own revision does not move) and writes `SUCCESSOR_UNLINKED` on both ADRs (audit `adr.successor_detached`). `204`; `403` for anyone else (judged on the predecessor); `409` `adr-frozen` for a terminal predecessor (an activated successor superseded it); `404` when no successor is pending (also one that was cancelled or withdrawn). The successor's Driver may link again - detaching is the owner's veto of THIS link, not a ban.
+
+- **The predecessor** must be another live ADR (`400`), `ACTIVE` or pre-active (`400` for a terminal one: nothing left to replace), must not close a cycle (`409`, `SuccessorGraph.cycleClosedBy`, Astrolabe's kernel reduced to a walk UP the stored `supersedes_id` chain from the requested predecessor: O(depth) one-row lookups, never the whole table, and a link whose successor is `CANCELLED`/`WITHDRAWN`/deleted no longer counts; the walk runs under the `ADRLINKS` advisory lock, taken before the row lock, because a cycle spans rows) and must have no other successor in play (`409`; `uq_adrs_supersedes_open` is the partial-unique backstop over non-terminal, non-deleted successors, so a cancelled or withdrawn attempt frees the predecessor for another).
+- **Activation.** When the successor becomes `ACTIVE`, the predecessor moves `ACTIVE -> SUPERSEDED` in the SAME transaction: both rows are locked together in id order (the predecessor id is peeked first; every link change bumps the successor's revision, so a link that moved in between is a stale-revision `409` before anything else), the predecessor's revision bumps, and it gets `SUPERSEDED` (actor = the activator) while the successor gets `TRANSITIONED` and `SUCCESSOR_ACTIVATED`. Audit: `adr.transitioned` then `adr.superseded`.
+- **The predecessor is not `ACTIVE` at that moment** (it was only a draft when linked, or it expired or was cancelled since): the activation is refused with `400` naming it (a requirement of the move, like the date), and the successor's Driver, Approver or ADMIN removes the link or waits for it to be activated. A predecessor soft-deleted meanwhile reads as no link and the activation goes through, leaving it alone. A pre-active predecessor may be linked precisely so the two can be prepared together; only an `ACTIVE` one is ever superseded.
+- **Both ends on the wire.** `supersedes` (the ADR this one replaces) and `supersededBy` (its pending successor, or once `SUPERSEDED` the one that replaced it; never a cancelled or withdrawn one), each `{id, key, name, status}`. History: `SUCCESSOR_LINKED` / `SUCCESSOR_UNLINKED` on the successor (a re-link is both; the old end is resolved even when that ADR was soft-deleted meanwhile, so the unlink is always recorded), and on the predecessor a detach's `SUCCESSOR_UNLINKED`, `SUPERSEDED` and `SUCCESSOR_ACTIVATED` at activation. The detail page shows both links and the "Superseded by ADR-00xx" banner (`web/CLAUDE.md`).
 
 ## Search (0.4.0)
 
-Filters: status (multi), tag (multi), participant (+ role), created/updated ranges, expires-before, free text (Adder's generated `tsvector`
+Filters: status (multi), tag (multi; built with the tags), participant (+ role), created/updated ranges, expires-before, free text (Adder's generated `tsvector`
 with `unaccent` over name, problem, context, decision). Saved as Toadie lenses (PRIVATE/PUBLIC).

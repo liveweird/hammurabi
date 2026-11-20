@@ -1,19 +1,19 @@
 openapi: 3.1.0
 info:
   title: hammurabi-api
-  version: 0.3.0
+  version: 0.4.0
   description: |
     JWT-authenticated REST API for Hammurabi — Architecture Decision Records (ADRs) across their lifecycle, with DACI
     responsibility. It serves the Hammurabi web app and is versioned by its `/api/v1` path prefix. It exposes the ADRs
-    (`/adrs`: the record, its lifecycle transitions, its DACI participants, its history and its discussion) on top of the accounts, teams,
-    feature-flag and operational surface of the foundation.
+    (`/adrs`: the record, its lifecycle transitions, its DACI participants, its tags, its successor link, its history and its discussion)
+    and the tag registry (`/tag-categories`) on top of the accounts, teams, feature-flag and operational surface of the foundation.
 
     Authorization model: every user is implicitly a regular user; additional global roles (`ADMIN`) are carried as
     the `roles` array and only ever ADD privileges on top of that baseline. Every operation requires a bearer
     access token except the seven that declare `security: []` (`/login`, `/login/mfa`, `/refresh`, `/password-reset`,
     `/password-reset/confirm` and the two probes). Beyond that each operation states its own rule: user management (`/users`, apart from
-    reading or changing one's own record where noted) and the writes on teams are `ADMIN` only; reading teams is open to
-    any authenticated user; telemetry is `ADMIN` only. A caller without the right gets a uniform `403`, whether or not the
+    reading or changing one's own record where noted) and the writes on teams are `ADMIN` only; reading teams and the tag registry is open to
+    any authenticated user, and the registry's writes are `ADMIN` only; telemetry is `ADMIN` only. A caller without the right gets a uniform `403`, whether or not the
     addressed resource exists. ADRs are an open decision log: every authenticated user reads every ADR and creates one
     (becoming its Driver); writes follow the DACI role the caller holds on that ADR ("the Driver drives, the Approver
     decides", `ADMIN` overrides), so a missing ADR is a plain `404` and a caller without the role gets `403` before the
@@ -39,8 +39,10 @@ tags:
     description: Hammurabi's own login accounts - ADMIN-managed CRUD, per-user feature flags, language and password change, plus the user-picker directory open to any signed-in user.
   - name: teams
     description: Flat teams, the ownership unit chat features scope to - readable by any authenticated user, written by ADMIN only.
+  - name: tags
+    description: The ADR tag registry - categories of tags curated by ADMIN, readable by any authenticated user; an ADR may carry only registered tags.
   - name: adrs
-    description: Architecture Decision Records - the record, its lifecycle transitions, its DACI participants, its history and its discussion (comments and questions before the decision is in force, issues and escalations while it is); readable and postable by any authenticated user, the record written by the roles the caller holds on the ADR.
+    description: Architecture Decision Records - the record, its lifecycle transitions, its DACI participants, its tags, its successor link, its history and its discussion (comments and questions before the decision is in force, issues and escalations while it is); readable and postable by any authenticated user, the record written by the roles the caller holds on the ADR.
   - name: telemetry
     description: Hammurabi's own vital signs (process memory, JVM, storage, request latency) and their 24h/7d/90d trends - ADMIN only.
 
@@ -742,6 +744,109 @@ paths:
         '403': { $ref: '#/components/responses/Forbidden' }
         '404': { $ref: '#/components/responses/NotFound' }
         '500': { $ref: '#/components/responses/InternalServerError' }
+  /api/v1/tag-categories:
+    get:
+      tags: [tags]
+      operationId: listTagCategories
+      summary: The tag registry
+      description: |
+        Any authenticated user (the ADR editor's tag picker and the Tags page). Every active category with its live tags - a bounded,
+        admin-curated set, so the plain `{items}` wrapper, name-ordered case-insensitively.
+      responses:
+        '200':
+          description: The categories
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TagCategoryList'
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '500': { $ref: '#/components/responses/InternalServerError' }
+    post:
+      tags: [tags]
+      operationId: createTagCategory
+      summary: Create a tag category
+      description: |
+        `ADMIN` only (guarded before the body decodes). A name (1-60 characters, single line, unique among active categories
+        case-insensitively: a clash is `409`), an optional description (at most 500) and 1-100 tags. A tag name is trimmed, whitespace runs are
+        collapsed and it is lower-cased; 1-40 characters of letters and digits with spaces and `. _ / + # : -` inside; each once (`400`
+        otherwise). A tag lives in exactly ONE category: one a live category already holds is `409` naming its owner; one retired earlier is
+        revived (the ADRs that kept it show it live again). At most 100 categories (`400`).
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/TagCategoryRequest'
+      responses:
+        '415': { $ref: '#/components/responses/UnsupportedMediaType' }
+        '201':
+          description: Created; `Location` points at the new category
+          headers:
+            Location:
+              schema: { type: string }
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TagCategory'
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '409': { $ref: '#/components/responses/Conflict' }
+        '413': { $ref: '#/components/responses/PayloadTooLarge' }
+        '500': { $ref: '#/components/responses/InternalServerError' }
+  /api/v1/tag-categories/{id}:
+    parameters:
+      - $ref: '#/components/parameters/ResourceId'
+    put:
+      tags: [tags]
+      operationId: updateTagCategory
+      summary: Replace a tag category
+      description: |
+        `ADMIN` only, guard before the header, the body and the id lookup (uniform `403`). A full replace of the name, description and tag list,
+        under the same rules as the create, and under `X-Expected-Revision` (REQUIRED: the `revision` of the category the admin loaded; a
+        stale one is `409` `urn:hammurabi:problem:revision-conflict`, so two admins never silently overwrite each other's tag list). Every
+        PUT bumps the revision. A tag dropped from the list is RETIRED, not erased: ADRs that carry it keep showing it as retired, and a write
+        that still carries it is `400`. A missing category is `404` even when the payload claims a tag another category holds (existence
+        comes before the revision). Moving a tag to another category is two saves (drop it from the first, then add it to the second); a
+        name clash with another active category is `409`.
+      parameters:
+        - $ref: '#/components/parameters/ExpectedRevision'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/TagCategoryRequest'
+      responses:
+        '415': { $ref: '#/components/responses/UnsupportedMediaType' }
+        '204':
+          description: Replaced
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/Conflict' }
+        '413': { $ref: '#/components/responses/PayloadTooLarge' }
+        '500': { $ref: '#/components/responses/InternalServerError' }
+    delete:
+      tags: [tags]
+      operationId: deleteTagCategory
+      summary: Delete a tag category (soft)
+      description: |
+        `ADMIN` only, guard before the header and the id lookup. Soft delete under `X-Expected-Revision` (REQUIRED; a stale one is `409`
+        `urn:hammurabi:problem:revision-conflict`: the admin confirmed deleting a tag list that has changed since): the name is freed for
+        reuse and the category's tags are retired (ADRs that carry them keep showing them as retired until a tag write drops them).
+      parameters:
+        - $ref: '#/components/parameters/ExpectedRevision'
+      responses:
+        '204':
+          description: Deleted
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/Conflict' }
+        '500': { $ref: '#/components/responses/InternalServerError' }
   /api/v1/adrs:
     get:
       tags: [adrs]
@@ -758,6 +863,8 @@ paths:
           - `status` - repeatable, any-of (`status=ACTIVE&status=IN_REVIEW`), at most one per status; an unknown value is `400`.
           - `q` - case- and accent-insensitive substring of the name OR the key (`0042`, `adr-0042`), at most 100 characters.
           - `participant` - a user id: the ADRs that user holds a role on; `role` narrows it to one DACI role (`400` without `participant`).
+          - `tag` - repeatable, any-of (`tag=data&tag=security`), a tag name (normalised: trimmed and lower-cased), at most 20, duplicates collapsed.
+            An unregistered name simply matches nothing (a retired tag still matches the ADRs that kept it).
       parameters:
         - $ref: '#/components/parameters/Page'
         - $ref: '#/components/parameters/PageSize'
@@ -784,6 +891,17 @@ paths:
           required: false
           schema: { $ref: '#/components/schemas/AdrRole' }
           description: Narrows `participant` to one role (`400` without `participant`).
+        - name: tag
+          in: query
+          required: false
+          style: form
+          explode: true
+          schema:
+            type: array
+            minItems: 1
+            maxItems: 20
+            items: { type: string, minLength: 1, maxLength: 40 }
+          description: Any-of filter on the ADR's tags; repeat the key for several.
       responses:
         '200':
           description: A page of ADRs
@@ -837,7 +955,8 @@ paths:
       description: |
         Any authenticated user. Besides the record and its participants the answer carries what THIS caller may do now, so the client
         renders buttons without re-deriving the DACI rules: `allowedTransitions` (the lifecycle map minus the moves only the system
-        makes, filtered by the caller's role), `canEdit` and `canManageParticipants`.
+        makes, filtered by the caller's role), `canEdit`, `canManageParticipants`, `canEditTags`, `canEditSuccessor` and `canDetachSuccessor`. It also carries the tags and
+        both ends of the successor link (`supersedes`, `supersededBy`).
       responses:
         '200':
           description: The ADR
@@ -916,8 +1035,11 @@ paths:
         body are read; then the header (`400`) and the body (`400`, `to` is a status name). Under the lock: the caller's role for the
         TARGET (`403`), the lifecycle map (`409` `urn:hammurabi:problem:illegal-transition`), the stale revision (`409`
         `urn:hammurabi:problem:revision-conflict`), then the target's requirements (`400` naming the missing fields): entering `IN_REVIEW` or
-        `ACTIVE` needs `context`, `decision`, `consequences` and an Approver, and entering `ACTIVE` an expiry date not in the past.
-        Bumps the revision and records a `TRANSITIONED` event. Answers the ADR as the caller now sees it.
+        `ACTIVE` needs `context`, `decision`, `consequences` and an Approver, and entering `ACTIVE` an expiry date not in the past and - when the
+        ADR replaces another one (`supersedes`) - that predecessor being `ACTIVE` (else `400` naming it: unlink it first). Bumps the revision and
+        records a `TRANSITIONED` event. Activating a successor ALSO moves the `ACTIVE` ADR it replaces to `SUPERSEDED` in the same
+        transaction (both rows locked in id order): the predecessor's revision bumps and it gets a `SUPERSEDED` event, the successor a
+        `SUCCESSOR_ACTIVATED` one, both with the activating user as the actor. Answers the ADR as the caller now sees it.
       parameters:
         - $ref: '#/components/parameters/ExpectedRevision'
       requestBody:
@@ -976,6 +1098,101 @@ paths:
         '404': { $ref: '#/components/responses/NotFound' }
         '409': { $ref: '#/components/responses/Conflict' }
         '413': { $ref: '#/components/responses/PayloadTooLarge' }
+        '500': { $ref: '#/components/responses/InternalServerError' }
+
+  /api/v1/adrs/{id}/tags:
+    parameters:
+      - $ref: '#/components/parameters/ResourceId'
+    put:
+      tags: [adrs]
+      operationId: replaceAdrTags
+      summary: Replace an ADR's tags
+      description: |
+        A wholesale replace of the tag set, applied as a diff: at most 20 distinct tag names (trimmed, whitespace runs collapsed,
+        lower-cased), each a LIVE tag of the registry - an unregistered or retired one is `400` listing it, so a save that keeps a tag the
+        registry has since dropped is refused until the tag is removed from the set. An empty list clears the tags. Who: the Driver, the
+        Approver or `ADMIN`, else `403` before the header and the body are read. Tags are not part of the content freeze: an `ACTIVE` ADR
+        takes them; a terminal ADR is `409` `urn:hammurabi:problem:adr-frozen` (checked before the revision). Guarded by
+        `X-Expected-Revision` (REQUIRED; a stale one is `409` `urn:hammurabi:problem:revision-conflict`). A real change bumps the revision and
+        records one `TAGS_CHANGED` event; a set that changes nothing is `204`, bumps nothing and records nothing.
+      parameters:
+        - $ref: '#/components/parameters/ExpectedRevision'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AdrTagsRequest'
+      responses:
+        '415': { $ref: '#/components/responses/UnsupportedMediaType' }
+        '204':
+          description: Replaced (or already so)
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/Conflict' }
+        '413': { $ref: '#/components/responses/PayloadTooLarge' }
+        '500': { $ref: '#/components/responses/InternalServerError' }
+
+  /api/v1/adrs/{id}/supersedes:
+    parameters:
+      - $ref: '#/components/parameters/ResourceId'
+    put:
+      tags: [adrs]
+      operationId: setAdrSupersedes
+      summary: Set or remove the ADR this one replaces
+      description: |
+        Links THIS ADR (the successor) to the ADR it replaces (`supersedesId`); an omitted or null `supersedesId` removes the link. The link
+        takes effect when this ADR becomes `ACTIVE`. Who: the Driver, the Approver or `ADMIN` of THIS ADR, else `403` before the header and the
+        body are read. Under the lock, in order: a terminal ADR is `409` `urn:hammurabi:problem:adr-frozen`; a stale revision is `409`
+        `urn:hammurabi:problem:revision-conflict`; an `ACTIVE` ADR is `409` `adr-frozen` (the link is set before the decision is in force);
+        then the predecessor: it must be another live ADR (`400`), not terminal (`400`: only an `ACTIVE` or a pre-active ADR can be replaced),
+        must not close a cycle (`409`) and must have no other successor in play (`409`; a cancelled or withdrawn one does not count). A
+        real change bumps the revision and records `SUCCESSOR_UNLINKED` (the old end) and `SUCCESSOR_LINKED` (the new one); the same link
+        again is `204` and records nothing.
+      parameters:
+        - $ref: '#/components/parameters/ExpectedRevision'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AdrSupersedesRequest'
+      responses:
+        '415': { $ref: '#/components/responses/UnsupportedMediaType' }
+        '204':
+          description: Linked, unlinked (or already so)
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/Conflict' }
+        '413': { $ref: '#/components/responses/PayloadTooLarge' }
+        '500': { $ref: '#/components/responses/InternalServerError' }
+
+  /api/v1/adrs/{id}/successor:
+    parameters:
+      - $ref: '#/components/parameters/ResourceId'
+    delete:
+      tags: [adrs]
+      operationId: detachAdrSuccessor
+      summary: Detach this ADR's pending successor
+      description: |
+        The PREDECESSOR's owner removes the successor that is set to replace THIS ADR but has not activated yet (linking is the successor's
+        write, so without this a stranger could park a link on an ADR and block everyone else). Who: the Driver, the Approver or `ADMIN` of
+        THIS ADR (the predecessor; the successor's roles do not matter), else `403` before anything else. No header and no body: the route
+        names the pending successor (there is at most one) and the service judges it under the locks. In order: a terminal ADR is `409`
+        `urn:hammurabi:problem:adr-frozen` (a successor that already activated superseded it), then no pending successor is `404`. A detach
+        clears the successor's `supersedesId`, bumps the SUCCESSOR's revision (its open editors and a racing activation conflict), leaves this
+        ADR's revision alone and records `SUCCESSOR_UNLINKED` on both ADRs.
+      responses:
+        '204':
+          description: Detached
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/Conflict' }
         '500': { $ref: '#/components/responses/InternalServerError' }
 
   /api/v1/adrs/{id}/events:
@@ -1780,6 +1997,38 @@ components:
       required: [to]
       properties:
         to: { $ref: '#/components/schemas/AdrStatus' }
+    AdrTag:
+      type: object
+      required: [name, retired]
+      properties:
+        name: { type: string, minLength: 1, maxLength: 40, description: The normalised tag name. }
+        retired: { type: boolean, description: The registry dropped this tag since it was set; it stays on the ADR (shown as retired) until a tag write removes it. }
+    AdrTagsRequest:
+      type: object
+      required: [tags]
+      properties:
+        tags:
+          type: array
+          maxItems: 20
+          items: { type: string, minLength: 1, maxLength: 40 }
+          description: The whole tag set - live registry tags, each once; empty clears it.
+    AdrSupersedesRequest:
+      type: object
+      properties:
+        supersedesId:
+          type: integer
+          format: int32
+          minimum: 0
+          nullable: true
+          description: The ADR this one replaces; omitted or null removes the link (a full replace).
+    AdrRef:
+      type: object
+      required: [id, key, name, status]
+      properties:
+        id: { type: integer, format: int32, minimum: 0 }
+        key: { type: string, example: ADR-0042 }
+        name: { type: string }
+        status: { $ref: '#/components/schemas/AdrStatus' }
     AdrParticipantsRequest:
       type: object
       required: [participants]
@@ -1810,9 +2059,15 @@ components:
         - updatedAt
         - statusChangedAt
         - participants
+        - tags
+        - supersedes
+        - supersededBy
         - allowedTransitions
         - canEdit
         - canManageParticipants
+        - canEditTags
+        - canEditSuccessor
+        - canDetachSuccessor
         - canComment
         - canRaiseIssue
         - openIssueCount
@@ -1838,19 +2093,36 @@ components:
           type: array
           items: { $ref: '#/components/schemas/AdrParticipant' }
           description: Driver first, then the Approver, the Contributors and the Informed.
+        tags:
+          type: array
+          items: { $ref: '#/components/schemas/AdrTag' }
+          description: The ADR's tags, alphabetical; a `retired` one is no longer in the registry.
+        supersedes:
+          allOf:
+            - $ref: '#/components/schemas/AdrRef'
+          nullable: true
+          description: The ADR this one replaces (set while pre-active; it takes effect when this one becomes `ACTIVE`); null for none. A soft-deleted predecessor reads as null.
+        supersededBy:
+          allOf:
+            - $ref: '#/components/schemas/AdrRef'
+          nullable: true
+          description: The ADR replacing this one - its pending successor, or once this one is `SUPERSEDED` the one that replaced it; never a cancelled or withdrawn one. Null for none.
         allowedTransitions:
           type: array
           items: { $ref: '#/components/schemas/AdrStatus' }
           description: The moves THIS caller may request now (the buttons); never `EXPIRED` or `SUPERSEDED`.
         canEdit: { type: boolean, description: "This caller may PUT the document now (content in a pre-active status, or the expiry date in any non-terminal one)." }
         canManageParticipants: { type: boolean, description: "This caller may replace the participants now." }
+        canEditTags: { type: boolean, description: "This caller may replace the tags now (the Driver, the Approver or ADMIN, on a non-terminal ADR - tags stay editable once ACTIVE)." }
+        canEditSuccessor: { type: boolean, description: "This caller may link or unlink the predecessor now (the Driver, the Approver or ADMIN, while the ADR is pre-active)." }
+        canDetachSuccessor: { type: boolean, description: "This caller may detach the pending successor now (the Driver, the Approver or ADMIN of THIS ADR, which has a successor still pre-active)." }
         canComment: { type: boolean, description: "The discussion takes a comment or a question now (the ADR is `PROBLEM_RAISED`, `SOLUTION_DRAFT` or `IN_REVIEW`); anyone authenticated may post." }
         canRaiseIssue: { type: boolean, description: "The discussion takes an issue or an escalation now (the ADR is `ACTIVE`); anyone authenticated may post." }
         openIssueCount: { type: integer, minimum: 0, description: "The OPEN issues and escalations (deleted entries excluded)." }
         unansweredQuestionCount: { type: integer, minimum: 0, description: "The OPEN questions (deleted entries excluded)." }
     AdrListItem:
       type: object
-      required: [id, number, key, name, status, expiresOn, revision, createdAt, updatedAt, statusChangedAt, driver, approver, openIssueCount]
+      required: [id, number, key, name, status, expiresOn, revision, createdAt, updatedAt, statusChangedAt, driver, approver, tags, openIssueCount]
       properties:
         id: { type: integer, format: int32, minimum: 0 }
         number: { type: integer, format: int32, minimum: 1 }
@@ -1872,6 +2144,10 @@ components:
             - $ref: '#/components/schemas/AdrParticipant'
           nullable: true
           description: The Approver; null until one is assigned.
+        tags:
+          type: array
+          items: { $ref: '#/components/schemas/AdrTag' }
+          description: The ADR's tags, alphabetical.
         openIssueCount: { type: integer, minimum: 0, description: "The OPEN issues and escalations (deleted entries excluded)." }
     AdrPage:
       type: object
@@ -1898,6 +2174,10 @@ components:
         - PARTICIPANT_CHANGED
         - EXPIRED
         - SUPERSEDED
+        - TAGS_CHANGED
+        - SUCCESSOR_LINKED
+        - SUCCESSOR_UNLINKED
+        - SUCCESSOR_ACTIVATED
         - COMMENTED
         - QUESTION_ASKED
         - QUESTION_ANSWERED
@@ -1910,7 +2190,11 @@ components:
         The kinds of history, with their `params` (all strings): `CREATED` {key, name}; `UPDATED` {changed: comma-joined field names,
         `name.from`/`name.to`/`expiresOn.from`/`expiresOn.to` where short}; `TRANSITIONED` {from, to}; `PARTICIPANT_ADDED` and
         `PARTICIPANT_REMOVED` {userId, name, role}; `PARTICIPANT_CHANGED` {userId, name, from, to}; `EXPIRED` {expiresOn}, a system
-        event; `SUPERSEDED` is reserved for successor links. The discussion events (`COMMENTED`, `QUESTION_ASKED`, `QUESTION_ANSWERED`,
+        event; `SUPERSEDED` {successorId, key, name}, on the predecessor, when its successor became `ACTIVE` (the actor is the user who
+        activated it); `SUCCESSOR_ACTIVATED` {predecessorId, key, name}, on the successor, in the same transaction; `TAGS_CHANGED`
+        {added, removed}, comma-joined tag names, each key only when non-empty; `SUCCESSOR_LINKED` / `SUCCESSOR_UNLINKED`
+        {predecessorId, key, name}, on the successor (a `SUCCESSOR_UNLINKED` is also written on the predecessor when its owner detaches
+        the pending successor, then {successorId, key, name}). The discussion events (`COMMENTED`, `QUESTION_ASKED`, `QUESTION_ANSWERED`,
         `QUESTION_REOPENED`, `ISSUE_RAISED`, `ESCALATED`, `ISSUE_RESOLVED`, `ISSUE_REOPENED`) carry {entryId, kind} - never the text; an edit
         or a delete of an entry is not an event.
     AdrEventResponse:
@@ -1940,6 +2224,38 @@ components:
           type: integer
           format: int64
           minimum: 0
+
+    TagCategoryRequest:
+      type: object
+      required: [name, tags]
+      properties:
+        name: { type: string, minLength: 1, maxLength: 60 }
+        description: { type: string, maxLength: 500, nullable: true }
+        tags:
+          type: array
+          minItems: 1
+          maxItems: 100
+          items: { type: string, minLength: 1, maxLength: 40 }
+          description: The category's whole tag list, each once after normalisation.
+    TagCategory:
+      type: object
+      required: [id, name, description, revision, tags]
+      properties:
+        id: { type: integer, format: int32, minimum: 0 }
+        name: { type: string }
+        description: { type: string, nullable: true }
+        revision: { type: integer, format: int64, minimum: 1, description: "Send it back as `X-Expected-Revision` on this category's PUT or DELETE; starts at 1, every PUT bumps it." }
+        tags:
+          type: array
+          items: { type: string }
+          description: The category's live tags (normalised), alphabetical.
+    TagCategoryList:
+      type: object
+      required: [items]
+      properties:
+        items:
+          type: array
+          items: { $ref: '#/components/schemas/TagCategory' }
 
     DiscussionKind:
       type: string
@@ -2050,7 +2366,7 @@ components:
 
             - `urn:hammurabi:problem:revision-conflict` (409): a stale `X-Expected-Revision`.
             - `urn:hammurabi:problem:illegal-transition` (409): an ADR lifecycle move the map does not allow, or one only the system makes.
-            - `urn:hammurabi:problem:adr-frozen` (409): a write the ADR's status closes - content once `ACTIVE`, anything once terminal.
+            - `urn:hammurabi:problem:adr-frozen` (409): a write the ADR's status closes - content (and the successor link) once `ACTIVE`, anything once terminal.
             - `urn:hammurabi:problem:discussion-closed` (409): a discussion write the ADR's status does not take - a comment or question once `ACTIVE`, an issue or escalation before it (a post or an edit; a state change and a delete have no window).
         title:
           type: string

@@ -43,6 +43,8 @@ ktor:
       # — features
       - ch.nokillswit.users.UserRoutesKt.configureUserRoutes
       - ch.nokillswit.teams.TeamRoutesKt.configureTeamRoutes
+      # The ADMIN-curated tag registry (0.4.0, `.claude/docs/adr-model.md` "Tags"): /api/v1/tag-categories.
+      - ch.nokillswit.tags.TagCategoryRoutesKt.configureTagCategoryRoutes
       # The ADR core (`.claude/docs/adr-model.md`): the /api/v1/adrs routes, the discussion routes (0.3.0), then the expiry sweep (`adrs.expiry.*` below).
       - ch.nokillswit.adrs.AdrRoutesKt.configureAdrRoutes
       - ch.nokillswit.adrs.AdrDiscussionRoutesKt.configureAdrDiscussionRoutes

@@ -197,6 +197,7 @@ above any legitimate statement (a lock wait behind another transaction) and belo
   verify (the timing equalizer, ~225 ms locally); a test that needs a dozen failures (rate limit,
   proxy trust) logs in as freshly seeded accounts (`TestUsers.seed`, cost 4) with a wrong password —
   the same 401 path at ~1 ms; soft-delete them afterwards.
+- Tag and successor fixtures (`TagFixtures.kt`, 0.4.0): `uniqueTag()` / `categoryName()` (the registry is SHARED state and a tag name is unique for good, retired ones included - never reuse a literal, and never mutate the seeded Domain / Scope categories), `HttpClient.createCategory` / `postCategory` / `saveCategory` / `deleteCategory` (both send the category's current revision unless given one; `categoryRevision`) / `setTags` / `setSupersedes` / `detachSuccessor` / `registryTags` and `rawSupersedesId`. The parallel link, cycle and activation tests (`AdrSuccessorTest`) and the registry race (`TagCategoryTest`) use `coroutineScope { async(Dispatchers.IO) }` like `AdrTest`'s counter test.
 - ADR fixtures (`AdrFixtures.kt`, no shared state): `adrActor(prefix, role)` seeds a user and signs them in (`AdrActor(id, client)`), `adrCast()` the six people of one ADR
   (ADMIN, Driver, Approver, Contributor, Informed, a stranger; `cast.raise()` makes an ADR with the other three roles attached), `HttpClient.createAdr` / `getAdr` / `saveAdr` /
   `moveAdr` / `moveAdrNow` / `setParticipants` / `adrEvents` and `forceAdrStatus` / `forceAdrExpiry` / `rawAdrStatus` (direct table access: a state the API refuses to reach, e.g.

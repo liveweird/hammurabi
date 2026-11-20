@@ -1,5 +1,8 @@
 package ch.nokillswit.adrs
 
+import ch.nokillswit.infra.db.FieldChange
+import ch.nokillswit.infra.db.nameOnlyChange
+import ch.nokillswit.infra.db.scalarChange
 import ch.nokillswit.infra.paging.PageResponse
 import ch.nokillswit.infra.validation.sanitizeMultiLine
 import ch.nokillswit.infra.validation.sanitizeSingleLine
@@ -18,6 +21,9 @@ const val MAX_ADR_TEXT_LENGTH = 20_000
 
 /** The most participants one ADR holds (a DACI list is a handful of people; the bound keeps the PUT and the diff small). */
 const val MAX_ADR_PARTICIPANTS = 100
+
+/** The most tags one ADR carries (a handful of categories' worth; the bound keeps the PUT, the diff and the event small). */
+const val MAX_ADR_TAGS = 20
 
 /** The persisted lifecycle (`adrs.status`, frozen: a name is never renamed or removed; the Kotlin enum is the whitelist, no CHECK). */
 @Serializable
@@ -72,6 +78,22 @@ data class AdrParticipantsRequest(val participants: List<AdrParticipantRequest>)
 @Serializable
 data class AdrParticipant(val userId: UInt, val name: String, val role: AdrRole)
 
+/** A tag as an ADR shows it: its normalised name, and `retired` once the registry dropped it (it stays until a tag write removes it). */
+@Serializable
+data class AdrTag(val name: String, val retired: Boolean)
+
+/** The whole tag set (a wholesale replace applied as a diff): registry names, each once, at most [MAX_ADR_TAGS]. */
+@Serializable
+data class AdrTagsRequest(val tags: List<String>)
+
+/** The successor link as a request: the ADR THIS one replaces; an omitted or null `supersedesId` removes the link (a full replace). */
+@Serializable
+data class AdrSupersedesRequest(val supersedesId: UInt? = null)
+
+/** The other end of a successor link: enough to show and open it (`ADR-0007 Use PostgreSQL`, its status). */
+@Serializable
+data class AdrRef(val id: UInt, val key: String, val name: String, val status: AdrStatus)
+
 @Serializable
 data class AdrResponse(
     val id: UInt,
@@ -93,12 +115,24 @@ data class AdrResponse(
     val updatedAt: Long,
     val statusChangedAt: Long,
     val participants: List<AdrParticipant>,
+    /** The ADR's tags by name, alphabetical; a `retired` one is no longer in the registry. */
+    val tags: List<AdrTag>,
+    /** The ADR this one replaces (set while it is pre-active; takes effect when this one becomes `ACTIVE`), or null. */
+    val supersedes: AdrRef?,
+    /** The ADR replacing this one: its pending successor, or - once this one is `SUPERSEDED` - the one that replaced it; or null. */
+    val supersededBy: AdrRef?,
     /** The moves THIS caller may request now (the lifecycle map, minus the system's, filtered by the DACI verdict): the buttons. */
     val allowedTransitions: List<AdrStatus>,
     /** This caller may PUT the document now (content in a pre-active status, or the expiry date in any non-terminal one). */
     val canEdit: Boolean,
     /** This caller may replace the participants now (the Driver, the Approver or an ADMIN, on a non-terminal ADR). */
     val canManageParticipants: Boolean,
+    /** This caller may replace the tags now (the Driver, the Approver or an ADMIN, on a non-terminal ADR; editable once `ACTIVE`). */
+    val canEditTags: Boolean,
+    /** This caller may link or unlink the predecessor now (the Driver, the Approver or an ADMIN, while the ADR is pre-active). */
+    val canEditSuccessor: Boolean,
+    /** This caller may detach the pending successor now (Driver, Approver or ADMIN of THIS ADR, which has a successor still pre-active). */
+    val canDetachSuccessor: Boolean,
     /** The discussion takes a comment or a question now (a pre-active status): the composer. Anyone authenticated may post. */
     val canComment: Boolean,
     /** The discussion takes an issue or an escalation now (`ACTIVE`): the composer. Anyone authenticated may post. */
@@ -124,6 +158,8 @@ data class AdrListItem(
     val statusChangedAt: Long,
     val driver: AdrParticipant?,
     val approver: AdrParticipant?,
+    /** The ADR's tags by name, alphabetical. */
+    val tags: List<AdrTag>,
     /** The OPEN issues and escalations (deleted entries excluded). */
     val openIssueCount: Int,
 )
@@ -147,10 +183,18 @@ data class AdrRecord(
     val createdAt: Long,
     val updatedAt: Long,
     val statusChangedAt: Long,
+    /** The ADR this one replaces (`supersedes_id`), whatever its state: the row id, resolved to a live [AdrRef] by the reader. */
+    val supersedesId: UInt? = null,
 )
 
-/** A record with its participants (driver first, then approver, contributors, informed). */
-data class AdrView(val record: AdrRecord, val participants: List<AdrParticipant>)
+/** A record with its participants (driver first, then approver, contributors, informed), its tags and its successor link's two ends. */
+data class AdrView(
+    val record: AdrRecord,
+    val participants: List<AdrParticipant>,
+    val tags: List<AdrTag>,
+    val supersedes: AdrRef?,
+    val supersededBy: AdrRef?,
+)
 
 /**
  * The response as [standing]'s caller sees it; its verdicts (`allowedTransitions`, `canEdit`, ...) come from `AdrAccess.kt`, the counts
@@ -174,9 +218,15 @@ fun AdrView.toResponse(standing: AdrStanding, counts: DiscussionCounts): AdrResp
     updatedAt = record.updatedAt,
     statusChangedAt = record.statusChangedAt,
     participants = participants,
+    tags = tags,
+    supersedes = supersedes,
+    supersededBy = supersededBy,
     allowedTransitions = allowedTransitions(standing, record.status),
     canEdit = canEdit(standing, record.status),
     canManageParticipants = canManageParticipants(standing, record.status),
+    canEditTags = canEditTags(standing, record.status),
+    canEditSuccessor = canEditSuccessor(standing, record.status),
+    canDetachSuccessor = canDetachSuccessor(standing, record.status, supersededBy),
     canComment = DiscussionKind.COMMENT.acceptedIn(record.status),
     canRaiseIssue = DiscussionKind.ISSUE.acceptedIn(record.status),
     openIssueCount = counts.openIssues,
@@ -189,9 +239,21 @@ data class AdrListFilter(
     val q: String? = null,
     val participantUserId: UInt? = null,
     val participantRole: AdrRole? = null,
+    /** Any-of: the ADRs carrying at least one of these tags (normalised names; a retired tag still matches the ADRs that kept it). */
+    val tags: List<String> = emptyList(),
 )
 
 data class AdrListResult(val items: List<AdrListItem>, val total: Long)
+
+/** The content fields of [request] that differ from [before], in record order: the name with its sides, the Markdown ones by name only. */
+internal fun contentChanges(before: AdrRecord, request: AdrUpdateRequest): List<FieldChange> = listOfNotNull(
+    scalarChange("name", before.name, request.name),
+    nameOnlyChange("problem", before.problem, request.problem),
+    nameOnlyChange("context", before.context, request.context),
+    nameOnlyChange("decision", before.decision, request.decision),
+    nameOnlyChange("alternatives", before.alternatives, request.alternatives),
+    nameOnlyChange("consequences", before.consequences, request.consequences),
+)
 
 private val WHITESPACE_RUN = Regex("\\s+")
 

@@ -15,6 +15,7 @@ import ch.nokillswit.infra.paging.parsePaging
 import ch.nokillswit.infra.paging.repeatedStrings
 import ch.nokillswit.infra.paging.toPage
 import ch.nokillswit.infra.revision.expectedRevision
+import ch.nokillswit.tags.normalizedTagName
 import io.ktor.http.HttpHeaders
 import io.ktor.http.HttpStatusCode
 import io.ktor.resources.Resource
@@ -48,6 +49,18 @@ class AdrsRoute {
         class Participants(val parent: Id)
 
         @Serializable
+        @Resource("tags")
+        class Tags(val parent: Id)
+
+        @Serializable
+        @Resource("supersedes")
+        class Supersedes(val parent: Id)
+
+        @Serializable
+        @Resource("successor")
+        class Successor(val parent: Id)
+
+        @Serializable
         @Resource("events")
         class Events(val parent: Id)
 
@@ -64,6 +77,9 @@ class AdrsRoute {
         }
     }
 }
+
+/** The most `tag` filters one list request names (any-of; more is a 400). */
+const val MAX_TAG_FILTERS = 20
 
 /** The longest `q` the list takes, in characters (the shared free-text bound, API-LIST-005). */
 const val MAX_ADR_QUERY_LENGTH = 100
@@ -86,6 +102,7 @@ fun Application.configureAdrRoutes() {
             adrDocument(adrService)
             adrLifecycle(adrService)
             adrParticipants(adrService)
+            adrOrganise(adrService)
             adrHistory(adrService, eventService)
         }
     }
@@ -108,6 +125,7 @@ private fun Route.adrReads(adrService: AdrService) {
             q = q,
             participantUserId = participantUserId,
             participantRole = participantRole,
+            tags = params.repeatedStrings("tag", maxCount = MAX_TAG_FILTERS).map(::normalizedTagName),
         )
         val result = adrService.list(filter, paging)
         call.respond(HttpStatusCode.OK, paging.toPage(result.items, result.total))
@@ -188,6 +206,18 @@ private fun Route.adrLifecycle(adrService: AdrService) {
             "from" to outcome.from.name,
             "to" to outcome.to.name,
         )
+        // The activation's other half: the predecessor it replaced moved to SUPERSEDED in the same transaction.
+        outcome.superseded?.let {
+            audit(
+                "adr.superseded",
+                "byUserId" to caller.userId.toLong(),
+                "adrId" to it.id.toLong(),
+                "number" to it.number,
+                "revision" to it.revision,
+                "successorId" to outcome.id.toLong(),
+                "successorNumber" to outcome.number,
+            )
+        }
         // A concurrent ADMIN delete after the commit reads as a missing ADR (404), not a server fault.
         call.respond(HttpStatusCode.OK, adrService.read(id, caller).orNotFound("ADR"))
     }
@@ -203,6 +233,69 @@ private fun Route.adrParticipants(adrService: AdrService) {
         validateParticipantSet(request.participants)
         val change = adrService.replaceParticipants(id, caller, expected, request)
         if (change != null) auditParticipants(caller, change)
+        call.respond(HttpStatusCode.NoContent)
+    }
+}
+
+/**
+ * The tags PUT, the successor-link PUT and the successor DETACH: the same standing / coarse guard / header / body order as the
+ * participants. The detach has neither header nor body: it names the pending successor by the route (there is at most one) and the
+ * service judges it under the locks.
+ */
+private fun Route.adrOrganise(adrService: AdrService) {
+    put<AdrsRoute.Id.Tags> { route ->
+        val id = route.parent.id
+        val caller = call.caller()
+        requireMayOrganise(adrService.standing(id, caller).orNotFound("ADR"))
+        val expected = call.expectedRevision()
+        val request = normalizedAdrTags(call.receive())
+        validateAdrTags(request)
+        adrService.replaceTags(id, caller, expected, request)?.let {
+            audit(
+                "adr.tags_changed",
+                "byUserId" to caller.userId.toLong(),
+                "adrId" to it.id.toLong(),
+                "number" to it.number,
+                "revision" to it.revision,
+                "added" to it.diff.added.joinToString(","),
+                "removed" to it.diff.removed.joinToString(","),
+            )
+        }
+        call.respond(HttpStatusCode.NoContent)
+    }
+    put<AdrsRoute.Id.Supersedes> { route ->
+        val id = route.parent.id
+        val caller = call.caller()
+        requireMayOrganise(adrService.standing(id, caller).orNotFound("ADR"))
+        val expected = call.expectedRevision()
+        val request = call.receive<AdrSupersedesRequest>()
+        adrService.setSupersedes(id, caller, expected, request)?.let {
+            audit(
+                "adr.successor_changed",
+                "byUserId" to caller.userId.toLong(),
+                "adrId" to it.id.toLong(),
+                "number" to it.number,
+                "revision" to it.revision,
+                "supersedesFrom" to it.change.from?.id?.toLong(),
+                "supersedesTo" to it.change.to?.id?.toLong(),
+            )
+        }
+        call.respond(HttpStatusCode.NoContent)
+    }
+    delete<AdrsRoute.Id.Successor> { route ->
+        val id = route.parent.id
+        val caller = call.caller()
+        requireMayOrganise(adrService.standing(id, caller).orNotFound("ADR"))
+        val change = adrService.detachSuccessor(id, caller)
+        audit(
+            "adr.successor_detached",
+            "byUserId" to caller.userId.toLong(),
+            "adrId" to change.id.toLong(),
+            "number" to change.number,
+            "successorId" to change.successor.id.toLong(),
+            "successorNumber" to change.successorNumber,
+            "successorRevision" to change.successorRevision,
+        )
         call.respond(HttpStatusCode.NoContent)
     }
 }

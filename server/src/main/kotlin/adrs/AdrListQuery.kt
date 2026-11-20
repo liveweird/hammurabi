@@ -2,6 +2,7 @@ package ch.nokillswit.adrs
 
 import ch.nokillswit.infra.db.containsNormalized
 import ch.nokillswit.infra.paging.SortField
+import ch.nokillswit.tags.TagCategoryService
 import org.jetbrains.exposed.v1.core.Case
 import org.jetbrains.exposed.v1.core.CustomFunction
 import org.jetbrains.exposed.v1.core.Expression
@@ -61,7 +62,8 @@ private fun keyExpression(): Expression<String> {
 
 /**
  * The list's ONE predicate for the count and the rows (the caller adds `active()`): `status` is any-of, `q` matches the name OR the key
- * (case- and accent-insensitive substring), `participant` keeps the ADRs the user holds a role on (`participantRole` narrows the role).
+ * (case- and accent-insensitive substring), `participant` keeps the ADRs the user holds a role on (`participantRole` narrows the role),
+ * `tags` keeps the ADRs carrying at least one of the named tags.
  */
 internal fun adrListPredicate(filter: AdrListFilter): Op<Boolean> {
     val adrs = AdrService.Adrs
@@ -75,6 +77,12 @@ internal fun adrListPredicate(filter: AdrListFilter): Op<Boolean> {
             filter.participantRole?.let { user and (roles.role eq it.name) } ?: user
         }
         op = op and (adrs.id inSubQuery held)
+    }
+    if (filter.tags.isNotEmpty()) {
+        val carried = AdrTagService.AdrTags
+        val tagNames = TagCategoryService.Tags.name
+        val tagged = carried.innerJoin(TagCategoryService.Tags).select(carried.adrId).where { tagNames inList filter.tags }
+        op = op and (adrs.id inSubQuery tagged)
     }
     return op
 }

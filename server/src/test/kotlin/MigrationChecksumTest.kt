@@ -32,6 +32,8 @@ class MigrationChecksumTest {
         "V10__create_adrs.sql" to 391789646,
         "V11__create_adr_events.sql" to -263560368,
         "V12__create_adr_discussion.sql" to 1682926896,
+        "V13__create_tags.sql" to 1011239595,
+        "V14__adr_successor_link.sql" to -2003639275,
     )
 
     @Test

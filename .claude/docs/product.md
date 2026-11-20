@@ -56,14 +56,18 @@ stele of the Code of Hammurabi on a lapis disc — the sun disc of Shamash crown
 
 - **Ids** are `ADR-0001`, one global gapless counter allocated under a lock (Adder's per-room thread number, made global); never reused.
 - **Reading:** every authenticated user reads every ADR (an open decision log), and may comment on it or raise an issue.
-- **Content freeze:** content is editable only in the three pre-decision states; once `ACTIVE` only the expiry date, tags, participants and
-  the successor link change; terminal states are read-only.
+- **Content freeze:** content is editable only in the three pre-decision states; once `ACTIVE` only the expiry date, the tags and the participants
+  change (0.4.0: the successor link is set BEFORE activation instead, because it takes effect at activation); terminal states are read-only.
 - **Required fields:** creating needs only the problem/question (the name defaults to its first line, truncated); entering `IN_REVIEW`
   requires name, context, decision, consequences and an assigned Approver; alternatives stay optional.
 - **Comments vs issues:** comments/questions are accepted only before `ACTIVE`; issues/escalations only in `ACTIVE` (OPEN/RESOLVED, resolved
   by the Driver, the Approver or an ADMIN). Both stay readable forever.
 - **Discussion windows (0.3.0):** posting and editing follow the kind's window (comments/questions pre-active, issues/escalations `ACTIVE`); the STATE change (answer, resolve, reopen) and the delete are open in EVERY status, so an issue on an ADR
   that later expired or was superseded can still be resolved and a question can be answered after activation (the open-issue count keeps counting until then). Edits and deletes of an entry are audit-only, not history events. Change on request.
+- **Tags and successors (0.4.0; change on request):** the seed registry is two small categories (Domain: data, security, infrastructure, frontend, integration; Scope: team, system, organisation).
+  A tag dropped from the registry (or with its category) stays on the ADRs that carry it, shown as retired, until a tag write drops it (a write carrying it is `400`); a tag name is unique for good and re-adding it revives the row. Tags are set by their own `PUT` (Driver, Approver, ADMIN), not by the document PUT. A
+  successor link is the SUCCESSOR's (its Driver, Approver or ADMIN, only while it is pre-active); the predecessor may be `ACTIVE` or pre-active, a terminal one is refused, and activating the successor needs the predecessor to be `ACTIVE`
+  (else `400`: unlink it or wait) - then it is superseded in the same transaction, the event actor being the activator. **Successor squatting (decided in the 0.4.0 review):** linking needs no role on the PREDECESSOR (anyone who owns a draft may point it at any live ADR), so a stranger could park a pending link on an ADR and block every honest successor (one successor in play per predecessor). To close that, the PREDECESSOR's Driver, Approver or ADMIN may DETACH its pending successor (`DELETE /adrs/{id}/successor`; the successor's Driver may link again, so detaching is a veto of that link, not a ban). The detach bumps the successor's revision and writes `SUCCESSOR_UNLINKED` on both ADRs. Details: `adr-model.md` "Tags", "Successors".
 - **Not built (one-line map changes if wanted):** `IN_REVIEW → SOLUTION_DRAFT` ("send back") and `ACTIVE → WITHDRAWN`.
 - **User directory:** any signed-in user may look up `{id, name, email}` of active users (`GET /users/directory`, Adder's, for the DACI pickers); the
   name+email disclosure to every signed-in user that Adder's owner accepted is carried over (`security.md` "What the user directory discloses"). Collapse it to `{id, name}` if that changes.
@@ -72,15 +76,17 @@ stele of the Code of Hammurabi on a lapis disc — the sun disc of Shamash crown
 
 ## Roadmap
 
-Each increment is built and gated on its own. **Current version: 0.3.0.**
+Each increment is built and gated on its own. **Current version: 0.4.0.**
 
 | Ver | Scope |
 |---|---|
 | **0.1.0 Foundation** | Flow trimmed (Adder's bootstrap tree): auth and email MFA, password reset, users and feature flags, teams with a manager, EN/PL, light/dark, changelog, telemetry panel, the lapis brand and the Stele logo |
 | **0.2.0 ADR core** | `adrs/`: ids, fields, the lifecycle map (409 on an illegal move), DACI participants and their permission verdicts, `X-Expected-Revision`, field-level history, the expiry sweep; list, create and detail pages |
 | **0.3.0 Discussion** | `adr_discussion` (V12): comments/questions before `ACTIVE`, issues/escalations in `ACTIVE` (Covenant's version reviews, ported and reshaped); the Discussion and Issues tabs, `openIssueCount` on the ADR rows |
-| **0.4.0 Organise and find** | Tag categories (Toadie), successor links + `SUPERSEDED`, multi-criteria filters + full-text search (Adder), URL-synced filters, saved lenses (Toadie) |
-| **0.5.0 Notify** | The bell, email digest and preferences (Adder's `notifications/`) for DACI participants; expiry reminders |
+| **0.4.0 Tags and successors** | Tag categories (Toadie) and successor links + `SUPERSEDED`, released |
+| **0.5.0 Find** | The remaining multi-criteria filters, full-text search (Adder), URL-synced filters, saved lenses (Toadie) |
+| **0.6.0 Notify** | The bell, email digest and preferences (Adder's `notifications/`) for DACI participants; expiry reminders |
+| **0.7.0–0.9.0 Extras** (approved by the user 2026-11-21) | Markdown export (adr-tools format), send back `IN_REVIEW` → `SOLUTION_DRAFT` and `ACTIVE` → `WITHDRAWN`, the ADR log/overview page |
 | **1.0.0 Checkup** | The family's technical checkup (docs, DRY/SRP, tests, UI consistency, security, guardrails, infra) |
 
 ## Donors
@@ -98,14 +104,18 @@ port its implementation.
 - **Covenant** (`~/Sources/covenant`): `contracts/Lifecycle.kt` (the 409-on-illegal-move transition map), `ContractAccess.kt` (permission
   verdicts) and `ReleaseLineReminders.kt` (the periodic date sweep) are ported (0.2.0, `adrs/`); `VersionReview*` (the entry table, its routes and `VersionReviews.tsx`) is ported
   and reshaped as the ADR discussion (0.3.0): Covenant's open/outdated/closed review and its approvals are gone, a kind (comment/question/issue/escalation) and a state (open/answered/resolved) take their place.
-- **Toadie** (`~/Sources/toadie`): `tags/` tag categories, `lenses/` saved filters, `lockingTransaction`, the `list-endpoints.md` filter shape.
+- **Toadie** (`~/Sources/toadie`): `tags/` tag categories and `infra/db/Locking.kt` (`lockingTransaction`) are ported (0.4.0, without the Backstage entity kinds; the tags became rows instead of a JSON array); next: `lenses/` saved filters and the `list-endpoints.md` filter shape.
 - **Lettuce** (`~/Sources/lettuce`): `infra/mail`, `infra/crypto`, `infra/paging` (through Flow); next: `MarkdownEditor`, sharing pickers.
-- **Astrolabe** (`~/Sources/astrolabe`): `planning/DependencyGraph.kt` (`cycleClosedBy`) for the successor chain.
+- **Astrolabe** (`~/Sources/astrolabe`): `planning/DependencyGraph.kt` (`cycleClosedBy`) is ported for the successor chain (0.4.0, `adrs/SuccessorGraph.kt`, reduced to one kind of node).
 
 Left in Flow on purpose: `ingest/`, `fetch/`, `jira/`, `gitlab/`, `norm/`, `identities/`, `metrics/`, `reports/`, `integration/` (service tokens),
 `infra/outbound/` (the SSRF guard — port it with the first server-initiated call other than SMTP), `plugins/Role.kt`, `EncryptedAtRest`/`Reencrypt`.
 
 ## Release history
+
+### v0.4.0 — tags and successors (2026-11-21)
+
+Server (`adrs/`, migrations V13–V14): the `adr_tags` table and the ADMIN tag registry (`/api/v1/tag-categories`, V13), the successor link (V14, `SuccessorGraph`) and `SUPERSEDED` on activation of the successor, with the loop refused and the successor detachable by the predecessor's Driver, Approver or ADMIN (`DELETE /adrs/{id}/successor`). Web: the Tags page, tags on the ADRs and the list's tag filter, the successor panel on both pages, the new history sentences. E2E: the tag and successor scenarios.
 
 ### v0.3.0 — discussion (2026-11-20)
 

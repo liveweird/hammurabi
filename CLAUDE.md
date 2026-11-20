@@ -12,7 +12,7 @@ ADRs are tagged, searchable by several criteria, discussed before they are activ
 
 **Roadmap:** 0.1.0 = the foundation, Flow trimmed to its generic core: auth + email MFA, password reset, users, feature flags, teams
 with a manager, EN/PL, light/dark, changelog, the ADMIN telemetry panel, the lapis brand and the "Stele" logo. 0.2.0 = the ADR core
-(ids, lifecycle, DACI, history, expiry; the list, create and detail pages), **0.3.0 (current) = discussion** (comments/questions before active, issues/escalations while active). Next: 0.4.0 tags, successors, filters and search, 0.5.0 notifications, then a 1.0.0 checkup.
+(ids, lifecycle, DACI, history, expiry; the list, create and detail pages), **0.3.0 = discussion** (comments/questions before active, issues/escalations while active), **0.4.0 (current release) = tags and successors** (the ADMIN tag categories, successor links with `SUPERSEDED`), then 0.5.0 find, 0.6.0 notify, extras, 1.0.0 checkup.
 Per-version scope, the user's decisions and the assumptions: `.claude/docs/product.md`; the domain model: `.claude/docs/adr-model.md`. Open items: `BACKLOG.md`.
 
 Brand: lapis lazuli indigo (the `hammurabi` colour tuple in `web/src/theme.ts`, `primaryShade: { light: 7, dark: 8 }`, dark accent ink shade 3); the logo
@@ -92,7 +92,7 @@ application is wired declaratively in `server/src/main/resources/application.yam
 `ktor.application.modules` — each entry is a fully-qualified extension function on `Application`
 (e.g. `ch.nokillswit.plugins.HttpKt.configureHttp`). **Module order is load-bearing**: base plugins
 (Http → SecurityHeaders → Monitoring → Serialization → Security → RateLimits → ErrorHandling → OpenTelemetry → AutoHeadResponse → Resources) →
-infra (Mail → Crypto → Flyway → Database → Bootstrap → Health) → Telemetry (the sampler) → feature route modules (users, teams, adrs + its expiry sweep, auth, password
+infra (Mail → Crypto → Flyway → Database → Bootstrap → Health) → Telemetry (the sampler) → feature route modules (users, teams, tags, adrs + its expiry sweep, auth, password
 reset, telemetry reads) → `RoutingKt.configureRouting` strictly last (the SPA catch-all). `configureDatabase` publishes the services into
 `Application.attributes` via `AttributeKey`s. To add a cross-cutting concern, create a `configureXxx()` extension under `plugins/` and register it
 in `application.yaml`; do not call it from `main.kt`. There is no DI framework — services travel via `attributes`.
@@ -121,8 +121,9 @@ except the composition root (`infra/db/Database.kt`, `Bootstrap.kt`); `telemetry
 - `authz/` — `CallerPrincipal`, the guards (`requireAdmin`, `requireSelfOrAdmin`, `requireTeamManagerOrAdmin`) and the typed HTTP exceptions (401/403/404/409/429).
 - `auth/` — login (+ the email-MFA second step), refresh, logout, self-service password reset, token minting, password hashing, the revoked-token blocklist; in-memory auth state is capacity-bounded with audited 429 saturation.
 - `users/` — Hammurabi's login accounts (REST `/api/v1/users`): ADMIN-only CRUD (self-delete 403, last-admin 409) plus the any-signed-in-user picker lookup `GET /users/directory` (`{id, name, email}`, own rate bucket), per-user feature flags (`Feature` enum, the V5 disabled-set model; MFA is the inverted-default login-scoped flag), the ONE synced per-user UI+email language (`Languages.kt` = `SUPPORTED_LANGUAGES`).
+- `tags/` — the ADMIN-curated tag registry (0.4.0, V13, REST `/api/v1/tag-categories`; `adr-model.md` "Tags"): categories of tags, retire-not-erase, writes in `lockingTransaction` (`infra/db/Locking.kt`).
 - `teams/` — flat teams (V6) with an optional manager: GET any authenticated, POST/PUT/DELETE ADMIN only. **The feature template** (below).
-- `adrs/` — the ADR core (0.2.0, REST `/api/v1/adrs`; `adr-model.md`): the record + DACI participants (V10) and history (V11), the lifecycle map (`AdrLifecycle`, typed 409s), the role verdicts (`AdrAccess`), numbering under an advisory lock, the `X-Expected-Revision` document PUT, the participants diff, the events read, and the expiry sweep (`AdrExpirySweep`, `adrs.expiry.*`); 0.3.0 adds the discussion (V12 `adr_discussion`, `AdrDiscussionService`/`Routes`/`Access`, `openIssueCount` on the ADR rows).
+- `adrs/` — the ADR core (0.2.0, REST `/api/v1/adrs`; `adr-model.md`): the record + DACI participants (V10) and history (V11), the lifecycle map (`AdrLifecycle`, typed 409s), the role verdicts (`AdrAccess`), numbering under an advisory lock, the `X-Expected-Revision` document PUT, the participants diff, the events read, and the expiry sweep (`AdrExpirySweep`, `adrs.expiry.*`); 0.3.0 adds the discussion (V12 `adr_discussion`, `AdrDiscussionService`/`Routes`/`Access`, `openIssueCount` on the ADR rows); 0.4.0 adds `adr_tags` (V13, `AdrTagService`) and the successor link (V14, `SuccessorGraph`, `AdrSuccessorService`).
 - `telemetry/` — per-process JVM/cgroup/request/storage samples in `ops.*` (V9), 90 days, hourly, ADMIN read API (`observability.md`).
 
 **Feature template — copy `teams/`** (a small ADMIN-curated registry; the only shape the foundation ships). Before adding a feature, route,
@@ -151,7 +152,7 @@ disagree, the doc wins. The always-loaded set (this file plus the two imports) s
 | Doc | Read before you touch |
 |---|---|
 | `.claude/docs/conventions.md` | adding a feature, route, service, migration or page: the `teams/` feature template (DTO + validator, routes, service, migration + checksum pin, spec paths, `gen:api`, lazy page + nav entry, e2e spec + scenario) |
-| `.claude/docs/persistence.md` | any migration (`db/migration/V*.sql`, V1–V12 today — applied bytes are immutable, `MigrationChecksumTest`), an Exposed table/`*Service.kt`, soft delete, a cross-feature table read/write (the list there IS the permission), the connection pool, the `ops` schema |
+| `.claude/docs/persistence.md` | any migration (`db/migration/V*.sql`, V1–V14 today — applied bytes are immutable, `MigrationChecksumTest`), an Exposed table/`*Service.kt`, soft delete, a cross-feature table read/write (the list there IS the permission), the connection pool, the `ops` schema |
 | `.claude/docs/security.md` | auth/JWT/MFA/password reset, rate limits, headers/CSP, secrets/encryption at rest, production fail-closed startup checks, payload validation |
 | `.claude/docs/authorization.md` | any route: its guard (ADMIN vs any authenticated), 403-before-400/404 ordering, existence disclosure, the error/`ProblemDetail` mapping |
 | `.claude/docs/observability.md` | any mutation or denial path (it needs an `audit(...)` event, listed there), logging, OpenTelemetry, health probes, the telemetry panel's server side |

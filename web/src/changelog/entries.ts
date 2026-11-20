@@ -17,6 +17,26 @@ interface ChangelogEntry {
 
 export const CHANGELOG: readonly ChangelogEntry[] = [
   {
+    version: "0.4.0",
+    date: "2026-11-21",
+    en: `**Hammurabi 0.4.0: tags and successors.**
+
+- Administrators curate tag categories on the new Tags page (seeded with Domain and Scope); each tag belongs to exactly one category.
+- The Driver, the Approver or an administrator tags an ADR, also while it is active; the ADR list shows the tags and filters by them.
+- A removed tag stays visible, struck through, on the ADRs that carry it until they are retagged.
+- A draft can name the ADR it replaces. When it becomes active, the old ADR becomes Superseded, and both pages link to each other.
+- A link that would close a loop is refused. The Driver, the Approver or an administrator of the old ADR can detach a successor that is still pending.
+- The history records tag changes, successor links and the replacement.`,
+    pl: `**Hammurabi 0.4.0: tagi i następcy.**
+
+- Administratorzy/rki porządkują kategorie tagów na nowej stronie Tagi (na start: Domain i Scope); każdy tag należy do dokładnie jednej kategorii.
+- Prowadzący/a, Zatwierdzający/a albo administrator/ka taguje ADR, także obowiązujący; lista ADR-ów pokazuje tagi i filtruje po nich.
+- Usunięty tag pozostaje widoczny, przekreślony, na ADR-ach, które go mają, dopóki nie zostaną przetagowane.
+- Szkic może wskazać ADR, który zastępuje. Gdy stanie się obowiązujący, stary ADR otrzymuje status Zastąpiony, a obie strony wskazują na siebie nawzajem.
+- Powiązanie, które zamknęłoby pętlę, jest odrzucane. Prowadzący/a, Zatwierdzający/a albo administrator/ka starego ADR-u może odłączyć oczekującego następcę.
+- Historia zapisuje zmiany tagów, powiązania z następcami i zastąpienie.`,
+  },
+  {
     version: "0.3.0",
     date: "2026-11-20",
     en: `**Hammurabi 0.3.0: discussion.**

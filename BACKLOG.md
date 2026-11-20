@@ -1,6 +1,6 @@
 # Product backlog
 
-Updated 2026-11-20. This file tracks **outstanding work only**. Implemented behaviour and release history belong elsewhere:
+Updated 2026-11-21. This file tracks **outstanding work only**. Implemented behaviour and release history belong elsewhere:
 - [README.md](README.md);
 - the [application changelog](web/src/changelog/entries.ts);
 - the topic guides under `.claude/docs/` (the roadmap: `.claude/docs/product.md`).
@@ -17,12 +17,13 @@ Entries are proposals, not delivery commitments.
 
 The `backlog` mod (`liveweird/claude-mods`) summarises the tags on the status line and in `/backlog`.
 
-## ADR MVP (0.2–0.5)
+## ADR MVP (0.2–0.6)
 
-- [new] **0.4.0 Organise and find.** Tag categories, successor links + `SUPERSEDED`, multi-criteria filters, full-text search, URL-synced filters, saved lenses.
-- [new] **0.5.0 Notify.** The bell, email digest and preferences for DACI participants; expiry reminders.
-- [new] **Markdown export of an ADR.** Render an ADR in the adr-tools format.
-- [new] **"Send back" and withdraw an active ADR.** `IN_REVIEW` → `SOLUTION_DRAFT` and `ACTIVE` → `WITHDRAWN` (`product.md` "Not built").
+- [new] **0.5.0 Find.** The remaining multi-criteria filters, full-text search, URL-synced filters and saved lenses.
+- [new] **0.6.0 Notify.** The bell, email digest and preferences for DACI participants; expiry reminders.
+- [todo] **Markdown export of an ADR.** Render an ADR in the adr-tools format. (promoted by the user 2026-11-21)
+- [todo] **"Send back" and withdraw an active ADR.** `IN_REVIEW` → `SOLUTION_DRAFT` and `ACTIVE` → `WITHDRAWN` (`product.md` "Not built"). (promoted by the user 2026-11-21)
+- [todo] **ADR log / overview page.** A read-only decision-log page: active ADRs grouped by tag category, recently decided, expiring soon. (promoted by the user 2026-11-21)
 
 ## Foundation follow-ups
 

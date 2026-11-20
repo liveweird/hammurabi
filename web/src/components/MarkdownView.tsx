@@ -47,14 +47,24 @@ const messageComponents: Components = {
 export default function MarkdownView({
   children,
   variant = "document",
+  idPrefix,
 }: {
   children: string | null | undefined;
   variant?: MarkdownVariant;
+  /**
+   * Prefixes the ids and hrefs the footnotes generate (react-markdown's `clobberPrefix`, default `user-content-`). Many bodies share one
+   * page in a thread, and every body's first footnote is `#user-content-fn-1`: give each its own (`entry-11-`) or the links jump to the first.
+   */
+  idPrefix?: string;
 }) {
   const message = variant === "message";
   return (
     <Typography className={message ? classes.message : undefined}>
-      <ReactMarkdown remarkPlugins={[remarkGfm, remarkGemoji]} components={message ? messageComponents : undefined}>
+      <ReactMarkdown
+        remarkPlugins={[remarkGfm, remarkGemoji]}
+        remarkRehypeOptions={idPrefix === undefined ? undefined : { clobberPrefix: `user-content-${idPrefix}` }}
+        components={message ? messageComponents : undefined}
+      >
         {children}
       </ReactMarkdown>
     </Typography>

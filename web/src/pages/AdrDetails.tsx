@@ -10,6 +10,7 @@ import { getUserId } from "../api/session";
 import { useAdmin } from "../auth";
 import AdrContentSections from "../components/AdrContentSections";
 import AdrEditForm from "../components/AdrEditForm";
+import AdrMainPane, { type AdrTab } from "../components/AdrMainPane";
 import AdrSidePanel from "../components/AdrSidePanel";
 import ConfirmDeleteModal from "../components/ConfirmDeleteModal";
 import EditPageLoadState from "../components/EditPageLoadState";
@@ -21,8 +22,8 @@ import { refreshQueriesAfterMutation } from "../utils/queryRefresh";
 import { loadErrorMessage, saveErrorMessage } from "../utils/saveError";
 
 /**
- * One ADR (`/adrs/:id`). The main pane holds the five Markdown sections (or their editor while editing); the side panel holds Status,
- * DACI, Details and History. What the signed-in user may do comes from the server's verdicts on the ADR (`allowedTransitions`, `canEdit`,
+ * One ADR (`/adrs/:id`). The main pane is three tabs - the five Markdown sections (or their editor while editing), the discussion and the
+ * issues (`AdrMainPane`); the side panel holds Status, DACI, Details and History. What the signed-in user may do comes from the server's verdicts on the ADR (`allowedTransitions`, `canEdit`,
  * `canManageParticipants`); only an ADMIN deletes. Every write refreshes the `["adrs"]` prefix, so the page, the history and the list
  * follow, and each write carries the revision the page holds.
  */
@@ -34,6 +35,8 @@ export default function AdrDetails() {
   const { id: idParam } = useParams();
   const id = Number(idParam);
   const [editing, setEditing] = useState(false);
+  // The main pane's tab lives here so Edit can bring the document forward (and a tab switch never costs a draft).
+  const [tab, setTab] = useState<AdrTab>("document");
   // Set once the ADR is deleted: the page is on its way out and must not fetch the 404 of the ADR it just removed.
   const [deleted, setDeleted] = useState(false);
   const adr = useQuery({ queryKey: ["adrs", "detail", id], queryFn: () => getAdr(id), enabled: Number.isInteger(id) && id > 0 && !deleted });
@@ -76,7 +79,10 @@ export default function AdrDetails() {
         actions={
           <>
             {mayEdit && !editing && (
-              <Button variant="default" leftSection={<IconPencil size={16} />} onClick={() => setEditing(true)}>
+              <Button variant="default" leftSection={<IconPencil size={16} />} onClick={() => {
+                  setTab("document");
+                  setEditing(true);
+                }}>
                 {t("adrs.edit")}
               </Button>
             )}
@@ -90,7 +96,9 @@ export default function AdrDetails() {
       />
       <Grid gap="lg">
         <Grid.Col span={{ base: 12, lg: 8 }}>
-          {editing && mayEdit ? <AdrEditForm adr={data} onClose={() => setEditing(false)} /> : <AdrContentSections adr={data} />}
+          <AdrMainPane adr={data} tab={tab} onTabChange={setTab}>
+            {editing && mayEdit ? <AdrEditForm adr={data} onClose={() => setEditing(false)} /> : <AdrContentSections adr={data} />}
+          </AdrMainPane>
         </Grid.Col>
         <Grid.Col span={{ base: 12, lg: 4 }}>
           <AdrSidePanel adr={data} />

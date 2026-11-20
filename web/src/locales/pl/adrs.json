@@ -21,7 +21,8 @@
   "column": {
     "key": "Klucz",
     "status": "Status",
-    "updated": "Zmieniono"
+    "updated": "Zmieniono",
+    "openIssues": "Otwarte zgłoszenia"
   },
   "filter": {
     "q": "Nazwa lub klucz",
@@ -148,7 +149,17 @@
       "PARTICIPANT_REMOVED": "Usunięto: {{name}} ({{role}})",
       "PARTICIPANT_CHANGED": "{{name}}: rola zmieniona z „{{from}}” na „{{to}}”",
       "EXPIRED": "Wygasł: minęła data wygaśnięcia {{expiresOn}}",
-      "SUPERSEDED": "Zastąpiony przez następcę"
+      "SUPERSEDED": "Zastąpiony przez następcę",
+      "COMMENTED": "Dodano komentarz",
+      "QUESTION_ASKED": "Zadano pytanie",
+      "QUESTION_ANSWERED": "Odpowiedziano na pytanie",
+      "QUESTION_REOPENED": "Otwarto pytanie ponownie",
+      "ISSUE_RAISED": "Dodano zgłoszenie",
+      "ESCALATED": "Zgłoszono eskalację",
+      "ISSUE_RESOLVED": "Rozwiązano zgłoszenie",
+      "ISSUE_REOPENED": "Otwarto zgłoszenie ponownie",
+      "ESCALATION_RESOLVED": "Rozwiązano eskalację",
+      "ESCALATION_REOPENED": "Otwarto eskalację ponownie"
     },
     "line": {
       "created": "{{key}} „{{name}}”",
@@ -186,5 +197,86 @@
     "participantsSaved": "Uczestnicy/czki zapisani/e",
     "expirySaved": "Data wygaśnięcia zapisana",
     "deleted": "ADR usunięty"
+  },
+  "openIssuesAria": "Otwarte zgłoszenia: {{count}}",
+  "tab": {
+    "document": "Dokument",
+    "discussion": "Dyskusja",
+    "issues": "Zgłoszenia",
+    "unansweredAria": "bez odpowiedzi: {{count}}",
+    "openIssuesAria": "otwarte: {{count}}"
+  },
+  "discussion": {
+    "discussion": {
+      "title": "Komentarze i pytania",
+      "empty": "Nikt jeszcze nic nie napisał.",
+      "composeLabel": "Twój komentarz lub pytanie",
+      "closedNote": "Komentarze i pytania przyjmujemy do czasu, aż ADR stanie się obowiązujący. To, co już napisano, nadal można czytać."
+    },
+    "issues": {
+      "title": "Zgłoszenia i eskalacje",
+      "empty": "Nikt jeszcze nic nie zgłosił.",
+      "composeLabel": "Opisz zgłoszenie",
+      "notYetNote": "Zgłoszenia i eskalacje można dodawać, gdy ADR stanie się obowiązujący. Do tego czasu skorzystaj z dyskusji.",
+      "closedNote": "Ten ADR nie jest już obowiązujący, więc nie można dodać nowych zgłoszeń. To, co już zgłoszono, nadal można czytać."
+    },
+    "kind": {
+      "COMMENT": "Komentarz",
+      "QUESTION": "Pytanie",
+      "ISSUE": "Zgłoszenie",
+      "ESCALATION": "Eskalacja"
+    },
+    "kindHint": {
+      "COMMENT": "Dodaj kontekst albo uwagę.",
+      "QUESTION": "Poproś o wyjaśnienie; odpowiedź może oznaczyć Prowadzący/a, Zatwierdzający/a albo Ty.",
+      "ISSUE": "Zgłoś, że decyzja nie działa tak, jak miała; rozwiązuje je Prowadzący/a albo Zatwierdzający/a.",
+      "ESCALATION": "Zgłoś to, co wymaga uwagi Zatwierdzającego/ej od razu; rozwiązuje to Prowadzący/a albo Zatwierdzający/a."
+    },
+    "kindAria": "Rodzaj wpisu",
+    "status": {
+      "OPEN": "Otwarte",
+      "ANSWERED": "Z odpowiedzią",
+      "RESOLVED": "Rozwiązane"
+    },
+    "submit": {
+      "COMMENT": "Dodaj komentarz",
+      "QUESTION": "Zadaj pytanie",
+      "ISSUE": "Zgłoś",
+      "ESCALATION": "Eskaluj"
+    },
+    "action": {
+      "editAria": "Edytuj wpis: {{name}}",
+      "deleteAria": "Usuń wpis: {{name}}",
+      "markAnswered": "Oznacz jako z odpowiedzią",
+      "reopenQuestion": "Otwórz pytanie ponownie",
+      "resolve": "Rozwiąż",
+      "reopenIssue": "Otwórz ponownie"
+    },
+    "entryAria": "{{kind}}: {{name}}",
+    "editLabel": "Edytuj treść",
+    "edited": "edytowano",
+    "deleted": "Ten wpis został usunięty.",
+    "deleteTitle": "Usunąć ten wpis?",
+    "deleteBody": "Jego treść zostanie usunięta na stałe; w wątku zostanie tylko informacja o usunięciu.",
+    "resolveTitle": "Rozwiąż ten wpis",
+    "resolutionLabel": "Uwaga do rozwiązania",
+    "resolutionHint": "Opcjonalnie: dlaczego sprawa jest zamknięta.",
+    "answeredBy": "Odpowiedź oznaczył/a {{name}}, {{date}}",
+    "resolvedBy": "Rozwiązał/a {{name}}, {{date}}",
+    "onlyOpen": "Tylko otwarte zgłoszenia",
+    "noneOpen": "Nic otwartego.",
+    "error": {
+      "closed": "Obecny status ADR-a już tego nie przyjmuje. Wczytaj go ponownie, aby zobaczyć aktualny stan.",
+      "invalid": "Sprawdź treść: nie może być pusta i ma mieć najwyżej 10 000 znaków (uwaga do rozwiązania najwyżej 2000).",
+      "gone": "Ten wpis albo jego ADR już nie istnieje."
+    },
+    "toast": {
+      "posted": "Dodano",
+      "edited": "Wpis zapisany",
+      "deleted": "Wpis usunięty",
+      "OPEN": "Otwarto ponownie",
+      "ANSWERED": "Oznaczono jako z odpowiedzią",
+      "RESOLVED": "Rozwiązano"
+    }
   }
 }

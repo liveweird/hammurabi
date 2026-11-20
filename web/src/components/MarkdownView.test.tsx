@@ -100,3 +100,29 @@ describe("MarkdownView (message)", () => {
     expect(screen.getByText("done 🎉").parentElement).toHaveClass(classes.message);
   });
 });
+
+describe("MarkdownView footnote ids", () => {
+  const note = "Claim[^1]\n\n[^1]: Source";
+
+  test("two bodies on one page get distinct footnote ids when each has its own prefix", () => {
+    const { container } = render(
+      <MantineProvider env="test">
+        <MarkdownView variant="message" idPrefix="entry-1-">
+          {note}
+        </MarkdownView>
+        <MarkdownView variant="message" idPrefix="entry-2-">
+          {note}
+        </MarkdownView>
+      </MantineProvider>,
+    );
+    const ids = [...container.querySelectorAll("[id]")].map((element) => element.id).filter((id) => id.includes("fn"));
+    expect(new Set(ids).size).toBe(ids.length);
+    expect(ids.some((id) => id.startsWith("user-content-entry-1-"))).toBe(true);
+    expect(ids.some((id) => id.startsWith("user-content-entry-2-"))).toBe(true);
+  });
+
+  test("without a prefix the default ids are unchanged", () => {
+    const { container } = renderView(note);
+    expect(container.querySelector("#user-content-fn-1")).not.toBeNull();
+  });
+});

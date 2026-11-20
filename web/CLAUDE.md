@@ -3,7 +3,7 @@
 Vite + React 19 + TypeScript SPA: the shell + auth, user/feature management, MFA, password reset,
 the changelog, the flat-teams registry and the ADMIN telemetry panel — the v0.1.0 foundation, trimmed from Flow
 (`~/Sources/flow` @ 4e43e480, 1.57.1, the donor: port building blocks from there, don't reinvent; Astrolabe's trim of the same
-shell is the precedent) — plus the 0.2.0 ADR core (the list, create and detail pages, "The ADR pages" below) behind a Home that welcomes
+shell is the precedent) — plus the 0.2.0 ADR core and the 0.3.0 discussion (the list, create and detail pages, "The ADR pages" below) behind a Home that welcomes
 and leads into them. Routes are lazy.
 
 - Dev server: `cd web && npm run dev` (port **5181** — not Vite's 5173 default, so Hammurabi can run
@@ -194,7 +194,7 @@ Every list page composes the same ported Lettuce blocks — copy `pages/Users.ts
   {{name}}"; items are plain `menuitem`s, only one row's menu is open at a time); a per-row
   `Switch` (Feature flags) is state, not an action.
 
-## The ADR pages (0.2.0)
+## The ADR pages (0.2.0, discussion 0.3.0)
 
 `pages/Adrs.tsx` (`/adrs`, the primary nav entry), `pages/CreateAdr.tsx` (`/adrs/new`) and `pages/AdrDetails.tsx` (`/adrs/:id`); routes in `utils/adrLinks.ts`, wrappers in `api/adrs.ts`, copy in `locales/*/adrs.json`.
 
@@ -204,6 +204,13 @@ Every list page composes the same ported Lettuce blocks — copy `pages/Users.ts
   `MarkdownField`: a Textarea with a Write/Preview toggle — no new dependency); the side panel is Status (`AdrStatusControl`: one button per `allowedTransitions`, cancelling and withdrawing confirm), DACI
   (`AdrParticipantsPanel`/`Editor` over `UserDirectorySelect` and `UserMultiPicker`), Details (the expiry date has its own editor, `AdrExpiryEditor`) and History (`AdrHistory` over the ported
   `EventTimeline`; `utils/adrEvents.ts` renders every event type and its params as localized text). All sections are h3 under the page's h2.
+- **The discussion (0.3.0)**: the detail page's main pane is `components/AdrMainPane.tsx`, three tabs - Document (the sections or their editor), Discussion (comments and questions) and Issues (issues and escalations) - only the active one is mounted, and the
+  Discussion/Issues tabs carry the ADR's `unansweredQuestionCount` / `openIssueCount` as badges (so a tab's accessible name reads "Issues open: 2"). Each tab is `AdrDiscussion` (`variant` `discussion` | `issues`, kinds from
+  `utils/adrDiscussion.ts`): an oldest-first thread of `DiscussionEntryCard`s (kind and state badges, author, date, `MarkdownView` body in the `message` variant, the tombstone placeholder of a deleted entry, the resolution note; Edit
+  inline through `DiscussionEntryEditor`, Delete behind `ConfirmActionModal`, answer / resolve / reopen - resolving asks for an optional note in `DiscussionResolveModal`) and a `DiscussionComposer` (a kind switch, `MarkdownField` with Write/Preview, one
+  submit named for the kind) shown only while the server's `canComment` / `canRaiseIssue` say so; otherwise the section is read-only and says why. Every action is gated by the entry's own server verdicts (`canEdit`, `canDelete`,
+  `canChangeState`; the state change has no window, so an old issue can still be resolved). Wrappers: `api/adrDiscussion.ts`; query keys `["adrs", "discussion", id, variant, page, onlyOpen]`, so every write refreshing `["adrs"]` also refreshes the counts, the list column and the history. The typed 409 `discussion-closed`
+  renders through `AdrWriteError` (`kind="discussion"`) as the orange reload notice. Kind colours (`DISCUSSION_KIND_COLOR`): escalation red, issue orange, question grape, comment gray; settled states teal. The list has an Open issues column (an orange badge).
 - **What the user may do comes from the server's verdicts** (`allowedTransitions`, `canEdit`, `canManageParticipants`); `utils/adrAccess.ts` only narrows `canEdit` to the content editor by role (the wire carries no
   per-field flag) and the expiry editor follows `canManageParticipants`, which is the same condition. The server re-judges every write.
 - **Every write carries the revision the page holds** (`X-Expected-Revision`: the document PUT, transitions and the participants replace) and refreshes the `["adrs"]` prefix. A typed 409 (`revision-conflict`,

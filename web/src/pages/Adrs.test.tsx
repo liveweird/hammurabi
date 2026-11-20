@@ -22,8 +22,9 @@ const ROW = {
   statusChangedAt: Date.UTC(2026, 10, 2),
   driver: { userId: 5, name: "Dana Driver", role: "DRIVER" as const },
   approver: { userId: 6, name: "Alex Approver", role: "APPROVER" as const },
+  openIssueCount: 0,
 };
-const ROW_WITHOUT_PEOPLE = { ...ROW, id: 8, number: 8, key: "ADR-0008", name: "Pick a queue", status: "ACTIVE" as const, driver: null, approver: null };
+const ROW_WITHOUT_PEOPLE = { ...ROW, id: 8, number: 8, key: "ADR-0008", name: "Pick a queue", status: "ACTIVE" as const, driver: null, approver: null, openIssueCount: 3 };
 
 function Probe() {
   const { pathname, search } = useLocation();
@@ -71,6 +72,11 @@ describe("Adrs list page", () => {
     // A row with nobody recorded shows dashes.
     const other = screen.getByRole("link", { name: "Open ADR-0008: Pick a queue" }).closest("tr")!;
     expect(within(other).getAllByText("—")).toHaveLength(2);
+    // The open issues are a badge, none is a dash: the first row has no issues, the second three.
+    expect(within(other).getByText("Open issues: 3")).toBeInTheDocument();
+    expect(within(row).queryByText(/^Open issues:/)).not.toBeInTheDocument();
+    expect(within(row).getAllByText("—")).toHaveLength(1);
+    expect(screen.getByRole("columnheader", { name: "Open issues" })).toBeInTheDocument();
     expect(listUrls(stub)).toEqual(["/api/v1/adrs?page=1&pageSize=20&sort=-number"]);
     expect(headingOutline()).toEqual([[2, "ADRs"]]);
     expect(screen.getByRole("table", { name: "ADRs" })).toBeInTheDocument();

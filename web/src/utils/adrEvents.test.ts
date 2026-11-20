@@ -15,6 +15,17 @@ describe("describeAdrEvent", () => {
     [{ type: "PARTICIPANT_CHANGED" as const, params: { userId: "7", name: "Cora", from: "INFORMED", to: "APPROVER" } }, "Cora moved from Informed to Approver"],
     [{ type: "EXPIRED" as const, params: { expiresOn: "2026-12-31" } }, "Expired: the expiry date 2026-12-31 has passed"],
     [{ type: "SUPERSEDED" as const, params: {} }, "Superseded by a successor"],
+    [{ type: "COMMENTED" as const, params: { entryId: "3", kind: "COMMENT" } }, "Comment added"],
+    [{ type: "QUESTION_ASKED" as const, params: { entryId: "3", kind: "QUESTION" } }, "Question asked"],
+    [{ type: "QUESTION_ANSWERED" as const, params: { entryId: "3", kind: "QUESTION" } }, "Question answered"],
+    [{ type: "QUESTION_REOPENED" as const, params: { entryId: "3", kind: "QUESTION" } }, "Question reopened"],
+    [{ type: "ISSUE_RAISED" as const, params: { entryId: "4", kind: "ISSUE" } }, "Issue raised"],
+    [{ type: "ESCALATED" as const, params: { entryId: "4", kind: "ESCALATION" } }, "Escalation raised"],
+    [{ type: "ISSUE_RESOLVED" as const, params: { entryId: "4", kind: "ISSUE" } }, "Issue resolved"],
+    [{ type: "ISSUE_REOPENED" as const, params: { entryId: "4", kind: "ISSUE" } }, "Issue reopened"],
+    [{ type: "ISSUE_RESOLVED" as const, params: { entryId: "5", kind: "ESCALATION" } }, "Escalation resolved"],
+    [{ type: "ISSUE_REOPENED" as const, params: { entryId: "5", kind: "ESCALATION" } }, "Escalation reopened"],
+    [{ type: "ISSUE_RESOLVED" as const, params: {} }, "Issue resolved"],
   ])("%j reads as its sentence", (event, expected) => {
     expect(describeAdrEvent(eventFixture(event), t)).toBe(expected);
   });

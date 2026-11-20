@@ -1,6 +1,6 @@
 import { useTranslation } from "react-i18next";
 import { Link as RouterLink } from "react-router-dom";
-import { Anchor, Button, MultiSelect, Select, Stack, Switch, Table, Text } from "@mantine/core";
+import { Anchor, Badge, Button, MultiSelect, Select, Stack, Switch, Table, Text, VisuallyHidden } from "@mantine/core";
 import { useDebouncedValue } from "@mantine/hooks";
 import { keepPreviousData, useQuery } from "@tanstack/react-query";
 import { IconGavel, IconPlus } from "@tabler/icons-react";
@@ -14,6 +14,7 @@ import RegistryListTable from "../components/RegistryListTable";
 import SortHeader from "../components/SortHeader";
 import { FILTER_DEBOUNCE_MS, usePagedSort } from "../hooks/usePagedSort";
 import { useAdrListParams } from "../hooks/useAdrListParams";
+import { DISCUSSION_KIND_COLOR } from "../utils/adrDiscussion";
 import { activeAdrFilterCount } from "../utils/adrListParams";
 import { adrPath, newAdrPath } from "../utils/adrLinks";
 import { ADR_ROLES, ADR_STATUSES, isAdrRole, isAdrStatus } from "../utils/adrStatus";
@@ -26,9 +27,10 @@ type SortField = (typeof SORT_FIELDS)[number];
 const SETTINGS_KEY = "adrs";
 
 /**
- * The ADR list (`/adrs`): key, name, status badge, Driver, Approver and last update, newest first. The filters — a name-or-key
+ * The ADR list (`/adrs`): key, name, status badge, Driver, Approver, open issues and last update, newest first. The filters — a name-or-key
  * search, any-of statuses and "mine" (the ADRs the signed-in user takes part in, optionally in one DACI role) — live in the URL
- * (`useAdrListParams`); the page, the page size and the sort are `usePagedSort`'s. The name opens the ADR; anyone may raise one.
+ * (`useAdrListParams`); the page, the page size and the sort are `usePagedSort`'s. The name opens the ADR; anyone may raise one. A badge
+ * counts the open issues and escalations of an ADR (the server's `openIssueCount`).
  */
 export default function Adrs() {
   const { t } = useTranslation();
@@ -116,7 +118,7 @@ export default function Adrs() {
         isLoading={isLoading}
         hasData={Boolean(data)}
         rowCount={data?.items.length ?? 0}
-        columnCount={6}
+        columnCount={7}
         emptyIcon={IconGavel}
         emptyLabel={activeAdrFilterCount(params) > 0 ? t("adrs.emptyFiltered") : t("adrs.empty")}
         header={
@@ -126,6 +128,7 @@ export default function Adrs() {
             {sortHeader("status", t("adrs.column.status"))}
             <Table.Th>{t("adrs.role.DRIVER")}</Table.Th>
             <Table.Th>{t("adrs.role.APPROVER")}</Table.Th>
+            <Table.Th>{t("adrs.column.openIssues")}</Table.Th>
             {sortHeader("updatedAt", t("adrs.column.updated"))}
           </Table.Tr>
         }
@@ -154,6 +157,18 @@ export default function Adrs() {
               <Text size="sm" c={adr.approver ? undefined : "dimmed"}>
                 {adr.approver?.name ?? "—"}
               </Text>
+            </Table.Td>
+            <Table.Td>
+              {adr.openIssueCount > 0 ? (
+                <Badge color={DISCUSSION_KIND_COLOR.ISSUE} variant="light">
+                  <span aria-hidden>{adr.openIssueCount}</span>
+                  <VisuallyHidden>{t("adrs.openIssuesAria", { count: adr.openIssueCount })}</VisuallyHidden>
+                </Badge>
+              ) : (
+                <Text size="sm" c="dimmed">
+                  —
+                </Text>
+              )}
             </Table.Td>
             <Table.Td>
               <Text size="sm">{formatDate(adr.updatedAt)}</Text>

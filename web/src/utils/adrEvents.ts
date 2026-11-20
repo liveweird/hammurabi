@@ -37,6 +37,17 @@ export function describeAdrEvent(event: AdrEventResponse, t: TFunction): string 
       return t("adrs.history.event.EXPIRED", { expiresOn: p.expiresOn ?? DASH });
     case "SUPERSEDED":
       return t("adrs.history.event.SUPERSEDED");
+    case "COMMENTED":
+    case "QUESTION_ASKED":
+    case "QUESTION_ANSWERED":
+    case "QUESTION_REOPENED":
+    case "ISSUE_RAISED":
+    case "ESCALATED":
+      return t(`adrs.history.event.${event.type}`);
+    case "ISSUE_RESOLVED":
+      return t(p.kind === "ESCALATION" ? "adrs.history.event.ESCALATION_RESOLVED" : "adrs.history.event.ISSUE_RESOLVED");
+    case "ISSUE_REOPENED":
+      return t(p.kind === "ESCALATION" ? "adrs.history.event.ESCALATION_REOPENED" : "adrs.history.event.ISSUE_REOPENED");
   }
 }
 

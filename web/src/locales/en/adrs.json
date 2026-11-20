@@ -21,7 +21,8 @@
   "column": {
     "key": "Key",
     "status": "Status",
-    "updated": "Updated"
+    "updated": "Updated",
+    "openIssues": "Open issues"
   },
   "filter": {
     "q": "Name or key",
@@ -148,7 +149,17 @@
       "PARTICIPANT_REMOVED": "{{name}} removed ({{role}})",
       "PARTICIPANT_CHANGED": "{{name}} moved from {{from}} to {{to}}",
       "EXPIRED": "Expired: the expiry date {{expiresOn}} has passed",
-      "SUPERSEDED": "Superseded by a successor"
+      "SUPERSEDED": "Superseded by a successor",
+      "COMMENTED": "Comment added",
+      "QUESTION_ASKED": "Question asked",
+      "QUESTION_ANSWERED": "Question answered",
+      "QUESTION_REOPENED": "Question reopened",
+      "ISSUE_RAISED": "Issue raised",
+      "ESCALATED": "Escalation raised",
+      "ISSUE_RESOLVED": "Issue resolved",
+      "ISSUE_REOPENED": "Issue reopened",
+      "ESCALATION_RESOLVED": "Escalation resolved",
+      "ESCALATION_REOPENED": "Escalation reopened"
     },
     "line": {
       "created": "{{key}} \"{{name}}\"",
@@ -186,5 +197,86 @@
     "participantsSaved": "Participants saved",
     "expirySaved": "Expiry date saved",
     "deleted": "ADR deleted"
+  },
+  "openIssuesAria": "Open issues: {{count}}",
+  "tab": {
+    "document": "Document",
+    "discussion": "Discussion",
+    "issues": "Issues",
+    "unansweredAria": "unanswered: {{count}}",
+    "openIssuesAria": "open: {{count}}"
+  },
+  "discussion": {
+    "discussion": {
+      "title": "Comments and questions",
+      "empty": "Nothing has been said yet.",
+      "composeLabel": "Your comment or question",
+      "closedNote": "Comments and questions are taken until the ADR is active. What was said stays readable."
+    },
+    "issues": {
+      "title": "Issues and escalations",
+      "empty": "No issues have been raised.",
+      "composeLabel": "Describe the issue",
+      "notYetNote": "Issues and escalations can be raised once the ADR is active. Until then, use the discussion.",
+      "closedNote": "This ADR is no longer active, so no new issues can be raised. What was raised stays readable."
+    },
+    "kind": {
+      "COMMENT": "Comment",
+      "QUESTION": "Question",
+      "ISSUE": "Issue",
+      "ESCALATION": "Escalation"
+    },
+    "kindHint": {
+      "COMMENT": "Add context or a remark.",
+      "QUESTION": "Ask for something to be clarified; the Driver, the Approver or you can mark it answered.",
+      "ISSUE": "Report that the decision does not work as intended; the Driver or the Approver resolves it.",
+      "ESCALATION": "Raise what needs the Approver's attention now; the Driver or the Approver resolves it."
+    },
+    "kindAria": "Kind of entry",
+    "status": {
+      "OPEN": "Open",
+      "ANSWERED": "Answered",
+      "RESOLVED": "Resolved"
+    },
+    "submit": {
+      "COMMENT": "Post comment",
+      "QUESTION": "Ask question",
+      "ISSUE": "Raise issue",
+      "ESCALATION": "Escalate"
+    },
+    "action": {
+      "editAria": "Edit the entry by {{name}}",
+      "deleteAria": "Delete the entry by {{name}}",
+      "markAnswered": "Mark answered",
+      "reopenQuestion": "Reopen question",
+      "resolve": "Resolve",
+      "reopenIssue": "Reopen"
+    },
+    "entryAria": "{{kind}} by {{name}}",
+    "editLabel": "Edit the text",
+    "edited": "edited",
+    "deleted": "This entry was deleted.",
+    "deleteTitle": "Delete this entry?",
+    "deleteBody": "Its text is removed for good; a placeholder stays in the thread.",
+    "resolveTitle": "Resolve this entry",
+    "resolutionLabel": "Resolution note",
+    "resolutionHint": "Optional: why it is settled.",
+    "answeredBy": "Answered by {{name}} on {{date}}",
+    "resolvedBy": "Resolved by {{name}} on {{date}}",
+    "onlyOpen": "Only open issues",
+    "noneOpen": "Nothing open.",
+    "error": {
+      "closed": "The ADR's status no longer takes this. Reload to see its latest state.",
+      "invalid": "Check the text: it must not be empty and at most 10,000 characters (a resolution note at most 2,000).",
+      "gone": "This entry or its ADR no longer exists."
+    },
+    "toast": {
+      "posted": "Posted",
+      "edited": "Entry saved",
+      "deleted": "Entry deleted",
+      "OPEN": "Reopened",
+      "ANSWERED": "Marked answered",
+      "RESOLVED": "Resolved"
+    }
   }
 }

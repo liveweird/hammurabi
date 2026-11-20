@@ -2,7 +2,7 @@ import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
 import userEvent from "@testing-library/user-event";
 import { Route, Routes, useLocation } from "react-router-dom";
 import type { AdrResponse } from "../api/adrs";
-import { adrFixture, eventFixture } from "../test/adrFixtures";
+import { adrFixture, discussionPageFixture, entryFixture, eventFixture } from "../test/adrFixtures";
 import { noContent, problem, stubFetch } from "../test/fetchStub";
 import { jsonResponse } from "../test/http";
 import { headingOutline } from "../test/headings";
@@ -74,6 +74,43 @@ describe("AdrDetails page", () => {
     expect(screen.getByText("We need a database.")).toBeInTheDocument();
     expect(screen.getByText("Because.")).toBeInTheDocument();
     expect(screen.getByRole("link", { name: "Back to the ADRs" })).toHaveAttribute("href", "/adrs");
+  });
+
+  test("the main pane is three tabs; the discussion opens on demand and shows the counts the ADR carries", async () => {
+    const stub = serve(
+      { adr: adrFixture({ participants: PEOPLE, status: "ACTIVE", allowedTransitions: [], canComment: false, canRaiseIssue: true, openIssueCount: 2, unansweredQuestionCount: 1 }) },
+      (method, url) => (method === "GET" && url.startsWith("/api/v1/adrs/1/discussion") ? jsonResponse(200, discussionPageFixture([entryFixture({ kind: "ISSUE", body: "It leaks" })])) : null),
+    );
+    const user = userEvent.setup();
+    renderDetails();
+    await screen.findByRole("heading", { level: 2, name: "Use PostgreSQL" });
+    expect(screen.getByRole("tab", { name: "Document", selected: true })).toBeInTheDocument();
+    expect(stub.count("GET", "/api/v1/adrs/1/discussion")).toBe(0);
+    expect(screen.getByRole("tab", { name: "Discussion unanswered: 1" })).toBeInTheDocument();
+    await user.click(screen.getByRole("tab", { name: "Issues open: 2" }));
+    expect(await screen.findByText("It leaks")).toBeInTheDocument();
+    expect(screen.getByRole("heading", { level: 3, name: "Issues and escalations" })).toBeInTheDocument();
+    expect(screen.queryByRole("heading", { level: 3, name: "Problem / question" })).not.toBeInTheDocument();
+  });
+
+  test("a tab switch keeps an unsaved edit, and Edit from another tab brings the document forward", async () => {
+    serve({ adr: adrFixture({ participants: PEOPLE }) }, (method, url) =>
+      method === "GET" && url.startsWith("/api/v1/adrs/1/discussion") ? jsonResponse(200, discussionPageFixture([])) : null,
+    );
+    const user = userEvent.setup();
+    renderDetails();
+    await user.click(await screen.findByRole("button", { name: "Edit" }));
+    await user.type(screen.getByRole("textbox", { name: /^Context/ }), "Unsaved context");
+    await user.click(screen.getByRole("tab", { name: "Discussion" }));
+    expect(await screen.findByRole("textbox", { name: /Your comment or question/ })).toBeInTheDocument();
+    // The editor is hidden, not gone, and Edit is still offered: clicking it brings the document tab forward.
+    await user.click(screen.getByRole("tab", { name: "Document" }));
+    expect(screen.getByRole("textbox", { name: /^Context/ })).toHaveValue("Unsaved context");
+    await user.click(screen.getByRole("button", { name: "Cancel" }));
+    await user.click(screen.getByRole("tab", { name: "Issues" }));
+    await user.click(screen.getByRole("button", { name: "Edit" }));
+    expect(screen.getByRole("tab", { name: "Document", selected: true })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { level: 3, name: "Edit the ADR" })).toBeInTheDocument();
   });
 
   test("a non-participant reads everything but is offered no Edit, no moves and no participant editing", async () => {

@@ -7,7 +7,8 @@ const t = i18n.t.bind(i18n);
 const problem = (status: number, type?: string) => new ApiError(status, type ? { type, status } : { status });
 
 describe("ADR write errors", () => {
-  test("the three typed 409s are told apart by their problem type", () => {
+  test("the typed 409s are told apart by their problem type", () => {
+    expect(adrConflict(problem(409, "urn:hammurabi:problem:discussion-closed"))).toBe("discussionClosed");
     expect(adrConflict(problem(409, "urn:hammurabi:problem:revision-conflict"))).toBe("revision");
     expect(adrConflict(problem(409, "urn:hammurabi:problem:adr-frozen"))).toBe("frozen");
     expect(adrConflict(problem(409, "urn:hammurabi:problem:illegal-transition"))).toBe("illegalTransition");
@@ -24,6 +25,12 @@ describe("ADR write errors", () => {
     expect(adrWriteError(problem(409, "urn:hammurabi:problem:revision-conflict"), t, "save")).toMatch(/Someone else changed this ADR/);
     expect(adrWriteError(problem(409, "urn:hammurabi:problem:adr-frozen"), t, "save")).toMatch(/frozen/);
     expect(adrWriteError(problem(409, "urn:hammurabi:problem:illegal-transition"), t, "transition")).toMatch(/cannot move there/);
+  });
+
+  test("a discussion write has its own words: the closed window, the vanished entry and what to check", () => {
+    expect(adrWriteError(problem(409, "urn:hammurabi:problem:discussion-closed"), t, "discussion")).toMatch(/status no longer takes this/);
+    expect(adrWriteError(problem(404), t, "discussion")).toBe("This entry or its ADR no longer exists.");
+    expect(adrWriteError(problem(400), t, "discussion")).toMatch(/at most 10,000 characters/);
   });
 
   test("a plain 409 is a name clash; 403 and 404 have their own words", () => {

@@ -62,13 +62,16 @@ most one `APPROVER` (required to enter `IN_REVIEW`); any number of `CONTRIBUTOR`
 
 | Action | Who |
 |---|---|
-| read, list, history, comment (pre-active), raise an issue (active) | any authenticated user |
+| read, list, history, discussion; comment or ask (pre-active), raise an issue or an escalation (active) | any authenticated user |
 | create | any authenticated user (becomes the Driver) |
 | edit content (pre-active states) | Driver, Contributors, ADMIN |
 | `→ SOLUTION_DRAFT`, `→ IN_REVIEW`, `→ CANCELLED` | Driver, ADMIN |
 | `→ ACTIVE`, `→ WITHDRAWN` | Approver, ADMIN |
 | change participants, expiry date, tags, successor | Driver, Approver, ADMIN (the Driver role can be handed over, never left empty) |
-| resolve an issue | Driver, Approver, ADMIN |
+| resolve or reopen an issue / escalation | Driver, Approver, ADMIN |
+| answer or reopen a question | its author, Driver, Approver, ADMIN |
+| edit a discussion entry | its author only |
+| delete a discussion entry (a tombstone) | its author, ADMIN |
 | soft-delete | ADMIN only |
 
 Guards run before validation: a forbidden write is `403` even when its body is also invalid (`authorization.md`). A missing ADR is `404`.
@@ -90,7 +93,7 @@ Driver), `UPDATED` `{changed: "name,context,…", <field>.from?, <field>.to?}` (
 alternatives, consequences — by NAME only, the short ones `name` and `expiresOn` with their sides, an absent side meaning unset; Toadie's
 `FieldChange` vocabulary, one event per save), `TRANSITIONED` `{from, to}`, `PARTICIPANT_ADDED` / `PARTICIPANT_REMOVED` `{userId, name, role}`,
 `PARTICIPANT_CHANGED` `{userId, name, from, to}`, `EXPIRED` `{expiresOn}` (system actor), `SUPERSEDED` (system actor; reserved, written from 0.4.0),
-later `TAGGED`, `SUCCESSOR_LINKED`, `COMMENTED`, `ISSUE_RAISED`, `ISSUE_RESOLVED`. A no-op save records nothing, and so does a refused write. The
+the discussion's eight (0.3.0, below: `COMMENTED`, `QUESTION_ASKED`, `QUESTION_ANSWERED`, `QUESTION_REOPENED`, `ISSUE_RAISED`, `ESCALATED`, `ISSUE_RESOLVED`, `ISSUE_REOPENED`), later `TAGGED`, `SUCCESSOR_LINKED`. A no-op save records nothing, and so does a refused write. The
 actor is the acting user (`userId`, `userName`, `userDeleted`), or NULL for a system event. Read through `GET /api/v1/adrs/{id}/events` (paged,
 newest first by default, sortable by `id` and `createdAt`; any authenticated user). A soft delete is audit-only (the ADR is gone from every read).
 
@@ -102,18 +105,41 @@ date is the last day in force) to `EXPIRED`, each in its own transaction (the re
 Idempotent and safe on several replicas (the candidate scan is only a filter; each ADR is re-read under its row lock with the status and date
 predicate). "Today" is an injected `Clock`, so tests expire deterministically (`AdrExpirySweepTest`); the suite itself runs no loop.
 
-## Endpoints (0.2.0)
+## Endpoints (0.2.0, discussion 0.3.0)
 
 `GET /adrs` (paged; filters `status` any-of, `q` name-or-key, `participant` + `role`; sort `id`, `number` (default, newest first), `name`, `updatedAt`,
 `status` in lifecycle order), `POST /adrs`, `GET /adrs/{id}`, `PUT /adrs/{id}` (document, `X-Expected-Revision`), `POST /adrs/{id}/transitions`
-(`{to}`, `X-Expected-Revision`, answers the ADR), `PUT /adrs/{id}/participants`, `GET /adrs/{id}/events`, `DELETE /adrs/{id}` (ADMIN). The contract is
+(`{to}`, `X-Expected-Revision`, answers the ADR), `PUT /adrs/{id}/participants`, `GET /adrs/{id}/events`, `DELETE /adrs/{id}` (ADMIN), and the discussion routes below. The contract is
 `openapi/documentation.yaml`; the permission order `authorization.md`; the audit events `observability.md`.
 
-## Discussion (0.3.0)
+## Discussion (`adr_discussion`, 0.3.0 — built)
 
-`adr_discussion` (Covenant's `version_reviews`, ported): `kind` `COMMENT`/`QUESTION` (accepted while the ADR is pre-active; a question can be
-marked answered) or `ISSUE`/`ESCALATION` (accepted while `ACTIVE`; `OPEN`/`RESOLVED`). Markdown body ≤ 10 000 chars; author edits own;
-soft-deleted with a tombstone.
+`adrs/AdrDiscussion*.kt`, V12; Covenant's `version_reviews` ported and reshaped (its open/outdated/closed review and approvals are gone: an ADR has ONE open thread, an entry has a kind and a state). One table, one service
+(`AdrDiscussionService`), the pure verdicts in `AdrDiscussionAccess.kt`. An open decision log: **any authenticated user reads and posts**.
+
+| Kind | Accepted while the ADR is | State | Settled by |
+|---|---|---|---|
+| `COMMENT` | `PROBLEM_RAISED`, `SOLUTION_DRAFT`, `IN_REVIEW` | none | - |
+| `QUESTION` | the same | `OPEN` → `ANSWERED` (and back) | its author, the Driver, the Approver, ADMIN |
+| `ISSUE`, `ESCALATION` | `ACTIVE` | `OPEN` → `RESOLVED` (and back), an optional `resolution` note (≤ 2 000) | the Driver, the Approver, ADMIN |
+
+- **The window** (`DiscussionKind.acceptedIn`) is judged under the ADR row lock (`FOR NO KEY UPDATE`, like every ADR write), so a post can never slip in after a lifecycle move; outside it a post or an edit is the typed `409` `urn:hammurabi:problem:discussion-closed`. The
+  **state change** (answer, resolve, reopen) and the **delete** are open in EVERY status: an issue on an ADR that later expired or was superseded can still be settled, a question answered after activation, and the moderation path is never closed. Reads are open in every status: **entries stay readable forever**.
+  A discussion write never bumps the ADR `revision` (the discussion is not part of the document), so it never conflicts with a document edit.
+- **The entry.** Markdown `body` 1–10 000 characters (`sanitizeMultiLine`; blank, too long or a control character is `400`), the author, `createdAt`, `editedAt` (the author's edit; the same text writes nothing), `status`, `resolution`,
+  `stateChangedBy/At`. A **soft delete leaves a tombstone**: `deleted` true, `body`, `status`, `resolution`, `editedAt`, `stateChangedBy` and `stateChangedAt` null on the wire AND wiped in the table (`ck_adr_discussion_tombstone` pins that shape), kind/author/`createdAt` kept; no status filter and no count sees it; a write to a deleted
+  entry is `404`. Each entry carries the caller's verdicts (`canEdit`: the author, window open; `canDelete`: the author or ADMIN, not yet deleted; `canChangeState`: a live entry with a state and the role above, in any ADR status) so the SPA never re-derives them. The ADR
+  carries `canComment` / `canRaiseIssue` (the window as a flag: the composers) and the counts `openIssueCount` (open issues + escalations) and `unansweredQuestionCount` (open questions), tombstones excluded; the list rows carry `openIssueCount`.
+  The counts are ONE aggregate per read or list page (`WHERE adr_id IN (...) AND status = 'OPEN' AND NOT marked_as_deleted GROUP BY adr_id, kind`) over the partial index `idx_adr_discussion_open`.
+- **Routes.** `GET /adrs/{id}/discussion` (paged; `kind` any-of, `status`; sort `id`, `createdAt`; default **oldest first**), `POST` (201 + `Location`, answers the entry), `GET .../{entryId}`, `PUT .../{entryId}` (edit the body, author only),
+  `DELETE .../{entryId}` (204), `PUT .../{entryId}/state` (`{status, resolution?}`: set the target state, idempotent - answered/resolved/reopened; answers the entry). Order of one write (`authorization.md`): the ADR / entry (`404`; an entry of another ADR is
+  `404`) → the coarse guard (`403` before the body) → the body (`400`) → under the lock the guard again, then (post and edit only) the window (`409`), then the state against the kind (`400`: a comment has no state, a question is `OPEN`/`ANSWERED`, an issue `OPEN`/`RESOLVED`, a note only with `RESOLVED`).
+- **History.** Every post and every REAL state change is an `adr_events` row in the same transaction, params `{entryId, kind}` (never the text; the SPA reads the entry through the discussion endpoint): `COMMENTED`, `QUESTION_ASKED`,
+  `ISSUE_RAISED`, `ESCALATED` on a post; `QUESTION_ANSWERED` / `QUESTION_REOPENED`, `ISSUE_RESOLVED` / `ISSUE_REOPENED` (the `kind` param says issue or escalation) on a state change; setting the state an entry already has records nothing. The one exception to "nothing": a RESOLVED entry given a DIFFERENT note keeps its state and has the note replaced (an empty one clears it; who/when follow the editor), still with no history event and audited as `adr.discussion_state_changed` with `from == to`; the same note is a plain no-op.
+  **Edits and deletes are NOT events** (decision): the entry itself shows `editedAt` / the tombstone, and the audit trail has `adr.discussion_edited` / `adr.discussion_deleted`; an event per edit would drown the ADR's history in typing.
+- **Audit** (`observability.md`): `adr.discussion_posted`, `adr.discussion_edited`, `adr.discussion_deleted` (with `byAdmin`), `adr.discussion_state_changed` (`from`/`to`) after the commit, only on a change; a `403` is the generic `authz.denied`.
+- **Body ceilings** (`plugins/Http.kt`): an entry post or edit 64 KiB (`MAX_DISCUSSION_REQUEST_BODY_BYTES`, sized so even a body whose every unit is `\u`-escaped, 60 000 bytes, fits), the state PUT the 16 KiB small ceiling.
+- **Web.** The ADR page's Discussion tab (comments and questions) and Issues tab (issues and escalations), `web/CLAUDE.md` "The ADR pages".
 
 ## Tags (0.4.0)
 

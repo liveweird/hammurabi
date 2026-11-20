@@ -14,10 +14,10 @@ in-network consumers use `postgres:5432`). There is one persistence stack:
   makes every long-lived database refuse to boot (a failure no fresh-container CI run can see).
   `MigrationChecksumTest` pins every file's checksum; a new migration adds one manifest line, and
   a red pin means REVERT the edit (clarifications go into this doc), never update the pinned
-  value. The range today is **V1–V11**: V1 `users`, V2 `revoked_tokens`, V3 the seed admin, V4 the
+  value. The range today is **V1–V12**: V1 `users`, V2 `revoked_tokens`, V3 the seed admin, V4 the
   `unaccent` extension, V5 `user_disabled_features` (V1–V5 are Flow's), V6 `teams` (with the optional
   manager), V7 `users.credential_revision`, V8 `password_reset_tokens`, V9 the `ops` telemetry
-  schema, V10 `adrs` + `adr_participants`, V11 `adr_events`. (The bootstrap renumbered the donor's history; from V10 on, migrations are append-only like any other.)
+  schema, V10 `adrs` + `adr_participants`, V11 `adr_events`, V12 `adr_discussion`. (The bootstrap renumbered the donor's history; from V10 on, migrations are append-only like any other.)
 - **Exposed + R2DBC** (`infra/db/Database.kt` + the feature services) — runtime DB access.
   `Database.kt` connects the `R2dbcDatabase` and is the composition root: it constructs the
   services and publishes them into `Application.attributes` (`UserServiceKey`, `TeamServiceKey`,
@@ -160,7 +160,7 @@ place:
 - `auth/PasswordResetService` (V8) READS `users/UserService.Users` (the `active()` / `credential_revision` / `email` predicate
   of a grant's liveness, and `FOR UPDATE` on the user row) and WRITES `users.password_hash` / `password_changed_at` / `credential_revision`
   through `users`' `updatePasswordInTransaction` inside its own transaction (the grant is consumed in the same transaction).
-- `adrs/AdrParticipantService` (`adr_participants`) READS `users/UserService.Users` in the ADR write's own transaction: the display name of each participant (joined, a soft-deleted user keeps the name) and the `active()` check of every user a set adds or re-roles (a client-supplied FK is a `400`, never a constraint `500`); `adrs/AdrEventService`'s `EventLog` LEFT-joins `Users` for the actor's name and deletion flag (`infra/db/EventLog.kt`: the feature passes the actor table in, `infra/` names no feature). Both write only `adr_*`. `AdrService` writes `adrs.created_by` / `adr_participants.added_by` / `adr_events.user_id` (FKs to `users`, no `ON DELETE` rule: users soft-delete only).
+- `adrs/AdrParticipantService` (`adr_participants`) READS `users/UserService.Users` in the ADR write's own transaction: the display name of each participant (joined, a soft-deleted user keeps the name) and the `active()` check of every user a set adds or re-roles (a client-supplied FK is a `400`, never a constraint `500`); `adrs/AdrEventService`'s `EventLog` LEFT-joins `Users` for the actor's name and deletion flag (`infra/db/EventLog.kt`: the feature passes the actor table in, `infra/` names no feature). `adrs/AdrDiscussionService` (`adr_discussion`, V12) READS `users/UserService.Users` (the names and deletion flags of an entry's author and resolver, one batched `id IN (...)` per page, a soft-deleted user keeps the name), READS `adrs` (the status and number, locked `FOR NO KEY UPDATE` on a write) and `adr_participants` (the caller's role, through `AdrParticipantService.roleOf`), and WRITES `adr_discussion` plus `adr_events` (through `AdrEventService.record`, same transaction); `AdrService` READS `adr_discussion` for the counts (`AdrDiscussionService.countsOf`, which runs in the read's or list page's own transaction and spells the index predicate as literals so a prepared plan can use the partial index). Both write only `adr_*`. `AdrService` writes `adrs.created_by` / `adr_participants.added_by` / `adr_events.user_id` (FKs to `users`, no `ON DELETE` rule: users soft-delete only); `AdrDiscussionService` writes `adr_discussion.author_id` / `state_changed_by` likewise.
 - `plugins/Health.kt` (`GET /api/v1/ready`, the readiness probe) READS `users/UserService.Users` (`id`, `LIMIT 1`), a bounded round trip
   that proves the database answers; it writes nothing and returns no row.
 - `telemetry/StorageCollectors.kt` (the storage panel) reads, OUTSIDE the telemetry cluster transaction (the heavy phase: each statement is a short
@@ -176,7 +176,7 @@ List each new cross-feature read/write here as it lands — the list IS the perm
 Hammurabi's PostgreSQL database is split across schemas:
 
 - **`public`** — the foundation tables (`users`, `teams`, `revoked_tokens`, `user_disabled_features`, `password_reset_tokens`) and the
-  ADR tables (`adrs`, `adr_participants`, `adr_events` today; `adr-model.md`). Flyway's own history table also stays here — `flyway.schemas` is left at its default.
+  ADR tables (`adrs`, `adr_participants`, `adr_events`, `adr_discussion` today; `adr-model.md`). Flyway's own history table also stays here — `flyway.schemas` is left at its default.
 - **`ops`** — Hammurabi's own operational telemetry (V9, "Telemetry (V9)" below): the process registry and the metric samples each
   process writes about itself. Numbers and labels only, never user or ADR data.
 
@@ -223,7 +223,7 @@ transaction under `TELEMETRY_LOCK_KEY`, and a row exactly at its cutoff stays. T
 
 ### Soft delete (convention)
 
-`users`, `teams` and `adrs` are **soft-deleted** — rows are flagged, never physically removed; every
+`users`, `teams`, `adrs` and `adr_discussion` (a deleted entry is a tombstone) are **soft-deleted** — rows are flagged, never physically removed; every
 business entity follows the same convention. Only join/token tables (today: `revoked_tokens`, a
 pure token registry, `password_reset_tokens` (V8, expiring single-use credentials, not history), `user_disabled_features`, a pure flag join
 whose PUT is a wholesale replace, `adr_participants`, a current-fact join replaced as a diff whose every change is an `adr_events` row, and the
@@ -307,9 +307,9 @@ digests agree — this is key-order independence, not general structural equalit
 does not normalize number spelling (`1`, `1.0` and `1e0` stay distinct token text). The output must stay byte-stable, since stored
 text and sha256 are compared against stored rows.
 
-### ADRs (V10, V11)
+### ADRs (V10, V11, V12)
 
-`adrs` (`adrs/AdrService.kt`), `adr_participants` (`AdrParticipantService.kt`) and `adr_events` (`AdrEventService.kt`, V11); the domain is `adr-model.md`.
+`adrs` (`adrs/AdrService.kt`), `adr_participants` (`AdrParticipantService.kt`), `adr_events` (`AdrEventService.kt`, V11) and `adr_discussion` (`AdrDiscussionService.kt`, V12); the domain is `adr-model.md`.
 
 - **Ids.** `adrs.id` is `SERIAL` like `teams` (the `UIntIdTable` the whole feature template, `EventLog` and `lockActiveForWrite` share); the human-readable id is `"number"`, `ADR-` + the number zero-padded to four digits (`adrKey`). `adr-model.md`'s first sketch said UUID row keys; the foundation's every helper is `UInt`-keyed, so the row id stays an integer and the number is what people see.
 - **The number counter and its lock.** ONE global counter: `MAX("number") + 1` over EVERY row (a soft-deleted ADR keeps its number; none is reused) taken under `pg_advisory_xact_lock(ADR_NUMBER_LOCK_KEY)` (the single-`bigint` form, the ASCII bytes of "ADRNUMBR"), the first statement of a create after its cheap reads. Transaction-scoped: released at commit or rollback, so a failed create never leaves the counter stuck. A row lock cannot serialise it (a create has no row yet, and `MAX` is no `FOR UPDATE`); a lock row in a one-row table would need a migration and the same wait. Writers of the counter queue only for one `INSERT` plus its participants and event. `uq_adrs_number` (unique over all rows) is the backstop: a bypass fails an insert instead of duplicating a number. Pinned by `AdrTest` (twelve parallel creates: distinct, gapless) and "never reused".
@@ -319,10 +319,15 @@ text and sha256 are compared against stored rows.
 - **History.** `adr_events (adr_id, user_id NULLABLE, created_at, event_type, params)`: the actor is NULL for a system event (the expiry sweep). `(adr_id, created_at, id)` serves the newest-first page. No CHECK on `event_type` or on `adrs.status` / `adr_participants.role` (the V5 rule: the Kotlin enums are the whitelists).
 - **Revision.** `adrs.revision` guards the document PUT, the transitions and the participants PUT (`X-Expected-Revision`); every real change of any of them bumps it (a no-op participants set only does not). The expiry sweep bumps it (a stale reader's next write conflicts).
 - **Sweep index.** `idx_adrs_expiry (expires_on) WHERE status = 'ACTIVE' AND expires_on IS NOT NULL AND NOT marked_as_deleted` serves the candidate scan.
+- **Discussion (V12).** `adr_discussion (adr_id, kind, status NULLABLE, body, resolution, author_id, created_at, edited_at, state_changed_by/at, marked_as_deleted, deleted_at)`; no CHECK on `kind`/`status` (the V5 rule), CHECKs on the
+  body/resolution lengths and on a non-blank body unless deleted. A soft delete WIPES `body` and `resolution` and nulls `status`, `edited_at` and `state_changed_by/at` (`ck_adr_discussion_tombstone` pins it, with `deleted_at` stamped) (a tombstone is in no state, so no status filter and no count matches it; the text is gone from the store, not merely hidden).
+  `idx_adr_discussion_adr_created (adr_id, created_at, id)` serves the oldest-first page; the PARTIAL `idx_adr_discussion_open (adr_id, kind) WHERE status = 'OPEN' AND NOT marked_as_deleted` serves the counts the ADR rows carry
+  (`openIssueCount`, `unansweredQuestionCount`): one `GROUP BY adr_id, kind` per read or list page, whose predicate repeats the index's (`status = 'OPEN'` and `active()`) so the planner can use it. Every discussion write locks the `adrs` row
+  `FOR NO KEY UPDATE` (the window is judged under it) and never bumps `adrs.revision`; `AdrRowLockTest` pins both halves.
 - **Locking.** Every ADR write: `FOR NO KEY UPDATE` on the `adrs` row ("Row locks vs. FK locks"), the caller's role re-read under it, then state, revision, requirements, writes and events in ONE transaction.
 
 ### Planned persistence (not yet built)
 
-The remaining ADR tables arrive with v0.3–v0.5; their sketch (`adr_discussion`, `adr_tags`, the `supersedes_id` link, the generated search vector;
+The remaining ADR tables arrive with v0.4–v0.5; their sketch (`adr_tags`, the `supersedes_id` link, the generated search vector;
 epoch-millis timestamps, `SoftDeletable`, partial unique indexes) is in `adr-model.md`. The schema list, the soft-delete list and the cross-feature list above grow in the same commit as each
 migration. The ported-later infrastructure is named in `product.md` "Donors" (`infra/db/Fts.kt`, `lockingTransaction`).

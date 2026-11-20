@@ -31,6 +31,7 @@ class MigrationChecksumTest {
         "V9__create_ops_telemetry.sql" to -732619381,
         "V10__create_adrs.sql" to 391789646,
         "V11__create_adr_events.sql" to -263560368,
+        "V12__create_adr_discussion.sql" to 1682926896,
     )
 
     @Test

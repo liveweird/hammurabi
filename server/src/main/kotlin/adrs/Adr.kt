@@ -99,6 +99,14 @@ data class AdrResponse(
     val canEdit: Boolean,
     /** This caller may replace the participants now (the Driver, the Approver or an ADMIN, on a non-terminal ADR). */
     val canManageParticipants: Boolean,
+    /** The discussion takes a comment or a question now (a pre-active status): the composer. Anyone authenticated may post. */
+    val canComment: Boolean,
+    /** The discussion takes an issue or an escalation now (`ACTIVE`): the composer. Anyone authenticated may post. */
+    val canRaiseIssue: Boolean,
+    /** The OPEN issues and escalations (deleted entries excluded). */
+    val openIssueCount: Int,
+    /** The OPEN questions (deleted entries excluded). */
+    val unansweredQuestionCount: Int,
 )
 
 /** One row of the list: the headline fields plus the Driver and the Approver (the two a list is read by). */
@@ -116,6 +124,8 @@ data class AdrListItem(
     val statusChangedAt: Long,
     val driver: AdrParticipant?,
     val approver: AdrParticipant?,
+    /** The OPEN issues and escalations (deleted entries excluded). */
+    val openIssueCount: Int,
 )
 
 typealias AdrPageResponse = PageResponse<AdrListItem>
@@ -142,8 +152,11 @@ data class AdrRecord(
 /** A record with its participants (driver first, then approver, contributors, informed). */
 data class AdrView(val record: AdrRecord, val participants: List<AdrParticipant>)
 
-/** The response as [standing]'s caller sees it; its verdicts (`allowedTransitions`, `canEdit`, ...) come from `AdrAccess.kt`. */
-fun AdrView.toResponse(standing: AdrStanding): AdrResponse = AdrResponse(
+/**
+ * The response as [standing]'s caller sees it; its verdicts (`allowedTransitions`, `canEdit`, ...) come from `AdrAccess.kt`, the counts
+ * from the discussion.
+ */
+fun AdrView.toResponse(standing: AdrStanding, counts: DiscussionCounts): AdrResponse = AdrResponse(
     id = record.id,
     number = record.number,
     key = adrKey(record.number),
@@ -164,6 +177,10 @@ fun AdrView.toResponse(standing: AdrStanding): AdrResponse = AdrResponse(
     allowedTransitions = allowedTransitions(standing, record.status),
     canEdit = canEdit(standing, record.status),
     canManageParticipants = canManageParticipants(standing, record.status),
+    canComment = DiscussionKind.COMMENT.acceptedIn(record.status),
+    canRaiseIssue = DiscussionKind.ISSUE.acceptedIn(record.status),
+    openIssueCount = counts.openIssues,
+    unansweredQuestionCount = counts.unansweredQuestions,
 )
 
 /** The list filters (all optional, whitelisted by the route). */

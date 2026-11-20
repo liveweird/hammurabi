@@ -69,6 +69,7 @@ class AdrService(
     private val database: R2dbcDatabase,
     private val participants: AdrParticipantService,
     private val events: AdrEventService,
+    private val discussion: AdrDiscussionService,
     private val clock: Clock = Clock.systemUTC(),
 ) {
     object Adrs : UIntIdTable("adrs"), SoftDeletable {
@@ -134,7 +135,8 @@ class AdrService(
     suspend fun read(id: UInt, caller: CallerPrincipal): AdrResponse? = suspendTransaction(database) {
         val record = activeRow(id)?.toRecord() ?: return@suspendTransaction null
         val view = AdrView(record, participants.forAdr(id))
-        view.toResponse(AdrStanding(caller, view.participants.firstOrNull { it.userId == caller.userId }?.role))
+        val counts = discussion.countsOf(listOf(id))[id] ?: DiscussionCounts()
+        view.toResponse(AdrStanding(caller, view.participants.firstOrNull { it.userId == caller.userId }?.role), counts)
     }
 
     suspend fun list(filter: AdrListFilter, paging: PageRequest): AdrListResult = suspendTransaction(database) {
@@ -142,6 +144,7 @@ class AdrService(
         val total = Adrs.selectAll().where { predicate }.count()
         val rows = Adrs.selectAll().where { predicate }.applyPaging(paging, ADR_SORT_COLUMNS).toList().map { it.toRecord() }
         val leads = participants.leadsOf(rows.map { it.id })
+        val counts = discussion.countsOf(rows.map { it.id })
         AdrListResult(
             items = rows.map { record ->
                 val lead = leads[record.id].orEmpty()
@@ -158,6 +161,7 @@ class AdrService(
                     statusChangedAt = record.statusChangedAt,
                     driver = lead.firstOrNull { it.role == AdrRole.DRIVER },
                     approver = lead.firstOrNull { it.role == AdrRole.APPROVER },
+                    openIssueCount = counts[record.id]?.openIssues ?: 0,
                 )
             },
             total = total,

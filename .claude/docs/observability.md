@@ -116,7 +116,9 @@ with `hasKeyValue` from `TestEnvironment.kt`). Emitted today:
   comma-joined field names, never a value; only when the document PUT changed something, a no-op audits nothing) / `adr.transitioned`
   (byUserId/adrId/number/revision/from/to) / `adr.participants_changed` (byUserId/adrId/number/revision/added/removed/changed - `userId:ROLE` lists, `userId:FROM>TO` for a
   role change, so a Driver or Approver handover is on the trail; only on an actual change) / `adr.deleted` (byUserId/adrId; ADMIN soft delete) /
-  `adr.expired` (adrId/number/expiresOn - NO `byUserId`: the system, the expiry sweep) - every ADR mutation after its commit; a refused or conflicting
+  `adr.expired` (adrId/number/expiresOn - NO `byUserId`: the system, the expiry sweep) / `adr.discussion_posted` (byUserId/adrId/number/entryId/kind) /
+  `adr.discussion_edited` (the same fields; only when the text changed) / `adr.discussion_deleted` (the same plus `byAdmin` - a moderation delete is visible) / `adr.discussion_state_changed` (the same plus `from`/`to`; only when the state really changed, or - `from == to` - when a RESOLVED entry's note did) - the discussion's four, never the
+  text; every ADR mutation after its commit; a refused or conflicting
   write (403/409/400) emits none, a 403 is the generic `authz.denied`; content (the name and the Markdown fields) is never a field,
 - `bootstrap.admin_password_rotated` (userId/email — the fixed seed-admin email, never the password or
   its hash; `infra/db/Bootstrap.kt`, only when `ADMIN_INITIAL_PASSWORD` actually replaced the seed

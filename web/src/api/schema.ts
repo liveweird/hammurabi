@@ -658,6 +658,109 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/adrs/{id}/discussion": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["parameters"]["ResourceId"];
+            };
+            cookie?: never;
+        };
+        /**
+         * An ADR's discussion
+         * @description Any authenticated user, in EVERY ADR status (the discussion stays readable forever). The entries of the ADR, oldest first, a
+         *     deleted entry as a tombstone (`deleted` true, no `body`). Each entry carries THIS caller's verdicts (`canEdit`, `canDelete`,
+         *     `canChangeState`).
+         *
+         *     - Sortable fields: `id`, `createdAt`. The default sort is `createdAt` ascending (oldest first); `id` ascending is always appended.
+         *     - Filters (optional, whitelisted): `kind` - repeatable, any-of (`kind=COMMENT&kind=QUESTION`), at most one per kind, an unknown value
+         *       is `400`; `status` - one state (`OPEN`, `ANSWERED`, `RESOLVED`; a comment and a tombstone have none, so no status matches them).
+         */
+        get: operations["listAdrDiscussion"];
+        put?: never;
+        /**
+         * Post a comment, question, issue or escalation
+         * @description Any authenticated user - an open decision log. The window follows the ADR's status: a `COMMENT` or `QUESTION` is accepted while the
+         *     ADR is `PROBLEM_RAISED`, `SOLUTION_DRAFT` or `IN_REVIEW`, an `ISSUE` or `ESCALATION` only while it is `ACTIVE`; any other status is
+         *     `409` `urn:hammurabi:problem:discussion-closed`. The body is Markdown, 1 to 10,000 characters after normalisation (`400` otherwise).
+         *     A question, issue or escalation starts `OPEN`; a comment has no state. Records a `COMMENTED`, `QUESTION_ASKED`, `ISSUE_RAISED` or
+         *     `ESCALATED` event in the ADR's history. Guard order: the ADR must exist (`404`), then the body (`400`), then the window (`409`).
+         */
+        post: operations["postAdrDiscussionEntry"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/adrs/{id}/discussion/{entryId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["parameters"]["ResourceId"];
+                /** @description A discussion entry of the ADR in the path; one of another ADR is `404`. */
+                entryId: components["parameters"]["DiscussionEntryId"];
+            };
+            cookie?: never;
+        };
+        /**
+         * One discussion entry
+         * @description Any authenticated user, in every ADR status; a deleted entry reads as its tombstone.
+         */
+        get: operations["getAdrDiscussionEntry"];
+        /**
+         * Edit a discussion entry
+         * @description The AUTHOR only (`403` for anyone else, an `ADMIN` included, before the body is read). Replaces the Markdown body (1 to 10,000
+         *     characters, `400` otherwise); the kind never changes. The same window as posting applies (`409`
+         *     `urn:hammurabi:problem:discussion-closed` once the ADR's status no longer takes the kind). A deleted entry is `404`. Sets `editedAt`;
+         *     the same text writes nothing. An edit is audit-only, not a history event. Answers the entry.
+         */
+        put: operations["editAdrDiscussionEntry"];
+        post?: never;
+        /**
+         * Delete a discussion entry
+         * @description The author or an `ADMIN` (`403` otherwise). A soft delete that leaves a TOMBSTONE: the entry stays in the list as `deleted` with no
+         *     body, no state and no resolution (the text is wiped from the store too). Allowed in EVERY ADR status - the moderation path is never
+         *     closed. An already deleted entry is `404`. Audit-only, not a history event.
+         */
+        delete: operations["deleteAdrDiscussionEntry"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/adrs/{id}/discussion/{entryId}/state": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["parameters"]["ResourceId"];
+                /** @description A discussion entry of the ADR in the path; one of another ADR is `404`. */
+                entryId: components["parameters"]["DiscussionEntryId"];
+            };
+            cookie?: never;
+        };
+        get?: never;
+        /**
+         * Answer, resolve or reopen an entry
+         * @description Sets the entry's state (idempotent). A `QUESTION` is `OPEN` or `ANSWERED`, an `ISSUE` or `ESCALATION` is `OPEN` or `RESOLVED`; a
+         *     `COMMENT` has no state and any other pairing is `400`. Who: for a question its author, the Driver, the Approver or `ADMIN`; for an
+         *     issue or escalation the Driver, the Approver or `ADMIN` - else `403` before the body is read. The optional `resolution` note
+         *     (at most 2,000 characters) travels only with `RESOLVED`; a reopen clears it. There is NO window: the state
+         *     changes in every ADR status (an issue on an expired or superseded ADR can still be resolved). Records a `QUESTION_ANSWERED`, `QUESTION_REOPENED`, `ISSUE_RESOLVED` or `ISSUE_REOPENED`
+         *     event when the state really changes. Setting the state the entry already has writes and records nothing, except that a `RESOLVED` entry sent
+         *     `RESOLVED` with a different `resolution` has its note replaced (none clears it) with no event. Answers the entry.
+         */
+        put: operations["setAdrDiscussionEntryState"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/telemetry/current": {
         parameters: {
             query?: never;
@@ -1060,6 +1163,14 @@ export interface components {
             canEdit: boolean;
             /** @description This caller may replace the participants now. */
             canManageParticipants: boolean;
+            /** @description The discussion takes a comment or a question now (the ADR is `PROBLEM_RAISED`, `SOLUTION_DRAFT` or `IN_REVIEW`); anyone authenticated may post. */
+            canComment: boolean;
+            /** @description The discussion takes an issue or an escalation now (the ADR is `ACTIVE`); anyone authenticated may post. */
+            canRaiseIssue: boolean;
+            /** @description The OPEN issues and escalations (deleted entries excluded). */
+            openIssueCount: number;
+            /** @description The OPEN questions (deleted entries excluded). */
+            unansweredQuestionCount: number;
         };
         AdrListItem: {
             /** Format: int32 */
@@ -1084,6 +1195,8 @@ export interface components {
             driver: components["schemas"]["AdrParticipant"] | null;
             /** @description The Approver; null until one is assigned. */
             approver: components["schemas"]["AdrParticipant"] | null;
+            /** @description The OPEN issues and escalations (deleted entries excluded). */
+            openIssueCount: number;
         };
         AdrPage: {
             items: components["schemas"]["AdrListItem"][];
@@ -1093,10 +1206,10 @@ export interface components {
             total: number;
         };
         /**
-         * @description The kinds of history, with their `params` (all strings): `CREATED` {key, name}; `UPDATED` {changed: comma-joined field names, `name.from`/`name.to`/`expiresOn.from`/`expiresOn.to` where short}; `TRANSITIONED` {from, to}; `PARTICIPANT_ADDED` and `PARTICIPANT_REMOVED` {userId, name, role}; `PARTICIPANT_CHANGED` {userId, name, from, to}; `EXPIRED` {expiresOn}, a system event; `SUPERSEDED` is reserved for successor links.
+         * @description The kinds of history, with their `params` (all strings): `CREATED` {key, name}; `UPDATED` {changed: comma-joined field names, `name.from`/`name.to`/`expiresOn.from`/`expiresOn.to` where short}; `TRANSITIONED` {from, to}; `PARTICIPANT_ADDED` and `PARTICIPANT_REMOVED` {userId, name, role}; `PARTICIPANT_CHANGED` {userId, name, from, to}; `EXPIRED` {expiresOn}, a system event; `SUPERSEDED` is reserved for successor links. The discussion events (`COMMENTED`, `QUESTION_ASKED`, `QUESTION_ANSWERED`, `QUESTION_REOPENED`, `ISSUE_RAISED`, `ESCALATED`, `ISSUE_RESOLVED`, `ISSUE_REOPENED`) carry {entryId, kind} - never the text; an edit or a delete of an entry is not an event.
          * @enum {string}
          */
-        AdrEventType: "CREATED" | "UPDATED" | "TRANSITIONED" | "PARTICIPANT_ADDED" | "PARTICIPANT_REMOVED" | "PARTICIPANT_CHANGED" | "EXPIRED" | "SUPERSEDED";
+        AdrEventType: "CREATED" | "UPDATED" | "TRANSITIONED" | "PARTICIPANT_ADDED" | "PARTICIPANT_REMOVED" | "PARTICIPANT_CHANGED" | "EXPIRED" | "SUPERSEDED" | "COMMENTED" | "QUESTION_ASKED" | "QUESTION_ANSWERED" | "QUESTION_REOPENED" | "ISSUE_RAISED" | "ESCALATED" | "ISSUE_RESOLVED" | "ISSUE_REOPENED";
         AdrEventResponse: {
             /** Format: int32 */
             id: number;
@@ -1126,6 +1239,84 @@ export interface components {
             /** Format: int64 */
             total: number;
         };
+        /**
+         * @description `COMMENT` and `QUESTION` are accepted while the ADR is pre-active (`PROBLEM_RAISED`, `SOLUTION_DRAFT`, `IN_REVIEW`); `ISSUE` and `ESCALATION` only while it is `ACTIVE`.
+         * @enum {string}
+         */
+        DiscussionKind: "COMMENT" | "QUESTION" | "ISSUE" | "ESCALATION";
+        /**
+         * @description A `QUESTION` is `OPEN` or `ANSWERED`; an `ISSUE` or `ESCALATION` is `OPEN` or `RESOLVED`. A `COMMENT` and a deleted entry have none.
+         * @enum {string}
+         */
+        DiscussionStatus: "OPEN" | "ANSWERED" | "RESOLVED";
+        DiscussionCreateRequest: {
+            kind: components["schemas"]["DiscussionKind"];
+            /** @description Markdown; not blank. */
+            body: string;
+        };
+        DiscussionEditRequest: {
+            /** @description The new Markdown text; not blank. */
+            body: string;
+        };
+        DiscussionStateRequest: {
+            status: components["schemas"]["DiscussionStatus"];
+            /** @description An optional note, only with `RESOLVED` (`400` with any other status); blank = none. */
+            resolution?: string | null;
+        };
+        DiscussionUser: {
+            /** Format: int32 */
+            id: number;
+            /** @description The display name as it is now (kept for a soft-deleted account). */
+            name: string;
+            /** @description The account has since been soft-deleted. */
+            deleted: boolean;
+        };
+        DiscussionEntry: {
+            /** Format: int32 */
+            id: number;
+            /** Format: int32 */
+            adrId: number;
+            kind: components["schemas"]["DiscussionKind"];
+            /** @description Absent for a comment and for a tombstone (neither has a state). */
+            status?: components["schemas"]["DiscussionStatus"];
+            /** @description Markdown; null for a tombstone (the text is gone). */
+            body: string | null;
+            /** @description A tombstone: the entry was deleted; only its kind, author and creation time remain. */
+            deleted: boolean;
+            author: components["schemas"]["DiscussionUser"];
+            /**
+             * Format: int64
+             * @description Epoch millis
+             */
+            createdAt: number;
+            /**
+             * Format: int64
+             * @description Epoch millis of the author's last edit.
+             */
+            editedAt: number | null;
+            /** @description The note of the last resolution, if it had one; cleared on a reopen. */
+            resolution: string | null;
+            /** @description Who last answered, resolved or reopened the entry. */
+            stateChangedBy: components["schemas"]["DiscussionUser"] | null;
+            /**
+             * Format: int64
+             * @description Epoch millis
+             */
+            stateChangedAt: number | null;
+            /** @description This caller is the author and the ADR's status still takes the kind. */
+            canEdit: boolean;
+            /** @description This caller is the author or an ADMIN and the entry is not deleted yet. */
+            canDelete: boolean;
+            /** @description This caller may answer, resolve or reopen the entry (any ADR status; false for a comment and a tombstone). */
+            canChangeState: boolean;
+        };
+        DiscussionPage: {
+            items: components["schemas"]["DiscussionEntry"][];
+            page: number;
+            pageSize: number;
+            /** Format: int64 */
+            total: number;
+        };
         /** @description RFC 7807 problem detail. Served as `application/problem+json`; instance is the request path without query parameters. */
         ProblemDetail: {
             /**
@@ -1136,6 +1327,7 @@ export interface components {
              *     - `urn:hammurabi:problem:revision-conflict` (409): a stale `X-Expected-Revision`.
              *     - `urn:hammurabi:problem:illegal-transition` (409): an ADR lifecycle move the map does not allow, or one only the system makes.
              *     - `urn:hammurabi:problem:adr-frozen` (409): a write the ADR's status closes - content once `ACTIVE`, anything once terminal.
+             *     - `urn:hammurabi:problem:discussion-closed` (409): a discussion write the ADR's status does not take - a comment or question once `ACTIVE`, an issue or escalation before it (a post or an edit; a state change and a delete have no window).
              * @default about:blank
              */
             type: string;
@@ -1494,6 +1686,8 @@ export interface components {
         Q: string;
         /** @description Free-text search (API-LIST-005), OPTIONAL where declared (the ADR list): a case- and accent-insensitive substring match on the fields the endpoint names (an ADR's name or key), at most 100 characters. */
         OptionalQ: string;
+        /** @description A discussion entry of the ADR in the path; one of another ADR is `404`. */
+        DiscussionEntryId: number;
         /**
          * @description The revision of the document the caller read (`revision`). Missing, repeated or malformed is a `400`; a stale one is a `409`
          *     of type `urn:hammurabi:problem:revision-conflict`. Every successful PUT bumps the revision.
@@ -2514,6 +2708,206 @@ export interface operations {
             400: components["responses"]["BadRequest"];
             401: components["responses"]["Unauthorized"];
             404: components["responses"]["NotFound"];
+            500: components["responses"]["InternalServerError"];
+        };
+    };
+    listAdrDiscussion: {
+        parameters: {
+            query?: {
+                /** @description 1-based page index. Defaults to 1. */
+                page?: components["parameters"]["Page"];
+                /** @description Rows per page. Defaults to 20, maximum 100. */
+                pageSize?: components["parameters"]["PageSize"];
+                /**
+                 * @description Sort spec. Format: `field` (ascending) or `-field` (descending). Multiple fields are
+                 *     comma-separated, leftmost wins: `sort=-updatedAt,name`. The endpoint declares its
+                 *     sortable-field whitelist; unknown fields are rejected with `400`. `id` ascending is
+                 *     always appended as a deterministic tiebreaker.
+                 */
+                sort?: components["parameters"]["Sort"];
+                /** @description Any-of filter on the kind; repeat the key for several. */
+                kind?: components["schemas"]["DiscussionKind"][];
+                /** @description Only the entries in this state. */
+                status?: components["schemas"]["DiscussionStatus"];
+            };
+            header?: never;
+            path: {
+                id: components["parameters"]["ResourceId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description A page of entries */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DiscussionPage"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            404: components["responses"]["NotFound"];
+            500: components["responses"]["InternalServerError"];
+        };
+    };
+    postAdrDiscussionEntry: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["parameters"]["ResourceId"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["DiscussionCreateRequest"];
+            };
+        };
+        responses: {
+            /** @description Posted; `Location` points at the new entry */
+            201: {
+                headers: {
+                    Location?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DiscussionEntry"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            404: components["responses"]["NotFound"];
+            409: components["responses"]["Conflict"];
+            413: components["responses"]["PayloadTooLarge"];
+            415: components["responses"]["UnsupportedMediaType"];
+            500: components["responses"]["InternalServerError"];
+        };
+    };
+    getAdrDiscussionEntry: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["parameters"]["ResourceId"];
+                /** @description A discussion entry of the ADR in the path; one of another ADR is `404`. */
+                entryId: components["parameters"]["DiscussionEntryId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The entry */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DiscussionEntry"];
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+            404: components["responses"]["NotFound"];
+            500: components["responses"]["InternalServerError"];
+        };
+    };
+    editAdrDiscussionEntry: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["parameters"]["ResourceId"];
+                /** @description A discussion entry of the ADR in the path; one of another ADR is `404`. */
+                entryId: components["parameters"]["DiscussionEntryId"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["DiscussionEditRequest"];
+            };
+        };
+        responses: {
+            /** @description The entry after the edit */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DiscussionEntry"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+            409: components["responses"]["Conflict"];
+            413: components["responses"]["PayloadTooLarge"];
+            415: components["responses"]["UnsupportedMediaType"];
+            500: components["responses"]["InternalServerError"];
+        };
+    };
+    deleteAdrDiscussionEntry: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["parameters"]["ResourceId"];
+                /** @description A discussion entry of the ADR in the path; one of another ADR is `404`. */
+                entryId: components["parameters"]["DiscussionEntryId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Deleted */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+            500: components["responses"]["InternalServerError"];
+        };
+    };
+    setAdrDiscussionEntryState: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["parameters"]["ResourceId"];
+                /** @description A discussion entry of the ADR in the path; one of another ADR is `404`. */
+                entryId: components["parameters"]["DiscussionEntryId"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["DiscussionStateRequest"];
+            };
+        };
+        responses: {
+            /** @description The entry in its (new) state */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DiscussionEntry"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+            413: components["responses"]["PayloadTooLarge"];
+            415: components["responses"]["UnsupportedMediaType"];
             500: components["responses"]["InternalServerError"];
         };
     };

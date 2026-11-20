@@ -45,6 +45,20 @@ enum class AdrEventType {
 
     /** Reserved for the successor activation of 0.4.0 (a system event); nothing writes it yet. */
     SUPERSEDED,
+
+    /**
+     * The discussion (0.3.0, `adr-model.md` "Discussion"), each `{entryId, kind}` (never the text; the entry is read through the discussion
+     * endpoint): a comment, a question asked, an issue raised, an escalation raised; a question answered or reopened; an issue or
+     * escalation resolved or reopened. Edits and deletes of an entry are audit-only (the entry carries `editedAt` / the tombstone).
+     */
+    COMMENTED,
+    QUESTION_ASKED,
+    QUESTION_ANSWERED,
+    QUESTION_REOPENED,
+    ISSUE_RAISED,
+    ESCALATED,
+    ISSUE_RESOLVED,
+    ISSUE_REOPENED,
 }
 
 /** One event to append: the [type] and its string-map [params]. Built by the pure `adr*Event` functions below. */
@@ -74,6 +88,33 @@ fun adrParticipantChangedEvent(userId: UInt, name: String, from: AdrRole, to: Ad
 )
 
 fun adrExpiredEvent(expiresOn: String) = AdrEventDescriptor(AdrEventType.EXPIRED, mapOf("expiresOn" to expiresOn))
+
+private fun discussionEvent(type: AdrEventType, entryId: UInt, kind: DiscussionKind) =
+    AdrEventDescriptor(type, mapOf("entryId" to entryId.toString(), "kind" to kind.name))
+
+/** An entry was posted: the event type follows its kind. */
+fun adrDiscussionPostedEvent(entryId: UInt, kind: DiscussionKind) = discussionEvent(
+    when (kind) {
+        DiscussionKind.COMMENT -> AdrEventType.COMMENTED
+        DiscussionKind.QUESTION -> AdrEventType.QUESTION_ASKED
+        DiscussionKind.ISSUE -> AdrEventType.ISSUE_RAISED
+        DiscussionKind.ESCALATION -> AdrEventType.ESCALATED
+    },
+    entryId,
+    kind,
+)
+
+/** An entry moved to [to] (`ANSWERED` / `RESOLVED` settle it, `OPEN` reopens it): the type follows the kind and the direction. */
+fun adrDiscussionStateEvent(entryId: UInt, kind: DiscussionKind, to: DiscussionStatus) = discussionEvent(
+    when {
+        kind == DiscussionKind.QUESTION && to == DiscussionStatus.OPEN -> AdrEventType.QUESTION_REOPENED
+        kind == DiscussionKind.QUESTION -> AdrEventType.QUESTION_ANSWERED
+        to == DiscussionStatus.OPEN -> AdrEventType.ISSUE_REOPENED
+        else -> AdrEventType.ISSUE_RESOLVED
+    },
+    entryId,
+    kind,
+)
 
 /** One history entry: a null `userId` is the system; `userDeleted` marks an actor soft-deleted since (the recorded name stays). */
 @Serializable

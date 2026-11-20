@@ -1,11 +1,11 @@
 openapi: 3.1.0
 info:
   title: hammurabi-api
-  version: 0.2.0
+  version: 0.3.0
   description: |
     JWT-authenticated REST API for Hammurabi — Architecture Decision Records (ADRs) across their lifecycle, with DACI
     responsibility. It serves the Hammurabi web app and is versioned by its `/api/v1` path prefix. It exposes the ADRs
-    (`/adrs`: the record, its lifecycle transitions, its DACI participants and its history) on top of the accounts, teams,
+    (`/adrs`: the record, its lifecycle transitions, its DACI participants, its history and its discussion) on top of the accounts, teams,
     feature-flag and operational surface of the foundation.
 
     Authorization model: every user is implicitly a regular user; additional global roles (`ADMIN`) are carried as
@@ -40,7 +40,7 @@ tags:
   - name: teams
     description: Flat teams, the ownership unit chat features scope to - readable by any authenticated user, written by ADMIN only.
   - name: adrs
-    description: Architecture Decision Records - the record, its lifecycle transitions, its DACI participants and its history; readable by any authenticated user, written by the roles the caller holds on the ADR.
+    description: Architecture Decision Records - the record, its lifecycle transitions, its DACI participants, its history and its discussion (comments and questions before the decision is in force, issues and escalations while it is); readable and postable by any authenticated user, the record written by the roles the caller holds on the ADR.
   - name: telemetry
     description: Hammurabi's own vital signs (process memory, JVM, storage, request latency) and their 24h/7d/90d trends - ADMIN only.
 
@@ -1006,6 +1006,188 @@ paths:
         '404': { $ref: '#/components/responses/NotFound' }
         '500': { $ref: '#/components/responses/InternalServerError' }
 
+  /api/v1/adrs/{id}/discussion:
+    parameters:
+      - $ref: '#/components/parameters/ResourceId'
+    get:
+      tags: [adrs]
+      operationId: listAdrDiscussion
+      summary: An ADR's discussion
+      description: |
+        Any authenticated user, in EVERY ADR status (the discussion stays readable forever). The entries of the ADR, oldest first, a
+        deleted entry as a tombstone (`deleted` true, no `body`). Each entry carries THIS caller's verdicts (`canEdit`, `canDelete`,
+        `canChangeState`).
+
+        - Sortable fields: `id`, `createdAt`. The default sort is `createdAt` ascending (oldest first); `id` ascending is always appended.
+        - Filters (optional, whitelisted): `kind` - repeatable, any-of (`kind=COMMENT&kind=QUESTION`), at most one per kind, an unknown value
+          is `400`; `status` - one state (`OPEN`, `ANSWERED`, `RESOLVED`; a comment and a tombstone have none, so no status matches them).
+      parameters:
+        - $ref: '#/components/parameters/Page'
+        - $ref: '#/components/parameters/PageSize'
+        - $ref: '#/components/parameters/Sort'
+        - name: kind
+          in: query
+          required: false
+          style: form
+          explode: true
+          schema:
+            type: array
+            minItems: 1
+            maxItems: 4
+            items: { $ref: '#/components/schemas/DiscussionKind' }
+          description: Any-of filter on the kind; repeat the key for several.
+        - name: status
+          in: query
+          required: false
+          schema: { $ref: '#/components/schemas/DiscussionStatus' }
+          description: Only the entries in this state.
+      responses:
+        '200':
+          description: A page of entries
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DiscussionPage'
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '500': { $ref: '#/components/responses/InternalServerError' }
+    post:
+      tags: [adrs]
+      operationId: postAdrDiscussionEntry
+      summary: Post a comment, question, issue or escalation
+      description: |
+        Any authenticated user - an open decision log. The window follows the ADR's status: a `COMMENT` or `QUESTION` is accepted while the
+        ADR is `PROBLEM_RAISED`, `SOLUTION_DRAFT` or `IN_REVIEW`, an `ISSUE` or `ESCALATION` only while it is `ACTIVE`; any other status is
+        `409` `urn:hammurabi:problem:discussion-closed`. The body is Markdown, 1 to 10,000 characters after normalisation (`400` otherwise).
+        A question, issue or escalation starts `OPEN`; a comment has no state. Records a `COMMENTED`, `QUESTION_ASKED`, `ISSUE_RAISED` or
+        `ESCALATED` event in the ADR's history. Guard order: the ADR must exist (`404`), then the body (`400`), then the window (`409`).
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/DiscussionCreateRequest'
+      responses:
+        '415': { $ref: '#/components/responses/UnsupportedMediaType' }
+        '201':
+          description: Posted; `Location` points at the new entry
+          headers:
+            Location:
+              schema: { type: string }
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DiscussionEntry'
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/Conflict' }
+        '413': { $ref: '#/components/responses/PayloadTooLarge' }
+        '500': { $ref: '#/components/responses/InternalServerError' }
+
+  /api/v1/adrs/{id}/discussion/{entryId}:
+    parameters:
+      - $ref: '#/components/parameters/ResourceId'
+      - $ref: '#/components/parameters/DiscussionEntryId'
+    get:
+      tags: [adrs]
+      operationId: getAdrDiscussionEntry
+      summary: One discussion entry
+      description: Any authenticated user, in every ADR status; a deleted entry reads as its tombstone.
+      responses:
+        '200':
+          description: The entry
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DiscussionEntry'
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '500': { $ref: '#/components/responses/InternalServerError' }
+    put:
+      tags: [adrs]
+      operationId: editAdrDiscussionEntry
+      summary: Edit a discussion entry
+      description: |
+        The AUTHOR only (`403` for anyone else, an `ADMIN` included, before the body is read). Replaces the Markdown body (1 to 10,000
+        characters, `400` otherwise); the kind never changes. The same window as posting applies (`409`
+        `urn:hammurabi:problem:discussion-closed` once the ADR's status no longer takes the kind). A deleted entry is `404`. Sets `editedAt`;
+        the same text writes nothing. An edit is audit-only, not a history event. Answers the entry.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/DiscussionEditRequest'
+      responses:
+        '415': { $ref: '#/components/responses/UnsupportedMediaType' }
+        '200':
+          description: The entry after the edit
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DiscussionEntry'
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/Conflict' }
+        '413': { $ref: '#/components/responses/PayloadTooLarge' }
+        '500': { $ref: '#/components/responses/InternalServerError' }
+    delete:
+      tags: [adrs]
+      operationId: deleteAdrDiscussionEntry
+      summary: Delete a discussion entry
+      description: |
+        The author or an `ADMIN` (`403` otherwise). A soft delete that leaves a TOMBSTONE: the entry stays in the list as `deleted` with no
+        body, no state and no resolution (the text is wiped from the store too). Allowed in EVERY ADR status - the moderation path is never
+        closed. An already deleted entry is `404`. Audit-only, not a history event.
+      responses:
+        '204':
+          description: Deleted
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '500': { $ref: '#/components/responses/InternalServerError' }
+
+  /api/v1/adrs/{id}/discussion/{entryId}/state:
+    parameters:
+      - $ref: '#/components/parameters/ResourceId'
+      - $ref: '#/components/parameters/DiscussionEntryId'
+    put:
+      tags: [adrs]
+      operationId: setAdrDiscussionEntryState
+      summary: Answer, resolve or reopen an entry
+      description: |
+        Sets the entry's state (idempotent). A `QUESTION` is `OPEN` or `ANSWERED`, an `ISSUE` or `ESCALATION` is `OPEN` or `RESOLVED`; a
+        `COMMENT` has no state and any other pairing is `400`. Who: for a question its author, the Driver, the Approver or `ADMIN`; for an
+        issue or escalation the Driver, the Approver or `ADMIN` - else `403` before the body is read. The optional `resolution` note
+        (at most 2,000 characters) travels only with `RESOLVED`; a reopen clears it. There is NO window: the state
+        changes in every ADR status (an issue on an expired or superseded ADR can still be resolved). Records a `QUESTION_ANSWERED`, `QUESTION_REOPENED`, `ISSUE_RESOLVED` or `ISSUE_REOPENED`
+        event when the state really changes. Setting the state the entry already has writes and records nothing, except that a `RESOLVED` entry sent
+        `RESOLVED` with a different `resolution` has its note replaced (none clears it) with no event. Answers the entry.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/DiscussionStateRequest'
+      responses:
+        '415': { $ref: '#/components/responses/UnsupportedMediaType' }
+        '200':
+          description: The entry in its (new) state
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DiscussionEntry'
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '413': { $ref: '#/components/responses/PayloadTooLarge' }
+        '500': { $ref: '#/components/responses/InternalServerError' }
+
   /api/v1/telemetry/current:
     get:
       tags: [telemetry]
@@ -1136,6 +1318,12 @@ components:
       description: >-
         Free-text search (API-LIST-005), OPTIONAL where declared (the ADR list): a case- and accent-insensitive substring match on the
         fields the endpoint names (an ADR's name or key), at most 100 characters.
+    DiscussionEntryId:
+      name: entryId
+      in: path
+      required: true
+      schema: { type: integer, format: int32, minimum: 1 }
+      description: A discussion entry of the ADR in the path; one of another ADR is `404`.
     ExpectedRevision:
       name: X-Expected-Revision
       in: header
@@ -1625,6 +1813,10 @@ components:
         - allowedTransitions
         - canEdit
         - canManageParticipants
+        - canComment
+        - canRaiseIssue
+        - openIssueCount
+        - unansweredQuestionCount
       properties:
         id: { type: integer, format: int32, minimum: 0, description: "The row id; URLs use it." }
         number: { type: integer, format: int32, minimum: 1, description: "The global gapless counter; never reused." }
@@ -1652,9 +1844,13 @@ components:
           description: The moves THIS caller may request now (the buttons); never `EXPIRED` or `SUPERSEDED`.
         canEdit: { type: boolean, description: "This caller may PUT the document now (content in a pre-active status, or the expiry date in any non-terminal one)." }
         canManageParticipants: { type: boolean, description: "This caller may replace the participants now." }
+        canComment: { type: boolean, description: "The discussion takes a comment or a question now (the ADR is `PROBLEM_RAISED`, `SOLUTION_DRAFT` or `IN_REVIEW`); anyone authenticated may post." }
+        canRaiseIssue: { type: boolean, description: "The discussion takes an issue or an escalation now (the ADR is `ACTIVE`); anyone authenticated may post." }
+        openIssueCount: { type: integer, minimum: 0, description: "The OPEN issues and escalations (deleted entries excluded)." }
+        unansweredQuestionCount: { type: integer, minimum: 0, description: "The OPEN questions (deleted entries excluded)." }
     AdrListItem:
       type: object
-      required: [id, number, key, name, status, expiresOn, revision, createdAt, updatedAt, statusChangedAt, driver, approver]
+      required: [id, number, key, name, status, expiresOn, revision, createdAt, updatedAt, statusChangedAt, driver, approver, openIssueCount]
       properties:
         id: { type: integer, format: int32, minimum: 0 }
         number: { type: integer, format: int32, minimum: 1 }
@@ -1676,6 +1872,7 @@ components:
             - $ref: '#/components/schemas/AdrParticipant'
           nullable: true
           description: The Approver; null until one is assigned.
+        openIssueCount: { type: integer, minimum: 0, description: "The OPEN issues and escalations (deleted entries excluded)." }
     AdrPage:
       type: object
       required: [items, page, pageSize, total]
@@ -1692,12 +1889,30 @@ components:
           minimum: 0
     AdrEventType:
       type: string
-      enum: [CREATED, UPDATED, TRANSITIONED, PARTICIPANT_ADDED, PARTICIPANT_REMOVED, PARTICIPANT_CHANGED, EXPIRED, SUPERSEDED]
+      enum:
+        - CREATED
+        - UPDATED
+        - TRANSITIONED
+        - PARTICIPANT_ADDED
+        - PARTICIPANT_REMOVED
+        - PARTICIPANT_CHANGED
+        - EXPIRED
+        - SUPERSEDED
+        - COMMENTED
+        - QUESTION_ASKED
+        - QUESTION_ANSWERED
+        - QUESTION_REOPENED
+        - ISSUE_RAISED
+        - ESCALATED
+        - ISSUE_RESOLVED
+        - ISSUE_REOPENED
       description: >-
         The kinds of history, with their `params` (all strings): `CREATED` {key, name}; `UPDATED` {changed: comma-joined field names,
         `name.from`/`name.to`/`expiresOn.from`/`expiresOn.to` where short}; `TRANSITIONED` {from, to}; `PARTICIPANT_ADDED` and
         `PARTICIPANT_REMOVED` {userId, name, role}; `PARTICIPANT_CHANGED` {userId, name, from, to}; `EXPIRED` {expiresOn}, a system
-        event; `SUPERSEDED` is reserved for successor links.
+        event; `SUPERSEDED` is reserved for successor links. The discussion events (`COMMENTED`, `QUESTION_ASKED`, `QUESTION_ANSWERED`,
+        `QUESTION_REOPENED`, `ISSUE_RAISED`, `ESCALATED`, `ISSUE_RESOLVED`, `ISSUE_REOPENED`) carry {entryId, kind} - never the text; an edit
+        or a delete of an entry is not an event.
     AdrEventResponse:
       type: object
       required: [id, userId, userName, userDeleted, type, params, createdAt]
@@ -1726,6 +1941,100 @@ components:
           format: int64
           minimum: 0
 
+    DiscussionKind:
+      type: string
+      enum: [COMMENT, QUESTION, ISSUE, ESCALATION]
+      description: >-
+        `COMMENT` and `QUESTION` are accepted while the ADR is pre-active (`PROBLEM_RAISED`, `SOLUTION_DRAFT`, `IN_REVIEW`); `ISSUE` and
+        `ESCALATION` only while it is `ACTIVE`.
+    DiscussionStatus:
+      type: string
+      enum: [OPEN, ANSWERED, RESOLVED]
+      description: >-
+        A `QUESTION` is `OPEN` or `ANSWERED`; an `ISSUE` or `ESCALATION` is `OPEN` or `RESOLVED`. A `COMMENT` and a deleted entry have none.
+    DiscussionCreateRequest:
+      type: object
+      required: [kind, body]
+      properties:
+        kind: { $ref: '#/components/schemas/DiscussionKind' }
+        body: { type: string, minLength: 1, maxLength: 10000, description: "Markdown; not blank." }
+    DiscussionEditRequest:
+      type: object
+      required: [body]
+      properties:
+        body: { type: string, minLength: 1, maxLength: 10000, description: "The new Markdown text; not blank." }
+    DiscussionStateRequest:
+      type: object
+      required: [status]
+      properties:
+        status: { $ref: '#/components/schemas/DiscussionStatus' }
+        resolution:
+          type: string
+          maxLength: 2000
+          nullable: true
+          description: An optional note, only with `RESOLVED` (`400` with any other status); blank = none.
+    DiscussionUser:
+      type: object
+      required: [id, name, deleted]
+      properties:
+        id: { type: integer, format: int32, minimum: 0 }
+        name: { type: string, description: "The display name as it is now (kept for a soft-deleted account)." }
+        deleted: { type: boolean, description: "The account has since been soft-deleted." }
+    DiscussionEntry:
+      type: object
+      required:
+        - id
+        - adrId
+        - kind
+        - body
+        - deleted
+        - author
+        - createdAt
+        - editedAt
+        - resolution
+        - stateChangedBy
+        - stateChangedAt
+        - canEdit
+        - canDelete
+        - canChangeState
+      properties:
+        id: { type: integer, format: int32, minimum: 0 }
+        adrId: { type: integer, format: int32, minimum: 0 }
+        kind: { $ref: '#/components/schemas/DiscussionKind' }
+        status:
+          allOf:
+            - $ref: '#/components/schemas/DiscussionStatus'
+          description: Absent for a comment and for a tombstone (neither has a state).
+        body: { type: string, nullable: true, description: "Markdown; null for a tombstone (the text is gone)." }
+        deleted: { type: boolean, description: "A tombstone: the entry was deleted; only its kind, author and creation time remain." }
+        author: { $ref: '#/components/schemas/DiscussionUser' }
+        createdAt: { type: integer, format: int64, description: "Epoch millis" }
+        editedAt: { type: integer, format: int64, nullable: true, description: "Epoch millis of the author's last edit." }
+        resolution: { type: string, nullable: true, description: "The note of the last resolution, if it had one; cleared on a reopen." }
+        stateChangedBy:
+          allOf:
+            - $ref: '#/components/schemas/DiscussionUser'
+          nullable: true
+          description: Who last answered, resolved or reopened the entry.
+        stateChangedAt: { type: integer, format: int64, nullable: true, description: "Epoch millis" }
+        canEdit: { type: boolean, description: "This caller is the author and the ADR's status still takes the kind." }
+        canDelete: { type: boolean, description: "This caller is the author or an ADMIN and the entry is not deleted yet." }
+        canChangeState: { type: boolean, description: "This caller may answer, resolve or reopen the entry (any ADR status; false for a comment and a tombstone)." }
+    DiscussionPage:
+      type: object
+      required: [items, page, pageSize, total]
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/DiscussionEntry'
+        page: { type: integer, minimum: 1 }
+        pageSize: { type: integer, minimum: 1, maximum: 100 }
+        total:
+          type: integer
+          format: int64
+          minimum: 0
+
     ProblemDetail:
       type: object
       description: RFC 7807 problem detail. Served as `application/problem+json`; instance is the request path without query parameters.
@@ -1742,6 +2051,7 @@ components:
             - `urn:hammurabi:problem:revision-conflict` (409): a stale `X-Expected-Revision`.
             - `urn:hammurabi:problem:illegal-transition` (409): an ADR lifecycle move the map does not allow, or one only the system makes.
             - `urn:hammurabi:problem:adr-frozen` (409): a write the ADR's status closes - content once `ACTIVE`, anything once terminal.
+            - `urn:hammurabi:problem:discussion-closed` (409): a discussion write the ADR's status does not take - a comment or question once `ACTIVE`, an issue or escalation before it (a post or an edit; a state change and a delete have no window).
         title:
           type: string
           description: Short, human-readable summary of the problem type.

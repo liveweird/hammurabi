@@ -46,6 +46,15 @@ const val MAX_SMALL_REQUEST_BODY_BYTES: Long = 16L * 1024
  */
 const val MAX_ADR_REQUEST_BODY_BYTES: Long = 384L * 1024
 
+/**
+ * The ceiling of a discussion entry write (`POST /api/v1/adrs/{id}/discussion`, `PUT /api/v1/adrs/{id}/discussion/{entryId}`): the body is
+ * at most 10,000 UTF-16 units (`MAX_DISCUSSION_BODY_LENGTH`) after normalisation. The worst honest request is a client that `\u`-escapes
+ * every unit (6 bytes a unit, 60,000), or one that sends CRLF pairs as JSON escapes (4 bytes per normalised line feed, 40,000); raw UTF-8
+ * is at most 3 bytes a unit (30,000). Add the few dozen bytes of the object: 64 KiB (65,536 bytes) clears all of them with headroom and
+ * sits far below [MAX_REQUEST_BODY_BYTES]. Same 413.
+ */
+const val MAX_DISCUSSION_REQUEST_BODY_BYTES: Long = 64L * 1024
+
 private val SMALL_BODY_PATHS = setOf(
     "/api/v1/login",
     "/api/v1/login/mfa",
@@ -58,6 +67,19 @@ private val ADR_DOCUMENT_PATH = Regex("^/api/v1/adrs(/[0-9]+)?$")
 
 /** The ADR transition `{to}` and the participants PUT (at most 100 `{userId, role}` entries, about 4.5 KB): small bodies. */
 private val ADR_SMALL_PATH = Regex("^/api/v1/adrs/[0-9]+/(transitions|participants)$")
+
+/** A discussion entry's text: `POST .../discussion` (post) and `PUT .../discussion/{entryId}` (edit). */
+private val DISCUSSION_ENTRY_PATH = Regex("^/api/v1/adrs/[0-9]+/discussion(/[0-9]+)?$")
+
+/** The state PUT: `{status, resolution?}` with a note of at most 2,000 characters (about 8 KB at worst): a small body. */
+private val DISCUSSION_STATE_PATH = Regex("^/api/v1/adrs/[0-9]+/discussion/[0-9]+/state$")
+
+/** The discussion writes' ceilings (a separate function keeps [requestBodyLimit] flat); null = not a discussion write. */
+private fun discussionBodyLimit(method: HttpMethod, path: String): Long? = when {
+    method == HttpMethod.Put && DISCUSSION_STATE_PATH.matches(path) -> MAX_SMALL_REQUEST_BODY_BYTES
+    (method == HttpMethod.Post || method == HttpMethod.Put) && DISCUSSION_ENTRY_PATH.matches(path) -> MAX_DISCUSSION_REQUEST_BODY_BYTES
+    else -> null
+}
 
 /**
  * The path as ROUTING sees it, which is what the ceilings must match: the raw request path split on `/`, empty segments dropped (routing
@@ -72,8 +94,9 @@ internal fun routedPath(rawPath: String): String = try {
 }
 
 /**
- * The body ceiling of this call: [MAX_SMALL_REQUEST_BODY_BYTES] for the anonymous auth POSTs and the ADR transition and participants
- * writes, [MAX_ADR_REQUEST_BODY_BYTES] for an ADR create or document PUT, else [MAX_REQUEST_BODY_BYTES]. Matched against the
+ * The body ceiling of this call: [MAX_SMALL_REQUEST_BODY_BYTES] for the anonymous auth POSTs, the ADR transition and participants
+ * writes and a discussion state PUT, [MAX_ADR_REQUEST_BODY_BYTES] for an ADR create or document PUT, [MAX_DISCUSSION_REQUEST_BODY_BYTES]
+ * for a discussion entry post or edit, else [MAX_REQUEST_BODY_BYTES]. Matched against the
  * [routedPath], so an encoded spelling of the same route gets the same ceiling.
  */
 internal fun requestBodyLimit(call: ApplicationCall): Long {
@@ -85,7 +108,7 @@ internal fun requestBodyLimit(call: ApplicationCall): Long {
         method == HttpMethod.Put && ADR_SMALL_PATH.matches(path) -> MAX_SMALL_REQUEST_BODY_BYTES
         method == HttpMethod.Post && path == "/api/v1/adrs" -> MAX_ADR_REQUEST_BODY_BYTES
         method == HttpMethod.Put && ADR_DOCUMENT_PATH.matches(path) -> MAX_ADR_REQUEST_BODY_BYTES
-        else -> MAX_REQUEST_BODY_BYTES
+        else -> discussionBodyLimit(method, path) ?: MAX_REQUEST_BODY_BYTES
     }
 }
 

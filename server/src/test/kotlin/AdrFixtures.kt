@@ -1,6 +1,14 @@
 package ch.nokillswit
 
 import ch.nokillswit.adrs.AdrCreateRequest
+import ch.nokillswit.adrs.AdrDiscussionService
+import ch.nokillswit.adrs.DiscussionCreateRequest
+import ch.nokillswit.adrs.DiscussionEditRequest
+import ch.nokillswit.adrs.DiscussionEntryResponse
+import ch.nokillswit.adrs.DiscussionKind
+import ch.nokillswit.adrs.DiscussionPageResponse
+import ch.nokillswit.adrs.DiscussionStateRequest
+import ch.nokillswit.adrs.DiscussionStatus
 import ch.nokillswit.adrs.AdrEventPageResponse
 import ch.nokillswit.adrs.AdrEventResponse
 import ch.nokillswit.adrs.AdrParticipantRequest
@@ -29,6 +37,7 @@ import org.jetbrains.exposed.v1.core.eq
 import org.jetbrains.exposed.v1.core.max
 import kotlinx.coroutines.flow.toList
 import org.jetbrains.exposed.v1.r2dbc.select
+import org.jetbrains.exposed.v1.r2dbc.selectAll
 import org.jetbrains.exposed.v1.r2dbc.transactions.suspendTransaction
 import org.jetbrains.exposed.v1.r2dbc.update
 import java.util.UUID
@@ -186,4 +195,54 @@ suspend fun forceAdrExpiry(id: UInt, expiresOn: String?) {
 /** The stored status of [id], read straight from the table (a soft-deleted ADR included). */
 suspend fun rawAdrStatus(id: UInt): String = suspendTransaction(sharedDatabaseForTests()) {
     AdrService.Adrs.select(AdrService.Adrs.status).where { AdrService.Adrs.id eq id }.toList().single()[AdrService.Adrs.status]
+}
+
+/** POSTs a discussion entry (any status code); [body] defaults to a line naming the kind. */
+suspend fun HttpClient.postEntry(adrId: UInt, kind: DiscussionKind, body: String = "A $kind to discuss"): HttpResponse =
+    postJson("/api/v1/adrs/$adrId/discussion", DiscussionCreateRequest(kind, body))
+
+/** Posts an entry, asserting 201. */
+suspend fun HttpClient.postEntryOk(adrId: UInt, kind: DiscussionKind, body: String = "A $kind to discuss"): DiscussionEntryResponse {
+    val response = postEntry(adrId, kind, body)
+    assertEquals(HttpStatusCode.Created, response.status, "post $kind: ${response.status}")
+    return response.body()
+}
+
+suspend fun HttpClient.editEntry(adrId: UInt, entryId: UInt, body: String): HttpResponse =
+    putJson("/api/v1/adrs/$adrId/discussion/$entryId", DiscussionEditRequest(body))
+
+suspend fun HttpClient.setEntryState(adrId: UInt, entryId: UInt, status: DiscussionStatus, resolution: String? = null): HttpResponse =
+    putJson("/api/v1/adrs/$adrId/discussion/$entryId/state", DiscussionStateRequest(status, resolution))
+
+suspend fun HttpClient.discussion(adrId: UInt, query: String = ""): DiscussionPageResponse =
+    get("/api/v1/adrs/$adrId/discussion$query").body()
+
+suspend fun HttpClient.entry(adrId: UInt, entryId: UInt): DiscussionEntryResponse =
+    get("/api/v1/adrs/$adrId/discussion/$entryId").body()
+
+/** Moves a complete ADR (driver, approver) from `PROBLEM_RAISED` to `ACTIVE` through the real lifecycle. */
+suspend fun AdrCast.activate(adr: AdrResponse) {
+    driver.client.moveAdrNow(adr.id, AdrStatus.IN_REVIEW)
+    approver.client.moveAdrNow(adr.id, AdrStatus.ACTIVE)
+}
+
+/** One discussion row exactly as stored (a tombstone's wiped columns included). */
+data class RawEntry(
+    val status: String?,
+    val body: String,
+    val resolution: String,
+    val editedAt: Long?,
+    val stateChangedBy: UInt?,
+    val stateChangedAt: Long?,
+    val deleted: Boolean,
+    val deletedAt: Long?,
+)
+
+suspend fun rawEntry(entryId: UInt): RawEntry = suspendTransaction(sharedDatabaseForTests()) {
+    val t = AdrDiscussionService.AdrDiscussion
+    val row = t.selectAll().where { t.id eq entryId }.toList().single()
+    RawEntry(
+        row[t.status], row[t.body], row[t.resolution], row[t.editedAt], row[t.stateChangedBy]?.value, row[t.stateChangedAt],
+        row[t.markedAsDeleted], row[t.deletedAt],
+    )
 }

@@ -3,6 +3,7 @@ package ch.nokillswit
 import ch.nokillswit.adrs.AdrParticipantRequest
 import ch.nokillswit.adrs.AdrRole
 import ch.nokillswit.adrs.AdrStatus
+import ch.nokillswit.adrs.DiscussionKind
 import io.ktor.client.request.delete
 import io.ktor.http.HttpStatusCode
 import io.ktor.server.testing.testApplication
@@ -77,6 +78,29 @@ class AdrRowLockTest {
                 assertFalse(pending.isCompleted, "the write waits while another transaction holds the row")
                 writer.close()
                 assertEquals(HttpStatusCode.NoContent, promptly { pending.await() }.status)
+            }
+        }
+    }
+
+    @Test
+    fun `a discussion write takes the same lock - free beside a key-share, queued behind another writer`() = testApplication {
+        usePostgresTestcontainer()
+        val cast = adrCast()
+        val adr = cast.raise()
+        OpenTransaction().use { fk ->
+            fk.execute("SELECT id FROM adrs WHERE id = ${adr.id} FOR KEY SHARE")
+            val posted = promptly { cast.stranger.client.postEntry(adr.id, DiscussionKind.COMMENT) }
+            assertEquals(HttpStatusCode.Created, posted.status, "a post beside a key-share")
+        }
+        OpenTransaction().use { writer ->
+            writer.execute("SELECT id FROM adrs WHERE id = ${adr.id} FOR NO KEY UPDATE")
+            coroutineScope {
+                val pending = async(Dispatchers.Default) { cast.stranger.client.postEntry(adr.id, DiscussionKind.COMMENT) }
+                awaitLockWait("adrs")
+                delay(300)
+                assertFalse(pending.isCompleted, "the post waits while a lifecycle move may be in flight")
+                writer.close()
+                assertEquals(HttpStatusCode.Created, promptly { pending.await() }.status)
             }
         }
     }

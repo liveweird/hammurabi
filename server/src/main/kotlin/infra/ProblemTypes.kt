@@ -6,7 +6,8 @@ package ch.nokillswit.infra
  * one list. `ProblemTypesTest` scans the main sources for a `urn:hammurabi:problem:` literal outside this file and diffs [ALL]
  * against the list `ProblemDetail.type` documents in `openapi/documentation.yaml`; a new type lands here, in [ALL] and in that list
  * in the same commit. Every other problem is `about:blank`. Adder's fifteen types are chat problems (room-busy, search-timeout, ...):
- * the ADR increments add their own here as they arrive (0.2.0: the illegal lifecycle move and the content freeze).
+ * the ADR increments add their own here as they arrive (0.2.0: the illegal lifecycle move and the content freeze; 0.3.0: a closed
+ * discussion).
  */
 object ProblemTypes {
     /** A stale `X-Expected-Revision` (409). */
@@ -18,6 +19,12 @@ object ProblemTypes {
     /** A write to an ADR the content freeze closes: content once `ACTIVE`, anything once terminal (409; `adrs/AdrLifecycle.kt`). */
     const val ADR_FROZEN = "urn:hammurabi:problem:adr-frozen"
 
+    /**
+     * A discussion write the ADR's status does not take: comments and questions once `ACTIVE`, issues and escalations before it
+     * (409; `adrs/AdrDiscussionAccess.kt`).
+     */
+    const val DISCUSSION_CLOSED = "urn:hammurabi:problem:discussion-closed"
+
     /** Every registered URI; the spec's list and the main sources are diffed against it. */
-    val ALL: Set<String> = setOf(REVISION_CONFLICT, ILLEGAL_TRANSITION, ADR_FROZEN)
+    val ALL: Set<String> = setOf(REVISION_CONFLICT, ILLEGAL_TRANSITION, ADR_FROZEN, DISCUSSION_CLOSED)
 }

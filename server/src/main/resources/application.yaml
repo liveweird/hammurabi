@@ -43,8 +43,9 @@ ktor:
       # — features
       - ch.nokillswit.users.UserRoutesKt.configureUserRoutes
       - ch.nokillswit.teams.TeamRoutesKt.configureTeamRoutes
-      # The ADR core (`.claude/docs/adr-model.md`): the /api/v1/adrs routes, then the expiry sweep (`adrs.expiry.*` below).
+      # The ADR core (`.claude/docs/adr-model.md`): the /api/v1/adrs routes, the discussion routes (0.3.0), then the expiry sweep (`adrs.expiry.*` below).
       - ch.nokillswit.adrs.AdrRoutesKt.configureAdrRoutes
+      - ch.nokillswit.adrs.AdrDiscussionRoutesKt.configureAdrDiscussionRoutes
       - ch.nokillswit.adrs.AdrExpirySweepKt.configureAdrExpirySweep
       - ch.nokillswit.auth.AuthRoutesKt.configureAuthRoutes
       - ch.nokillswit.auth.PasswordResetRoutesKt.configurePasswordResetRoutes

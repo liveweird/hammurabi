@@ -50,6 +50,18 @@ class AdrsRoute {
         @Serializable
         @Resource("events")
         class Events(val parent: Id)
+
+        @Serializable
+        @Resource("discussion")
+        class Discussion(val parent: Id) {
+            @Serializable
+            @Resource("{entryId}")
+            class Entry(val parent: Discussion, val entryId: UInt) {
+                @Serializable
+                @Resource("state")
+                class State(val parent: Entry)
+            }
+        }
     }
 }
 

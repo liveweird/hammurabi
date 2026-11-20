@@ -17,6 +17,28 @@ interface ChangelogEntry {
 
 export const CHANGELOG: readonly ChangelogEntry[] = [
   {
+    version: "0.2.0",
+    date: "2026-11-20",
+    en: `**Hammurabi 0.2.0: Architecture Decision Records.**
+
+- Raise an ADR with just its problem; it gets a number such as ADR-0001, and you become its Driver.
+- Each ADR moves from problem raised through solution draft and review to active, or ends cancelled, withdrawn, expired or superseded. The buttons show only the moves your role allows.
+- Responsibility follows DACI: one Driver, one Approver, and any number of Contributors and Informed people. The Driver and Contributors write the content, the Approver decides.
+- Write the problem, context, decision, alternatives and consequences in Markdown, with a preview. Once an ADR is active its content is frozen; only the expiry date and the participants can still change.
+- An active ADR expires on its own the day after its expiry date.
+- Every change lands in the ADR's history, with who did it and when, in your language. If someone else changed the ADR first, you are offered a reload instead of overwriting their work.
+- Browse the ADRs by name or key, status, or the ones you take part in; the filters live in the address, so a link reproduces them.`,
+    pl: `**Hammurabi 0.2.0: rekordy decyzji architektonicznych.**
+
+- Zgłoś ADR, podając tylko problem; dostaje numer, na przykład ADR-0001, a Ty zostajesz jego Prowadzącym/ą.
+- Każdy ADR przechodzi od zgłoszonego problemu przez szkic rozwiązania i przegląd do statusu obowiązującego albo kończy jako anulowany, wycofany, wygasły lub zastąpiony. Przyciski pokazują tylko ruchy, które dopuszcza Twoja rola.
+- Odpowiedzialność wynika z DACI: jeden/a Prowadzący/a, jeden/a Zatwierdzający/a oraz dowolnie wiele osób Współtworzących i Informowanych. Prowadzący/a i Współtwórcy/czynie piszą treść, Zatwierdzający/a decyduje.
+- Pisz problem, kontekst, decyzję, alternatywy i konsekwencje w Markdownie, z podglądem. Gdy ADR jest obowiązujący, jego treść jest zamrożona; zmienić można jeszcze tylko datę wygaśnięcia i uczestników/czki.
+- Obowiązujący ADR wygasa sam w dniu po dacie wygaśnięcia.
+- Każda zmiana trafia do historii ADR-a, z informacją, kto jej dokonał i kiedy, w Twoim języku. Jeśli ktoś zmienił ADR przed Tobą, dostajesz propozycję ponownego wczytania zamiast nadpisania cudzej pracy.
+- Przeglądaj ADR-y według nazwy lub klucza, statusu albo tych, w których bierzesz udział; filtry są zapisane w adresie, więc link je odtwarza.`,
+  },
+  {
     version: "0.1.0",
     date: "2026-11-17",
     en: `**Hammurabi 0.1.0: the foundation.**

@@ -10,9 +10,9 @@ reviewed and decided; while the decision is in force people report how it works;
 Responsibility follows **DACI**: one Driver, one Approver, any number of Contributors and Informed. Every change is an event in the ADR's history;
 ADRs are tagged, searchable by several criteria, discussed before they are active (comments/questions) and challenged after (issues/escalations).
 
-**Roadmap:** **0.1.0 (current) = the foundation**, Flow trimmed to its generic core: auth + email MFA, password reset, users, feature flags, teams
-with a manager, EN/PL, light/dark, changelog, the ADMIN telemetry panel, the lapis brand and the "Stele" logo. Next: 0.2.0 ADR core (ids, lifecycle,
-DACI, history, expiry), 0.3.0 discussion (comments, issues), 0.4.0 tags, successors, filters and search, 0.5.0 notifications, then a 1.0.0 checkup.
+**Roadmap:** 0.1.0 = the foundation, Flow trimmed to its generic core: auth + email MFA, password reset, users, feature flags, teams
+with a manager, EN/PL, light/dark, changelog, the ADMIN telemetry panel, the lapis brand and the "Stele" logo. **0.2.0 (current) = the ADR core**
+(ids, lifecycle, DACI, history, expiry; the list, create and detail pages). Next: 0.3.0 discussion (comments, issues), 0.4.0 tags, successors, filters and search, 0.5.0 notifications, then a 1.0.0 checkup.
 Per-version scope, the user's decisions and the assumptions: `.claude/docs/product.md`; the domain model: `.claude/docs/adr-model.md`. Open items: `BACKLOG.md`.
 
 Brand: lapis lazuli indigo (the `hammurabi` colour tuple in `web/src/theme.ts`, `primaryShade: { light: 7, dark: 8 }`, dark accent ink shade 3); the logo
@@ -65,7 +65,7 @@ Kubernetes (OrbStack) `hammurabi` namespace: `.claude/docs/ci.md` "Running the f
 
 ## Architecture
 
-Hammurabi is Flow's generic foundation under an ADR domain that is still to be built. The foundation: **JWT auth**
+Hammurabi is Flow's generic foundation under the ADR domain (`adrs/`, the server half of 0.2.0; its pages follow). The foundation: **JWT auth**
 with a sliding refresh pair and a server-side revocation blocklist, opt-in **email MFA**, self-service password reset,
 per-account lockout and per-IP rate limits, **ADMIN-managed users** (`/api/v1/users`, `UserRole`) with per-user **feature flags**
 and a synced UI/email **language** (EN/PL), flat **teams** with an optional manager, the ADMIN
@@ -92,7 +92,7 @@ application is wired declaratively in `server/src/main/resources/application.yam
 `ktor.application.modules` — each entry is a fully-qualified extension function on `Application`
 (e.g. `ch.nokillswit.plugins.HttpKt.configureHttp`). **Module order is load-bearing**: base plugins
 (Http → SecurityHeaders → Monitoring → Serialization → Security → RateLimits → ErrorHandling → OpenTelemetry → AutoHeadResponse → Resources) →
-infra (Mail → Crypto → Flyway → Database → Bootstrap → Health) → Telemetry (the sampler) → feature route modules (users, teams, auth, password
+infra (Mail → Crypto → Flyway → Database → Bootstrap → Health) → Telemetry (the sampler) → feature route modules (users, teams, adrs + its expiry sweep, auth, password
 reset, telemetry reads) → `RoutingKt.configureRouting` strictly last (the SPA catch-all). `configureDatabase` publishes the services into
 `Application.attributes` via `AttributeKey`s. To add a cross-cutting concern, create a `configureXxx()` extension under `plugins/` and register it
 in `application.yaml`; do not call it from `main.kt`. There is no DI framework — services travel via `attributes`.
@@ -107,11 +107,11 @@ except the composition root (`infra/db/Database.kt`, `Bootstrap.kt`); `telemetry
 - `plugins/` — cross-cutting Ktor wiring (`configureXxx` that only `install` plugins; Security = JWT, ErrorHandling = RFC 7807). `Routing` (the SPA catch-all) is registered strictly last; `Health` (`/api/v1/health`, `/api/v1/ready`) after Database; `RateLimits` holds every per-IP bucket (and the per-user `telemetry` and `directory` ones), keyed by `infra/ClientAddress.kt`'s `clientAddressKey()`.
 - `infra/mail/` — outbound email (Lettuce's, ported): `MAIL_TRANSPORT` log/smtp/disabled; the `log` transport is refused in production (fail-closed); a null mailer = email features answer 503.
 - `infra/crypto/` — encryption at rest (Lettuce's, ported): `FieldCipher` (AES-256-GCM `enc:v1:` envelopes, current + rotation key), `configureCrypto` (`DATA_ENCRYPTION_KEY`; a burned key fails startup closed). No consumer yet; Flow's `EncryptedAtRest` registry and `Reencrypt` come back with the first encrypted column.
-- `infra/db/` — Flyway bootstrap, the R2DBC composition root, the seed bootstrap (admin rotation, prod fail-closed), `SoftDelete.kt` (`SoftDeletable`: ONE `active()` predicate, `nowMillis()`, `lockActiveForWrite`), `Sql.kt` (`containsNormalized` — the only substring filter), `Jsonb.kt`, `MultiRowInsert.kt`, `StatementTimeoutCache.kt` (only `queryTimeout` may set `STATEMENT_TIMEOUT`), `LeakedSocketGuard.kt`, `DetachingConnectionFactory.kt` (pool hygiene, `persistence.md`).
+- `infra/db/` — Flyway bootstrap, the R2DBC composition root, the seed bootstrap (admin rotation, prod fail-closed), `EventLog.kt` + `EventChanges.kt` (the append-only per-record history, Adder's, with a nullable system actor; the field-diff vocabulary), `SoftDelete.kt` (`SoftDeletable`: ONE `active()` predicate, `nowMillis()`, `lockActiveForWrite`), `Sql.kt` (`containsNormalized` — the only substring filter), `Jsonb.kt`, `MultiRowInsert.kt`, `StatementTimeoutCache.kt` (only `queryTimeout` may set `STATEMENT_TIMEOUT`), `LeakedSocketGuard.kt`, `DetachingConnectionFactory.kt` (pool hygiene, `persistence.md`).
 - `infra/paging/` — the shared list-endpoint machinery (Lettuce's, ported verbatim; `list-endpoints.md`).
 - `infra/validation/` — cross-feature input helpers (`sanitizeSingleLine`: trim + control/hidden-direction-char 400; `sanitizeMultiLine`: free text, `\n`/`\t` kept; `requireNoDuplicates`).
 - `infra/json/` — `CanonicalJson.kt` (canonical JSON + sha256 for stored payloads).
-- `infra/revision/` — `X-Expected-Revision` for whole-document PUTs (Toadie's, header REQUIRED): `expectedRevision()` (400), `requireRevision` (typed 409 `urn:hammurabi:problem:revision-conflict`); no route uses it yet (the ADR PUT will).
+- `infra/revision/` — `X-Expected-Revision` for whole-document PUTs (Toadie's, header REQUIRED): `expectedRevision()` (400), `requireRevision` (typed 409 `urn:hammurabi:problem:revision-conflict`); the ADR document PUT and the transitions use it.
 - `infra/BackgroundScope.kt` — `Application.backgroundScope(name)`: the ONE way to own a background loop (cancel + bounded join on `ApplicationStopping`, before the pool is disposed; a source guard keeps hand-built scopes out).
 - `infra/time/` — `Millis.kt`, `MILLIS_PER_DAY`, the one fixed-24h-day constant.
 - `infra/config/` — `requireConfigInt`/`requireConfigLong`, boot-validated numeric config (Lettuce's).
@@ -122,9 +122,8 @@ except the composition root (`infra/db/Database.kt`, `Bootstrap.kt`); `telemetry
 - `auth/` — login (+ the email-MFA second step), refresh, logout, self-service password reset, token minting, password hashing, the revoked-token blocklist; in-memory auth state is capacity-bounded with audited 429 saturation.
 - `users/` — Hammurabi's login accounts (REST `/api/v1/users`): ADMIN-only CRUD (self-delete 403, last-admin 409) plus the any-signed-in-user picker lookup `GET /users/directory` (`{id, name, email}`, own rate bucket), per-user feature flags (`Feature` enum, the V5 disabled-set model; MFA is the inverted-default login-scoped flag), the ONE synced per-user UI+email language (`Languages.kt` = `SUPPORTED_LANGUAGES`).
 - `teams/` — flat teams (V6) with an optional manager: GET any authenticated, POST/PUT/DELETE ADMIN only. **The feature template** (below).
+- `adrs/` — the ADR core (0.2.0, REST `/api/v1/adrs`; `adr-model.md`): the record + DACI participants (V10) and history (V11), the lifecycle map (`AdrLifecycle`, typed 409s), the role verdicts (`AdrAccess`), numbering under an advisory lock, the `X-Expected-Revision` document PUT, the participants diff, the events read, and the expiry sweep (`AdrExpirySweep`, `adrs.expiry.*`).
 - `telemetry/` — per-process JVM/cgroup/request/storage samples in `ops.*` (V9), 90 days, hourly, ADMIN read API (`observability.md`).
-
-The ADR domain (`adrs/`) has no package yet: v0.2.0 adds it (`adr-model.md`).
 
 **Feature template — copy `teams/`** (a small ADMIN-curated registry; the only shape the foundation ships). Before adding a feature, route,
 service, migration or page, read `.claude/docs/conventions.md` in full.
@@ -152,7 +151,7 @@ disagree, the doc wins. The always-loaded set (this file plus the two imports) s
 | Doc | Read before you touch |
 |---|---|
 | `.claude/docs/conventions.md` | adding a feature, route, service, migration or page: the `teams/` feature template (DTO + validator, routes, service, migration + checksum pin, spec paths, `gen:api`, lazy page + nav entry, e2e spec + scenario) |
-| `.claude/docs/persistence.md` | any migration (`db/migration/V*.sql`, V1–V9 today — applied bytes are immutable, `MigrationChecksumTest`), an Exposed table/`*Service.kt`, soft delete, a cross-feature table read/write (the list there IS the permission), the connection pool, the `ops` schema |
+| `.claude/docs/persistence.md` | any migration (`db/migration/V*.sql`, V1–V11 today — applied bytes are immutable, `MigrationChecksumTest`), an Exposed table/`*Service.kt`, soft delete, a cross-feature table read/write (the list there IS the permission), the connection pool, the `ops` schema |
 | `.claude/docs/security.md` | auth/JWT/MFA/password reset, rate limits, headers/CSP, secrets/encryption at rest, production fail-closed startup checks, payload validation |
 | `.claude/docs/authorization.md` | any route: its guard (ADMIN vs any authenticated), 403-before-400/404 ordering, existence disclosure, the error/`ProblemDetail` mapping |
 | `.claude/docs/observability.md` | any mutation or denial path (it needs an `audit(...)` event, listed there), logging, OpenTelemetry, health probes, the telemetry panel's server side |

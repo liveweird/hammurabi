@@ -70,7 +70,7 @@ stele of the Code of Hammurabi on a lapis disc — the sun disc of Shamash crown
 
 ## Roadmap
 
-Each increment is built and gated on its own. **Current version: 0.1.0.**
+Each increment is built and gated on its own. **Current version: 0.2.0.**
 
 | Ver | Scope |
 |---|---|
@@ -90,11 +90,11 @@ port its implementation.
 
 - **Flow** (`~/Sources/flow`, the primary donor): the whole foundation — stack, API design, UI/UX, testing, gates, versioning, deployment, the
   telemetry panel.
-- **Adder** (`~/Sources/adder`): the trimmed bootstrap tree; next: `infra/db/EventLog.kt`, `infra/db/Fts.kt` + the search migration,
-  `infra/revision/ExpectedRevision.kt`, the user directory and pickers (`UserDirectorySelect`), the thread number allocation, the
-  `ThreadPane`/`ThreadSidePanel` detail layout, `EventTimeline`, Markdown building blocks, `notifications/`, the post-bootstrap security fixes.
+- **Adder** (`~/Sources/adder`): the trimmed bootstrap tree; ported in 0.2.0 (server): `infra/db/EventLog.kt`, the thread-number allocation (made global,
+  an advisory lock), `infra/revision/ExpectedRevision.kt`'s first use; next: `infra/db/Fts.kt` + the search migration, the pickers
+  (`UserDirectorySelect`), the `ThreadPane`/`ThreadSidePanel` detail layout, `EventTimeline`, Markdown building blocks, `notifications/`.
 - **Covenant** (`~/Sources/covenant`): `contracts/Lifecycle.kt` (the 409-on-illegal-move transition map), `ContractAccess.kt` (permission
-  verdicts), `VersionReview*` (comments/approvals), `ReleaseLineReminders.kt` (the periodic date sweep).
+  verdicts) and `ReleaseLineReminders.kt` (the periodic date sweep) are ported (0.2.0, `adrs/`); next: `VersionReview*` (comments/approvals).
 - **Toadie** (`~/Sources/toadie`): `tags/` tag categories, `lenses/` saved filters, `lockingTransaction`, the `list-endpoints.md` filter shape.
 - **Lettuce** (`~/Sources/lettuce`): `infra/mail`, `infra/crypto`, `infra/paging` (through Flow); next: `MarkdownEditor`, sharing pickers.
 - **Astrolabe** (`~/Sources/astrolabe`): `planning/DependencyGraph.kt` (`cycleClosedBy`) for the successor chain.
@@ -103,6 +103,15 @@ Left in Flow on purpose: `ingest/`, `fetch/`, `jira/`, `gitlab/`, `norm/`, `iden
 `infra/outbound/` (the SSRF guard — port it with the first server-initiated call other than SMTP), `plugins/Role.kt`, `EncryptedAtRest`/`Reencrypt`.
 
 ## Release history
+
+### v0.2.0 — the ADR core (2026-11-20)
+
+Server (`adrs/`, migrations V10–V11): `/api/v1/adrs` with the gapless `ADR-NNNN` key, the lifecycle map (409 on an illegal move), DACI participants and
+their permission verdicts, the `X-Expected-Revision` document PUT, transitions and participants replace, field-level history, the expiry sweep. Web: the
+ADR list (`/adrs`, filters in the URL), the create page (`/adrs/new`), the detail page (`/adrs/:id`: sections, inline Markdown editor with a preview,
+Status with the allowed moves, DACI editor, Details with the expiry date, paged History), an ADMIN-only delete, a real Home, the palette entries; the
+status colour map (gray, grape, cyan, teal, orange, red) lives in `web/src/utils/adrStatus.ts`. E2E: `adr-lifecycle`, `adr-daci`, `adr-history` and the
+axe sweep over the ADR pages.
 
 ### v0.1.0 — the foundation (2026-11-20)
 

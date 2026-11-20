@@ -1,0 +1,7 @@
+{
+  "title": "Hammurabi",
+  "empty": {
+    "label": "Welcome to Hammurabi",
+    "hint": "Architecture Decision Records (ADRs) are coming. For now you can sign in, manage users, teams and feature flags, and try the language and theme switches."
+  }
+}

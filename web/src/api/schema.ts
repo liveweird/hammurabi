@@ -273,6 +273,43 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/users/directory": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Look up active users (user picker)
+         * @description ANY signed-in user — deliberately not the ADMIN-only management list (`GET /users`, which stays
+         *     unchanged). Any user may be asked to take a DACI role (Driver, Approver, Contributor, Informed), and
+         *     needs somebody to pick, so this returns the minimum a picker needs: `{id, name, email}` of ACTIVE users (soft-deleted accounts are absent). Roles,
+         *     feature flags and language are never exposed; the email tells namesakes apart.
+         *
+         *     It is the one read that lets a regular user list accounts. The bounds slow and audit a bulk
+         *     harvest; they do not prevent one by a signed-in insider (the disclosure is accepted):
+         *     `q` is REQUIRED and needs at least 2 characters, a page holds at most 20 rows, and the
+         *     endpoint rides a per-USER rate bucket of 120 per minute (`429` beyond it).
+         *
+         *     Supports offset pagination, sorting and one free-text filter.
+         *
+         *     - `q` — case- and accent-insensitive substring match on name OR email. It is trimmed
+         *       before the limits apply; 2 to 100 characters (code points) after trimming, `400` otherwise
+         *       (a missing or blank `q` included).
+         *     - `pageSize` — 1 to 20 (default 20), `400` beyond.
+         *     - Sortable fields: `name` (default) and `id`; `id` ascending is always appended as a
+         *       deterministic tiebreaker.
+         */
+        get: operations["searchUserDirectory"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/users/{id}": {
         parameters: {
             query?: never;
@@ -645,6 +682,23 @@ export interface components {
              */
             total: number;
         };
+        /** @description The whole directory projection - nothing else about a user is exposed. */
+        UserDirectoryEntry: {
+            /** Format: int32 */
+            id: number;
+            name: string;
+            email: string;
+        };
+        UserDirectoryPage: {
+            items: components["schemas"]["UserDirectoryEntry"][];
+            page: number;
+            pageSize: number;
+            /**
+             * Format: int64
+             * @description Row count after filters, before pagination.
+             */
+            total: number;
+        };
         PasswordUpdateRequest: {
             /** @description The new password (at least 10 characters, at most 71 UTF-8 bytes). */
             password: string;
@@ -719,7 +773,11 @@ export interface components {
         /** @description RFC 7807 problem detail. Served as `application/problem+json`; instance is the request path without query parameters. */
         ProblemDetail: {
             /**
-             * @description A URI reference identifying the problem type; `about:blank` for every problem today.
+             * @description A URI reference identifying the problem type: `about:blank`, or one of the typed problems below, which a client tells apart
+             *     from the plain status by the URI, never by the detail text. This list is the whole set (it equals the server's registry,
+             *     `ProblemTypes`, pinned by `ProblemTypesTest`); the status in brackets is the one it answers.
+             *
+             *     - `urn:hammurabi:problem:revision-conflict` (409): a stale `X-Expected-Revision`.
              * @default about:blank
              */
             type: string;
@@ -1031,7 +1089,7 @@ export interface components {
                 "application/problem+json": components["schemas"]["ProblemDetail"];
             };
         };
-        /** @description Throttled — either the per-IP rate-limit bucket is exhausted (generic detail), on a telemetry read (`/api/v1/telemetry/**`) the per-USER telemetry bucket is exhausted (30/min), or, on /login, the per-account lockout is active (account-specific detail). All carry a ProblemDetail body. */
+        /** @description Throttled — either the per-IP rate-limit bucket is exhausted (generic detail), on a telemetry read (`/api/v1/telemetry/**`) the per-USER telemetry bucket is exhausted (30/min), on the user directory (`/api/v1/users/directory`) the per-USER directory bucket is exhausted (120/min), or, on /login, the per-account lockout is active (account-specific detail). All carry a ProblemDetail body. */
         TooManyRequests: {
             headers: {
                 [name: string]: unknown;
@@ -1072,6 +1130,15 @@ export interface components {
          *     always appended as a deterministic tiebreaker.
          */
         Sort: string;
+        /** @description Rows per page for the user directory only. Defaults to 20, maximum 20 (the shared maximum is 100). */
+        DirectoryPageSize: number;
+        /** @description Free-text search (API-LIST-005), REQUIRED where declared (the user directory). Case- and accent-insensitive substring match; the endpoint declares which fields it searches. The value is trimmed before the length limits apply, so it needs 2 to 100 characters (code points) after trimming. */
+        Q: string;
+        /**
+         * @description The revision of the document the caller read (`revision`). Missing, repeated or malformed is a `400`; a stale one is a `409`
+         *     of type `urn:hammurabi:problem:revision-conflict`. Every successful PUT bumps the revision.
+         */
+        ExpectedRevision: number;
     };
     requestBodies: never;
     headers: never;
@@ -1401,6 +1468,44 @@ export interface operations {
             409: components["responses"]["Conflict"];
             413: components["responses"]["PayloadTooLarge"];
             415: components["responses"]["UnsupportedMediaType"];
+            500: components["responses"]["InternalServerError"];
+        };
+    };
+    searchUserDirectory: {
+        parameters: {
+            query: {
+                /** @description 1-based page index. Defaults to 1. */
+                page?: components["parameters"]["Page"];
+                /** @description Rows per page for the user directory only. Defaults to 20, maximum 20 (the shared maximum is 100). */
+                pageSize?: components["parameters"]["DirectoryPageSize"];
+                /**
+                 * @description Sort spec. Format: `field` (ascending) or `-field` (descending). Multiple fields are
+                 *     comma-separated, leftmost wins: `sort=-updatedAt,name`. The endpoint declares its
+                 *     sortable-field whitelist; unknown fields are rejected with `400`. `id` ascending is
+                 *     always appended as a deterministic tiebreaker.
+                 */
+                sort?: components["parameters"]["Sort"];
+                /** @description Free-text search (API-LIST-005), REQUIRED where declared (the user directory). Case- and accent-insensitive substring match; the endpoint declares which fields it searches. The value is trimmed before the length limits apply, so it needs 2 to 100 characters (code points) after trimming. */
+                q: components["parameters"]["Q"];
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description A page of active users */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["UserDirectoryPage"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            429: components["responses"]["TooManyRequests"];
             500: components["responses"]["InternalServerError"];
         };
     };

@@ -6,6 +6,8 @@ import type { paths } from "./schema";
 
 export type UserPage =
   paths["/api/v1/users"]["get"]["responses"]["200"]["content"]["application/json"];
+export type UserDirectoryPage =
+  paths["/api/v1/users/directory"]["get"]["responses"]["200"]["content"]["application/json"];
 export type UserResponse =
   paths["/api/v1/users/{id}"]["get"]["responses"]["200"]["content"]["application/json"];
 type UserCreateBody =
@@ -44,6 +46,21 @@ export async function listUsers(q: UserListQuery): Promise<UserPage> {
     featureEnabled: q.featureEnabled,
   });
   return jsonRequest<UserPage>(`/api/v1/users?${params}`);
+}
+
+type UserDirectoryQuery = {
+  /** REQUIRED by the server, 2 to 100 characters after trimming (a shorter term is a 400). */
+  q: string;
+  page?: number;
+  /** At most 20 on this endpoint (its own cap). */
+  pageSize?: number;
+  sort?: string;
+};
+
+/** The user-picker lookup — open to ANY signed-in user, unlike the ADMIN-only `listUsers`. */
+export async function searchUserDirectory(q: UserDirectoryQuery): Promise<UserDirectoryPage> {
+  const params = buildQuery({ q: q.q, page: q.page, pageSize: q.pageSize, sort: q.sort });
+  return jsonRequest<UserDirectoryPage>(`/api/v1/users/directory?${params}`);
 }
 
 export async function getUser(id: number): Promise<UserResponse> {

@@ -45,9 +45,9 @@ internal fun mfaEmailBody(name: String, code: String, ttlMinutes: Long, language
 }
 
 /**
- * The MFA half of the login handler — the issuance WORKER, extracted from the route
+ * The MFA half of the login handler — the issuance helper, extracted from the route
  * registrar (route files stay declarative; the detekt exemption covers registration, not
- * workers): correct credentials answered with a challenge instead of tokens. Responds
+ * helpers like this): correct credentials answered with a challenge instead of tokens. Responds
  * itself (503 fail-closed on a mail-less deployment, else the challenge); the login
  * handler returns right after calling it.
  */
@@ -95,7 +95,9 @@ internal suspend fun issueMfaChallenge(
             // debug lines follow (auth/AuthRoutes.kt): a mail transport's exception message may
             // embed server/recipient detail that does not belong in the audit trail.
             audit("login.mfa_send_failed", "email" to user.email, "errorType" to e.javaClass.simpleName)
-            app.log.error("MFA code email delivery failed for ${user.email}", e)
+            // The same shape as the password-reset helper's line (auth/PasswordResetEmail.kt): the account by id and the class name,
+            // never the address, and never the throwable (a transport's refusal may echo the recipient and server detail).
+            app.log.error("MFA code email delivery failed (userId={}, errorType={})", userId.toLong(), e.javaClass.simpleName)
         }
     }
     call.respond(

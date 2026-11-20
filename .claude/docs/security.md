@@ -46,7 +46,7 @@ rows): it reads the token's user row (`role`, `credential_revision`, `marked_as_
 blocklisted, and the token is accepted only when the account exists and is not deleted, the `jti` is not
 blocklisted, the token's `credentialRevision` equals the stored one and its `roles` equal the stored role. Anything else is a `401`
 audited `access.rejected` with a `reason` (`user_gone`, `revoked`, `credential_changed`, `roles_changed`, and
-`malformed` for a signed access token lacking `roles`, or whose `userId` (1..4294967295) or `credentialRevision` (non-negative) is not an integral JSON
+`malformed` for a signed access token lacking `roles` or `exp` (the verifier alone would accept an `exp`-less token that never expires; `accessPrincipal` is the one place that refuses it, for every bearer route), or whose `userId` (1..4294967295) or `credentialRevision` (non-negative) is not an integral JSON
 number - the same `strictLongClaim` rule as `/refresh`, so `1.0`, `1e0` and a numeric string are rejected on both paths -
 a pre-deploy token, which the SPA silently refreshes), all with ONE response text ("Access token is no longer
 valid - refresh or sign in again"; the audit event is coalesced to one per user and reason per minute with a `suppressed` count, like
@@ -126,21 +126,13 @@ verbatim in `ServerTest`), `X-Content-Type-Options: nosniff`, `X-Frame-Options: 
 `http.behindProxy` with `X-Forwarded-Proto: https`; absent in development). Every `/api/` JSON and problem+json answer additionally carries
 `Cache-Control: no-store` (`plugins/Http.kt`'s `CachingHeaders`, pinned by `ServerTest` together
 with the unchanged caching of the SPA's static assets), so per-user data never lands in a browser
-or proxy cache -- including the `200`/`304` of a validator-answering view GET, which adds an `ETag` to the same `no-store` ("Caching" below). `text/html` (index.html and every SPA deep link answered with it) carries `Cache-Control: no-cache`
+or proxy cache ("Caching" below). `text/html` (index.html and every SPA deep link answered with it) carries `Cache-Control: no-cache`
 (revalidate every time, so a deploy's new hashed asset names are never masked by a stale shell), while the content-hashed
 CSS/JS keep `max-age=86400`. The `Server` header is the fixed generic `hammurabi` (`install(DefaultHeaders) { header(Server, …) }`
 in `Http.kt`) — Ktor's default `Server: Ktor/<version>` disclosed the framework and its exact version; pinned in `ServerTest`
 (no `Ktor` in it).
 
-**Caching -- a settled decision (the owner chose `no-store`).** Every `/api/` answer is `Cache-Control: no-store`. A route that answers through cache
-validators (a view GET; Flow's report GETs were the first consumer, no Hammurabi route is one yet) OFFERS a weak `ETag`
-(`ApplicationCall.offerValidator`, `plugins/ResponseValidators.kt`) and the plugin writes `ETag` + `no-store` only when the call really ends as a `200`/`304`: so
-nothing lands in a browser or proxy cache, and the server-side `304` helps only a client that sends `If-None-Match` itself (it saves the computation, not the
-transfer). The rejected alternative was `private, no-cache` + `Vary: Authorization` + a logout `Clear-Site-Data: "cache"`, which would leave response bodies
-on disk between logins on the same profile (best-effort clearing only). Cross-user safety of a `304` rests on two rules: authentication runs BEFORE any
-validator logic (an unauthenticated request is `401` with no validator, so a `304` is never a way to probe for data), and a validator never covers content that
-depends on the caller unless the caller's verdict is folded into the `ETag`. A `problem+json` response is always `no-store` and carries no validator. No
-route offers a validator in v0.1.0; `ResponseValidators` is exercised by the contract tests until the first view endpoint lands.
+**Caching -- a settled decision (the owner chose `no-store`).** Every `/api/` answer (JSON and `problem+json`) is `Cache-Control: no-store`, so nothing lands in a browser or proxy cache. No route answers through cache validators: Flow's report GETs were the donor's only consumer, and its `ETag` seam (`ResponseValidators`) was removed unused (Adder's checkup C-SMELL-2, ported); the first view GET that wants one ports it back. The rejected alternative was `private, no-cache` + `Vary: Authorization` + a logout `Clear-Site-Data: "cache"`, which would leave response bodies on disk between logins on the same profile (best-effort clearing only). Cross-user safety of any future `304` rests on two rules: authentication runs BEFORE any validator logic (an unauthenticated request is `401` with no validator, so a `304` is never a way to probe for data), and a validator never covers content that depends on the caller unless the caller's verdict is folded into the `ETag`.
 
 
 `style-src` carries `'unsafe-inline'` deliberately: Mantine's style props/CSS variables render
@@ -252,7 +244,7 @@ the full link roundtrip incl. the session revocation), `PasswordResetThrottleTes
 
 **Per-IP login bucket** (`security.rateLimit.loginPerMinute`, `$LOGIN_RATE_LIMIT_PER_MINUTE`;
 every bucket is installed by `plugins/RateLimits.kt`, which also owns the bucket names — today
-`login`, `refresh`, `password-reset`, `password-reset-confirm`, `mfa`, `ready`, and the per-USER `telemetry` below): blank **follows the mode** — 10/min in production,
+`login`, `refresh`, `password-reset`, `password-reset-confirm`, `mfa`, `ready`, and the per-USER `telemetry` and `directory` below): blank **follows the mode** — 10/min in production,
 1000/min in development — and an explicit number pins it in either mode (the `http.exposeOpenApi`
 idiom). Development is lifted because the e2e suite drives its logins from one host and would
 otherwise sleep out the bucket; **the per-account lockout above is the actual brute-force defence
@@ -270,6 +262,24 @@ development mode.
 once INSIDE `authenticate {}` around both reads, so the key is the verified user id (`TelemetryRoutesTest`). The panel polls `current` once a
 minute and fetches a history per expanded section, a handful a minute; each call is a few `ops` aggregations, so the
 bound is for a runaway client. The rejection is the generic `429` problem and the coalesced `rate_limit.exceeded` audit event (bucket `telemetry`, `byUserId`).
+
+**Per-USER directory bucket** (`directory`, a fixed 120/min in every mode, `RateLimits.DIRECTORY`) for `GET /api/v1/users/directory`, the ONE read that lets
+any signed-in user (not just an ADMIN) list accounts. `configureUserRoutes` mounts `rateLimit(RateLimitName(RateLimits.DIRECTORY))` INSIDE
+`authenticate {}` (the telemetry idiom), keyed by the verified user id: a NAT'd office is not one bucket and changing IP buys nothing. A user picker
+makes a debounced lookup per keystroke pause (a handful a minute). The route adds two bounds of its own: `q` is REQUIRED and at least 2 code points after
+trimming (max 100; code points, `codePointCount`, never UTF-16 units), and a page holds at most 20 rows (`400` beyond). **Honest scope: these slow and audit a
+bulk harvest, they do not prevent one.** A signed-in insider can still walk the directory with two-letter queries inside the bucket (up to 120 pages of 20 rows, i.e. 2,400
+rows, a minute), and every rejection is the generic `429` problem plus the coalesced `rate_limit.exceeded` audit event (bucket `directory`, `byUserId`, one per user per
+minute). `UserDirectoryTest` pins the bounds, 120 then `429`, per user, and the audit event.
+
+**What the user directory discloses, and to whom** (a deliberate widening of the ADMIN-only user list; Adder's decision D2, carried over as a Hammurabi assumption, `product.md`): to every signed-in user, the `id`, `name` and `email` of every ACTIVE account, searchable by name or email
+(case- and accent-insensitive). Never roles (who is an ADMIN), feature flags, language, MFA state, timestamps or the password hash: `UserDirectoryEntry` is a
+three-field projection built in the service, not the `User` row filtered afterwards, and `UserDirectoryTest` pins the exact key set. A soft-deleted account is
+absent (its email is freed for reuse). `%` and `_` in `q` are literal (`containsNormalized` escapes them AFTER the unaccent fold, in SQL: unaccent maps the fullwidth `％ ＿ ＼` to ASCII, so an earlier escape would be undone; `ContainsPatternTest`). **Residual risk:** the email is the login identifier, so
+a signed-in colleague who harvests emails can (a) aim failed sign-ins at a victim's account to trigger the per-account lockout, bounded by the per-IP `login` bucket
+(10/min in production) and the lockout's own window, and (b) request password-reset mail for a victim, bounded by the per-IP `password-reset` bucket and the
+per-email reset throttle (`PasswordResetThrottleTest`). Neither reveals or changes a credential, and the reset link goes only to the account's own mailbox. Collapse
+the projection to `{id, name}` if that trade changes.
 
 **Email MFA (opt-in)** (`auth/MfaChallenges.kt` + `auth/MfaEmail.kt`, wired in
 `configureAuthRoutes`): a per-user second factor behind the `MFA` feature flag — **the one
@@ -322,10 +332,16 @@ padded/case-variant login matches (and shares one lockout bucket). The V1 partia
 stays byte-wise (all writes are canonical).
 
 **Request body ceiling.** `RequestBodyLimit` (installed in `plugins/Http.kt`,
-`MAX_REQUEST_BODY_BYTES` = 10 MiB) rejects oversized bodies with a 413 problem (mapped in
+the limit is chosen per call by `requestBodyLimit`) rejects oversized bodies with a 413 problem (mapped in
 `plugins/ErrorHandling.kt`) before any receive/validation work — a memory-DoS backstop, not a
-business rule; field-level `maxLength` validation rejects oversized values far earlier on ordinary
-payloads. Declared in the spec on every body-taking operation (13 today; the spec is the source of the count) and covered by the one
+business rule (the body is buffered before it decodes, so a few concurrent big bodies would otherwise pin real heap); field-level
+`maxLength` validation rejects oversized values far earlier on ordinary payloads. **`MAX_REQUEST_BODY_BYTES` = 512 KiB** is the global
+ceiling (the foundation's bodies are a few hundred bytes; a feature whose documents outgrow it, the ADR body, sizes its own ceiling from
+its field maxima in `requestBodyLimit`, the way Adder sized its thread and message writes), and **`MAX_SMALL_REQUEST_BODY_BYTES` = 16 KiB**
+applies to `POST` on the anonymous auth routes (`/login`, `/login/mfa`, `/refresh`, `/password-reset`, `/password-reset/confirm`): an
+unauthenticated caller reaches them, and their bodies are a handful of short fields. The ceilings match the path as ROUTING sees it
+(`routedPath` in `Http.kt`: segments percent-decoded, empty segments dropped), so `/api/v1/%6Cogin` or `/api/v1//login/` meets the same
+ceiling as its plain spelling instead of slipping to the global one (`PayloadValidationTest`). **Request bodies are never decompressed** (checkup C-SEC-1, Adder's, ported): `Compression` is installed in `CompressResponse` mode, because its default also inflates a `Content-Encoding: gzip` request body after the ceiling counted only the wire bytes (8 KiB of gzip inflated to megabytes); and a request that carries any `Content-Encoding` other than `identity` is refused up front with a `415` problem (a `Setup`-phase interceptor in `plugins/Http.kt`, before any ceiling or parser), so a compressed or merely labelled body is never decoded and never parsed (`PayloadValidationTest`). Declared in the spec on every body-taking operation (13 today; the spec is the source of the count) and covered by the one
 `PayloadValidationTest` case.
 
 **Request payload validation (convention — API-SEC-003/API-ERR-005).** Mutating routes validate
@@ -336,7 +352,7 @@ oversized/blank values die in the DB as `500`s. One cross-cutting example: passw
 throw, and the 500-vs-401 split would be an account-enumeration oracle, so login's
 `verifyPassword` guards it too). Declare limits as `maxLength` in the OpenAPI spec. Keep new
 validators feature-local and enforce them **after** the authz guard (403 wins over 400). Covered
-by `PayloadValidationTest`.
+by `PayloadValidationTest`. **Hidden formatting characters** (`isHiddenFormatting`, `infra/validation/Text.kt`: the bidirectional embeddings, overrides and isolates U+202A..U+202E and U+2066..U+2069, and the line and paragraph separators U+2028/U+2029, the "Trojan Source" family) are refused wherever a control character is: `sanitizeSingleLine` (names, titles) and `sanitizeMultiLine` (free text that wraps, `\n`/`\t` kept; `SanitizeMultiLineTest`). The zero-width joiner of an emoji sequence stays allowed.
 
 **Outbound HTTP calls (SSRF posture): not ported.** v0.1.0 makes no server-initiated HTTP call (SMTP aside), so Flow's `infra/outbound/` guard (the host allow-list, `GuardedDns`, the
 blocked-address ranges, `outbound.blocked`) was left in Flow on purpose (`product.md` "Donors"). Port it, with its tests, in the commit that adds the first outbound call, and add its
@@ -376,6 +392,10 @@ from direct clients lets them spoof both. Covered by `ForwardedHeadersTest`; the
 itself needs a real Netty engine to pin (`RawForwardedForLinesTest` writes the raw HTTP/1.1
 request by hand — ktor-client's own request writer folds repeated `header()` calls into one wire
 line before send, so `testApplication`'s client cannot reproduce two genuinely distinct lines).
+
+**The client address is NUMERIC, with or without a proxy** (Adder's 0.4.0 audit, ported). Every per-IP bucket (the `login`, `refresh`, `mfa`, `password-reset`, `password-reset-confirm` and `ready` rate limits; the login LOCKOUT is per account, not per IP) keys by `clientAddressKey()` (`infra/ClientAddress.kt`, checkup C-SEC-4): `call.request.origin.remoteHost` folded to an IPv4 address whole (a `:port` suffix dropped, the form Azure Application Gateway and IIS ARR write), an IPv6 one by its /64, an IPv4-mapped one as IPv4; a value that is NOT an address literal (junk forwarded text, a hostname) is never a key of its own, it counts under the TCP peer (`call.request.local.remoteAddress`), so rotating `X-Forwarded-For` text mints no buckets (`ClientAddressKeyTest` pins the precedence, `ForwardedHeadersTest`). The fallback is logged: one WARN per ten minutes (logger `ch.nokillswit.infra.ClientAddress`, the number of calls folded, never client text) when the trusted hop is no address. `origin.remoteHost` itself defaults on Netty to `InetSocketAddress.getHostName()`, a REVERSE-DNS lookup: a client with forward-confirmed PTR records for many addresses would get one key per address (and an IPv6 /64 would not group), and one whose PTR is shared or slow would share a key. So `configureHttp` registers a `Setup`-phase interceptor FIRST, before anything reads `remoteHost` (the JDK caches the resolved name), that copies `call.request.local.remoteAddress` (`getHostString()`, the literal) into the origin's `remoteHost`; behind a proxy, `resolveForwardedForOrigin` (registered after it) overrides that with the trusted hop, and a request with no `X-Forwarded-For` keeps the proxy's numeric address. The helper is `numericClientHost` (`NumericClientHostTest`, played by hand because a test host cannot make Netty resolve a name; the proxy-trust tests `ForwardedHeadersTest` and `RawForwardedForLinesTest`, the latter on the real Netty engine, still hold).
+
+**Trust the address or the buckets degrade.** The per-IP buckets are only as good as `remoteHost`. Behind a plain proxy with `http.behindProxy=false`, or through an SNAT load balancer (`externalTrafficPolicy: Cluster`), every client arrives as the proxy's or the node's address and they all share ONE bucket per limit; with `behindProxy=true` and no proxy that strips client-supplied `X-Forwarded-For`, a client can still claim any REAL address literal (a fresh IPv4 address per request, or an IPv6 /64 of its own) and so pick its own key; junk text cannot. Fix the trust (a proxy that sets the header and `behindProxy=true`, or `externalTrafficPolicy: Local`). **Behind a proxy the peer IS the proxy**: clients whose trusted hop is not an address (a header format `clientAddressKey()` does not read, or `http.proxyHops` pointing at a hop that is not the client) are all counted under the proxy's address and share ONE bucket per limit, a global lockout; the WARN above says so, so check the proxy's `X-Forwarded-For` format.
 
 CSRF install is gated behind `security.csrf.enabled` (default **`false`** in `application.yaml`,
 env-overridable via `SECURITY_CSRF_ENABLED`); the configured `originMatchesHost()` +
@@ -452,7 +472,7 @@ through `jdbcUrlForLogging()` — `host:port/db` only, no userinfo or query stri
 /api/v1/logout`'s malformed-body debug line (`auth/AuthRoutes.kt`) logs only the parse failure's
 exception CLASS NAME, never the throwable — the cause chain can embed a body excerpt (kotlinx's
 decode-error message), the same `errorType`-only rule as `login.mfa_send_failed`/
-`password_reset.send_failed`; covered by `LogoutTest`.
+`password_reset.send_failed`; covered by `LogoutTest`. The delivery-failure ERROR lines (`auth/MfaEmail.kt`, both of `auth/PasswordResetEmail.kt`'s) log the class name (the MFA one also the user id), never the address or the throwable (an SMTP refusal can echo the recipient and server detail); `MfaLoginTest` pins the MFA line against a server that does exactly that. **A failed database statement never logs its bound values**: a database exception's MESSAGE is unsafe (Exposed's `ExposedR2dbcException.getMessage()` appends the failed statements with their arguments expanded whenever the transaction's `debug` flag is on, and Postgres itself echoes values into some messages: an input-syntax failure, a `RAISE`, a malformed tsquery), so the 500 catch-all logs a chain holding one (or any suppressed exception, or a chain past the walk's bound: fail closed) as class names, the SQLSTATE and stack frames only (`plugins/ScrubbedFailure.kt`, `observability.md` "The 500 line"); any new log site for a throwable that may come from the database does the same (`scrubbedForLog()` for a throwable, `scrubbedSummary()` for one line), or logs `javaClass.simpleName`; the telemetry collector failure line and the readiness probe's DEBUG line already do. Two loggers that print a cause below INFO (`Exposed`, `io.ktor.server.plugins.statuspages`) are pinned to INFO in `logback.xml`, and so are the R2DBC driver (`io.r2dbc.postgresql`: its QUERY and PARAM loggers print every statement with its bound values at DEBUG) and Ktor's authentication and rate-limit loggers (they trace `request.uri`, the query string included). **Spans too:** `core`'s `ScrubbedSpanExporter` wraps every configured trace exporter so a recorded exception leaves as `exception.type` only, never `exception.message`/`exception.stacktrace` (`ScrubbedSpanExporterTest`); the exporter drops the request's query string (`url.query` and its full-URL spellings) too, since it holds what a user typed into a search or a filter. `LogHygieneTest`'s echo test makes a team INSERT fail with a database message that carries the name and asserts it in no ROOT-logger event (it fails on the unscrubbed catch-all); its cancelled-statement (57014) test is only a shape pin that the line still names the driver class and the SQLSTATE, not a leak proof.
 
 **Outbound email** (`infra/mail/`, ported from Lettuce): `configureMail` (registered at the top of
 the infrastructure group, before Flyway) publishes `MailerKey` holding a `Mailer` or null.

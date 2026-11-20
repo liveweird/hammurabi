@@ -1,0 +1,20 @@
+/* The "message" variant (MarkdownView.tsx): a chat body is a compact block in a column of
+   many, so it breaks long unbroken strings (URLs, hashes) instead of widening the pane, and
+   the Typography block margins that suit a document are tightened. The "document" variant
+   carries no class from this file. */
+.message {
+  overflow-wrap: anywhere;
+}
+
+.message > :first-child {
+  margin-block-start: 0;
+}
+
+.message > :last-child {
+  margin-block-end: 0;
+}
+
+/* A markdown heading in a message is a bold paragraph, never a heading element. */
+.heading {
+  font-weight: 700;
+}

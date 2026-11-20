@@ -1,22 +1,13 @@
 package ch.nokillswit.telemetry
 
+import ch.nokillswit.infra.backgroundScope
 import ch.nokillswit.infra.db.PoolSnapshot
 import ch.nokillswit.infra.db.PoolStatsKey
 import ch.nokillswit.infra.db.R2dbcDatabaseKey
 import ch.nokillswit.plugins.MetricRegistryKey
 import io.ktor.server.application.Application
 import io.ktor.server.application.ApplicationStarted
-import io.ktor.server.application.ApplicationStopping
 import io.ktor.util.AttributeKey
-import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.Job
-import kotlinx.coroutines.SupervisorJob
-import kotlinx.coroutines.cancel
-import kotlinx.coroutines.runBlocking
-import kotlinx.coroutines.withTimeoutOrNull
-
-private const val SHUTDOWN_JOIN_TIMEOUT_MS = 2_000L
 
 /** Published once the sampler runs - `TelemetryWiringTest`'s "sampler started" seam, and the handle a test ticks by hand. */
 val TelemetrySamplerKey = AttributeKey<TelemetrySampler>("TelemetrySampler")
@@ -41,7 +32,7 @@ val TelemetryOverridesKey = AttributeKey<TelemetryOverrides>("TelemetryOverrides
  * The telemetry sampler's module (`.claude/docs/observability.md` "Telemetry"): the process samples itself. `telemetry.*` is validated
  * on every boot, enabled or not; the sampler
  * itself starts on [ApplicationStarted] (so a test's `application {}` overrides are visible) and is cancelled on
- * [ApplicationStopping], before the connection pool is disposed. Registered after
+ * `ApplicationStopping`, before the connection pool is disposed. Registered after
  * `configureBootstrap` (`application.yaml`); `configureMonitoring` has already published the metric registry and
  * `configureDatabase` the database and pool figures.
  */
@@ -65,14 +56,8 @@ fun Application.configureTelemetry() {
             heavyCollectors = heavyCollectors(config),
             firstTickDelayMillis = overrides.firstTickDelayMillis,
         )
-        val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
-        sampler.start(scope)
+        // Joined on ApplicationStopping, so an in-flight tick has released its pooled connection before the pool is disposed.
+        sampler.start(app.backgroundScope("hammurabi-telemetry"))
         app.attributes.put(TelemetrySamplerKey, sampler)
-        app.monitor.subscribe(ApplicationStopping) {
-            val rootJob = scope.coroutineContext[Job]
-            scope.cancel()
-            // A bounded join, so an in-flight tick has released its pooled connection before the pool is disposed.
-            if (rootJob != null) runBlocking { withTimeoutOrNull(SHUTDOWN_JOIN_TIMEOUT_MS) { rootJob.join() } }
-        }
     }
 }

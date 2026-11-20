@@ -6,7 +6,6 @@ import org.jetbrains.exposed.v1.core.EntityIDColumnType
 import org.jetbrains.exposed.v1.core.IColumnType
 import org.jetbrains.exposed.v1.core.dao.id.EntityID
 import org.jetbrains.exposed.v1.core.Table
-import org.jetbrains.exposed.v1.r2dbc.R2dbcTransaction
 import org.jetbrains.exposed.v1.r2dbc.transactions.TransactionManager
 import kotlin.coroutines.AbstractCoroutineContextElement
 import kotlin.coroutines.CoroutineContext
@@ -39,8 +38,8 @@ internal fun maxRowsPerStatement(columnCount: Int): Int = (MAX_BIND_PARAMETERS /
 /**
  * Test seam (`MultiRowInsertTest`): a coroutine-context element, installed with
  * `withContext(StatementProbe { table, rows -> … }) { … }`, that [writeRows] calls with the table and the number of rows a statement
- * carries, just before it runs. Those are the only rows [insertRows] and [insertRowsIgnoringConflicts] have in flight (an upsert's are
- * all built first, see [upsertRows]). It sees only the writes of coroutines running under it, so a concurrent writer elsewhere in the
+ * carries, just before it runs. Those are the only rows [insertRows] and [insertRowsIgnoringConflicts] have in flight. It sees only the
+ * writes of coroutines running under it, so a concurrent writer elsewhere in the
  * same JVM can neither reach it nor be miscounted by it (it replaced a process-wide mutable hook).
  */
 internal class StatementProbe(val onStatement: (Table, Int) -> Unit) : AbstractCoroutineContextElement(Key) {
@@ -92,8 +91,8 @@ class InsertRow {
  * server-side (SQLSTATE 22001) instead of in the client.
  *
  * **Statements are bounded in rows and in payload** ([payloadChunkSizes]): at most the bind cap's rows ([MAX_BIND_PARAMETERS]) and
- * at most [MAX_PAYLOAD_CHARS] characters of `String` values (a lone heavier row goes alone). Upsert's last-per-key collapse sees the whole
- * batch BEFORE this split, and the rows keep their order and their one transaction.
+ * at most [MAX_PAYLOAD_CHARS] characters of `String` values (a lone heavier row goes alone); the rows keep their order and their one
+ * transaction.
  *
  * **Statement texts are quantized** ([payloadChunkSizes]): the SQL text depends on the row count, and every
  * distinct text becomes one named server-side prepared statement that the driver caches per connection,
@@ -108,8 +107,7 @@ class InsertRow {
  * `build-times.md` WHY 51). The statements are EXACTLY [payloadChunkSizes]' over the full list, power-of-two rounding included. `body`
  * therefore runs lazily, exactly once per row, and must be pure (the first row, built to read the columns, is handed to the first
  * statement, not built again, and is not kept for the call). A row that sets other columns than the first fails the call when its statement
- * is assembled, after the earlier statements ran: the caller's transaction rolls them back. [upsertRows] still builds every row first,
- * because its collapse of repeated keys needs them all, then plans with [payloadChunkSizes]. A writer may bound its own groups tighter
+ * is assembled, after the earlier statements ran: the caller's transaction rolls them back. A writer may bound its own groups tighter
  * (a writer handing in groups of at most 1,024 rows / 512 Ki characters, to cap what it holds beside
  * the batch); a group is under [MAX_PAYLOAD_CHARS], so it normally becomes one statement (a group of a non-power-of-two row count
  * becomes its binary decomposition, as any batch does) and the two bounds never contradict.
@@ -122,7 +120,7 @@ class InsertRow {
  * `batchInsert`/`exec` would bring the linear retention back.
  */
 suspend fun <T : Table, E> T.insertRows(rows: Iterable<E>, body: InsertRow.(E) -> Unit) {
-    writeRows("insertRows", rows, body, conflictKeys = null)
+    writeRows("insertRows", rows, body)
 }
 
 /**
@@ -134,70 +132,35 @@ suspend fun <T : Table, E> T.insertRows(rows: Iterable<E>, body: InsertRow.(E) -
  * rows actually written is unknown to the caller.
  */
 suspend fun <T : Table, E> T.insertRowsIgnoringConflicts(rows: Iterable<E>, body: InsertRow.(E) -> Unit) {
-    writeRows("insertRowsIgnoringConflicts", rows, body, conflictKeys = null, ignoreConflicts = true)
-}
-
-/**
- * [insertRows]' `ON CONFLICT` sibling — `table.upsertRows(rows, keys = listOf(Col, …)) { this[Col] = it.value }` replaces
- * `batchUpsert(rows, *keys)` with ONE multi-row
- * `INSERT … VALUES (…), (…) ON CONFLICT (<keys>) DO UPDATE SET c = EXCLUDED.c, …` per chunk (the same chunking, the same
- * quantized statement texts, the same bind-parameter cap, the same contract as [insertRows]; the `ON CONFLICT` suffix
- * is constant, so it adds no statement texts). Why: `batchUpsert` is one bound execution per row, ~0.2 ms each.
- *
- * `keys` are the conflict target (a unique index/PK of the table, every one set by every row). The `DO UPDATE SET`
- * list is every OTHER column of the statement — each column a row sets plus each unset client-side `default(…)`
- * column, exactly what `batchUpsert` updates — and it must not be empty (use [insertRows] for a table that is all
- * key). A single `INSERT … ON CONFLICT DO UPDATE` cannot touch one row twice (`cardinality_violation`), so rows
- * sharing a key are collapsed to the LAST one before chunking: the end state `batchUpsert`'s sequential
- * executions leave. No `WHERE` clause, nothing returned.
- */
-suspend fun <T : Table, E> T.upsertRows(rows: Iterable<E>, keys: List<Column<*>>, body: InsertRow.(E) -> Unit) {
-    require(keys.isNotEmpty()) { "upsertRows: the conflict target needs at least one key column" }
-    writeRows("upsertRows", rows, body, conflictKeys = keys)
+    writeRows("insertRowsIgnoringConflicts", rows, body, ignoreConflicts = true)
 }
 
 private suspend fun <T : Table, E> T.writeRows(
     caller: String,
     rows: Iterable<E>,
     body: InsertRow.(E) -> Unit,
-    conflictKeys: List<Column<*>>?,
     ignoreConflicts: Boolean = false,
 ) {
     val source = rows as? List<E> ?: rows.toList()
     if (source.isEmpty()) return
     fun build(element: E): Map<Column<*>, Any?> = InsertRow().also { it.body(element) }.values
-    // An upsert collapses repeated keys over the WHOLE call, which needs every row's key first, so it materialises them (every row
-    // validated before the collapse); the other two build each row only while its statement is being assembled (see "Memory").
-    val eager = if (conflictKeys == null) null else source.map(::build)
-    val firstRow = eager?.first() ?: build(source.first())
+    // Each row is built only while its statement is being assembled (see "Memory").
+    val firstRow = build(source.first())
     // A copy: the key view would keep the first row alive for the whole call.
     val setColumns = LinkedHashSet(firstRow.keys)
     require(setColumns.isNotEmpty()) { "$caller: a row that sets no column cannot be inserted" }
     fun checked(row: Map<Column<*>, Any?>) = row.also { require(it.keys == setColumns) { "$caller: every row must set the same columns" } }
-    eager?.forEach(::checked)
     requireWritable(caller, setColumns)
-    val collected = if (eager != null && conflictKeys != null) lastPerKey(caller, eager, conflictKeys) else null
     val columns = this.columns.filter { it in setColumns || it.defaultValueFun != null }
     val tx = TransactionManager.current()
     val header = "INSERT INTO ${tx.identity(this)} (${columns.joinToString(", ") { tx.identity(it) }}) VALUES "
-    val suffix = when {
-        ignoreConflicts -> " ON CONFLICT DO NOTHING"
-        conflictKeys == null -> ""
-        else -> conflictSuffix(caller, tx, columns, conflictKeys)
-    }
+    val suffix = if (ignoreConflicts) " ON CONFLICT DO NOTHING" else ""
     val maxRows = maxRowsPerStatement(columns.size)
     // The lazy plan's first row is the one built above; the rest are built as their statement is assembled (`head` is dropped once used).
-    var head: Map<Column<*>, Any?>? = if (eager == null) firstRow else null
+    var head: Map<Column<*>, Any?>? = firstRow
     var next = 1
-    val statements = if (collected != null) {
-        // The whole batch is built, so its plan is the pure planner's over the materialised payloads.
-        var offset = 0
-        payloadChunkSizes(collected.map(::payloadChars), maxRows, MAX_PAYLOAD_CHARS.toLong()).asSequence()
-            .map { size -> collected.subList(offset, offset + size).also { offset += size } }
-    } else {
-        lazyStatements(source.size, maxRows, MAX_PAYLOAD_CHARS.toLong(), ::payloadChars) {
-            head?.also { head = null } ?: checked(build(source[next++]))
-        }
+    val statements = lazyStatements(source.size, maxRows, MAX_PAYLOAD_CHARS.toLong(), ::payloadChars) {
+        head?.also { head = null } ?: checked(build(source[next++]))
     }
     for (chunk in statements) {
         val size = chunk.size
@@ -234,21 +197,6 @@ private fun Table.requireWritable(caller: String, setColumns: Set<Column<*>>) {
     require(this.columns.none { (it.columnType as? AutoIncColumnType<*>)?.sequence != null }) {
         "$caller: ${this.tableName} has a sequence-backed autoIncrement column; use batchInsert"
     }
-}
-
-/** [rows] with every key collapsed to its LAST row (first-seen order), see [upsertRows]. */
-private fun lastPerKey(caller: String, rows: List<Map<Column<*>, Any?>>, keys: List<Column<*>>): List<Map<Column<*>, Any?>> {
-    require(keys.all { it in rows.first() }) { "$caller: every conflict key column must be set by every row" }
-    val byKey = LinkedHashMap<List<Any?>, Map<Column<*>, Any?>>(rows.size * 2)
-    for (row in rows) byKey[keys.map { key -> row[key].let { if (it is EntityID<*>) it.value else it } }] = row
-    return byKey.values.toList()
-}
-
-private fun conflictSuffix(caller: String, tx: R2dbcTransaction, columns: List<Column<*>>, keys: List<Column<*>>): String {
-    val updated = columns.filter { it !in keys }
-    require(updated.isNotEmpty()) { "$caller: every column is a conflict key, nothing to update" }
-    return " ON CONFLICT (${keys.joinToString(", ") { tx.identity(it) }}) DO UPDATE SET " +
-        updated.joinToString(", ") { "${tx.identity(it)} = EXCLUDED.${tx.identity(it)}" }
 }
 
 /**

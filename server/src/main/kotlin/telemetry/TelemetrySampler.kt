@@ -2,6 +2,7 @@ package ch.nokillswit.telemetry
 
 import ch.nokillswit.infra.catchingFailures
 import ch.nokillswit.infra.db.PoolSnapshot
+import ch.nokillswit.plugins.scrubbedSummary
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Job
@@ -41,7 +42,8 @@ internal class FailureLog(private val log: org.slf4j.Logger) {
     private val failing = ConcurrentHashMap.newKeySet<String>()
 
     fun failed(name: String, e: Throwable) {
-        val text = e.toString().take(MAX_FAILURE_TEXT)
+        // A database failure renders as class names and SQLSTATE only (plugins/ScrubbedFailure.kt): its message can carry values.
+        val text = e.scrubbedSummary().take(MAX_FAILURE_TEXT)
         if (failing.add(name)) {
             log.warn("Telemetry collector {} failed: {}", name, text)
         } else {

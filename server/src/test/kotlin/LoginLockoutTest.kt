@@ -25,7 +25,7 @@ class LoginLockoutTest {
         startApplication()
         val client = jsonClient()
         val tracked = uniqueEmail("capacity-tracked")
-        val rejected = " ${"x".repeat(100_000)}@invalid "
+        val rejected = " ${"x".repeat(10_000)}@invalid " // over the 254-character audit cutoff, under the 16 KiB auth body limit
         val auditEvents = LogCapture("ch.nokillswit.audit")
         try {
             assertEquals(HttpStatusCode.Unauthorized, client.login(tracked, "wrong").status)

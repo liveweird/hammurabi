@@ -6,6 +6,7 @@ import {
   deleteUser,
   getUser,
   listUsers,
+  searchUserDirectory,
   updateUser,
 } from "./users";
 
@@ -93,5 +94,13 @@ describe("users API wrappers", () => {
     expect(url).toBe("/api/v1/users/2/password");
     expect(init.method).toBe("PUT");
     expect(JSON.parse(init.body as string)).toEqual({ password: "new-password-123" });
+  });
+
+  test("searchUserDirectory sends the required term with the paging and sort, omitting what is unset", async () => {
+    mockFetch.mockImplementation(() => Promise.resolve(jsonResponse(200, { items: [], page: 1, pageSize: 20, total: 0 })));
+    await searchUserDirectory({ q: "ali ce", page: 1, pageSize: 20, sort: "name" });
+    expect(lastCall()[0]).toBe("/api/v1/users/directory?q=ali+ce&page=1&pageSize=20&sort=name");
+    await searchUserDirectory({ q: "bo" });
+    expect(lastCall()[0]).toBe("/api/v1/users/directory?q=bo");
   });
 });

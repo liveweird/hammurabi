@@ -44,6 +44,12 @@ through the appender to OTel. Reserve it for branches that are genuinely unreach
 requests (no current usage — Lettuce's history shows how easily an "unreachable" branch turns out
 to be a routine denial path).
 
+**The client-address fallback (WARN log, no audit event; `security.md` "The client address is NUMERIC").** Logger `ch.nokillswit.infra.ClientAddress`: WARN `the trusted X-Forwarded-For hop is not an IP address (N call(s) in this window): ...` at most once per ten minutes per process, N the calls folded since the last line, no client text (it is attacker-chosen).
+
+**The 500 line (`plugins/ErrorHandling.kt`, `plugins/ScrubbedFailure.kt`).** The catch-all logs ERROR `Unhandled exception while processing <METHOD> <path>` (no query string) with the failure as its throwable. When the cause chain holds a database exception (`R2dbcException`, which Exposed's `ExposedR2dbcException` extends, or `java.sql.SQLException`), OR any link has suppressed exceptions, OR the chain is deeper than the walk's 32-link bound (fail closed: a database exception could hide in either), the throwable is replaced by `ScrubbedFailure`s mirroring the chain: each link is `<exception class name> [SQLSTATE <state>]` with the original stack frames and NO message and no suppressed exceptions, because a driver or Exposed message can carry bound values (Exposed expands the statement's arguments into the message when the transaction's `debug` flag is on; Postgres echoes values into some messages), and a message body, a title or a search term is such a value. Any other failure is logged unchanged. Two one-line sites that render a failure without a stack use `scrubbedSummary()` (the links joined by ` <- `): the telemetry collector WARN/DEBUG and the readiness probe's DEBUG. `LogHygieneTest` pins it (the echo test proves the leak is closed; the 57014 test only pins that the line still names the driver class and the SQLSTATE); `ScrubbedFailureTest` pins the rendering. **No logger below INFO prints a failure's message:** DEBUG statement logging of the driver stays off, and `logback.xml` pins the two other loggers that would print a cause below INFO, `Exposed` (its DEBUG `Transaction attempt #N failed: ${cause.message}`) and `io.ktor.server.plugins.statuspages` (its TRACE line with the URI and `cause.toString()`), to INFO.
+
+**Spans carry an exception's type only.** The Ktor instrumentation records the RAW throwable of a failed request (`Span.recordException`: `exception.message` and `exception.stacktrace` with every "Caused by" message). `core`'s `getOpenTelemetry` wraps whichever exporter `OTEL_TRACES_EXPORTER` selects in `ScrubbedSpanExporter` (`addSpanExporterCustomizer`), which drops those two attributes from every span event, empties a span status description and drops the request's query string (`url.query`, with the full-URL spellings `url.full`, `http.url`, `http.target`: it holds what a user typed into a search or a filter); `exception.type` and every other attribute stay. Pinned by `ScrubbedSpanExporterTest` (the wrapper, and the real `getOpenTelemetry` wiring through a test-only exporter SPI). The OTel logs appender needs no wrapper: the 500 catch-all hands it the scrubbed throwable.
+
 **Database connection guards (WARN logs, no audit event; `persistence.md` "Connection pool").** Logger
 `ch.nokillswit.infra.db.LeakedSocketGuard`: `closed the socket of a broken database connection the driver had left open (backend pid
 <pid>; its transaction rolls back)` each time the guard disposes a socket r2dbc-postgresql gave up on without closing (the r2dbc-postgresql
@@ -85,7 +91,7 @@ with `hasKeyValue` from `TestEnvironment.kt`). Emitted today:
 - `access.rejected` (with `reason`: user_gone/revoked/credential_changed/roles_changed/malformed, `userId` - the
   token's claim, null when absent OR out of range - and `suppressed`; `plugins/Security.kt`) - the per-request access check (`TokenBlocklistService.accessVerdict`)
   refused an otherwise valid signed access token: the account was deleted, the token was logged out, the password was
-  changed, the role was changed, or the token lacks a claim the check needs (a pre-deploy token). **Coalesced** like `rate_limit.exceeded` (its own `RateLimitAuditThrottle`): at most ONE event per user and reason per 60 s, `suppressed`
+  changed, the role was changed, or the token lacks a claim the check needs (`roles`, `exp`, an invalid `userId`/`credentialRevision`: a pre-deploy token or a hand-signed one). **Coalesced** like `rate_limit.exceeded` (its own `RateLimitAuditThrottle`): at most ONE event per user and reason per 60 s, `suppressed`
   counting the rejections folded into it since the previous one (0 on the first), so a stale token replayed on every request writes a line a minute;
   the keys are bounded by the accounts that ever held a signed token. Junk, expired, wrong-audience/`typ` and jti-less tokens never reach the check and emit nothing. Never the token,
 - `refresh.replay_grace` (userId — a rotated refresh token presented again inside the grace
@@ -112,13 +118,13 @@ with `hasKeyValue` from `TestEnvironment.kt`). Emitted today:
   (Flow's `crypto.reencrypted` boot-backfill event comes back with `EncryptedAtRest`/`Reencrypt`, `security.md` "Encryption at rest"),
 - `authz.denied` (every 403, from the `ForbiddenException` handler in `plugins/ErrorHandling.kt`,
   with method/path/byUserId/detail — `path` is the request path only, never the query string),
-- `rate_limit.exceeded` (bucket/method/path/suppressed, plus `byUserId` on the per-USER `telemetry` bucket — a token bucket (`plugins/RateLimits.kt`: per-IP login, refresh,
-  password-reset, password-reset-confirm, mfa, ready; per-user telemetry) rejected the request with a 429, emitted from the 429 status handler in
+- `rate_limit.exceeded` (bucket/method/path/suppressed, plus `byUserId` on the per-USER `telemetry` and `directory` buckets — a token bucket (`plugins/RateLimits.kt`: per-IP login, refresh,
+  password-reset, password-reset-confirm, mfa, ready; per-user telemetry and directory) rejected the request with a 429, emitted from the 429 status handler in
   `plugins/ErrorHandling.kt`; `bucket` is stamped by the bucket's own `requestKey`. **Coalesced**
   (`RateLimitAuditThrottle`): at most ONE event per bucket per 60 s, `suppressed` counting the rejections folded into it
   since the previous event (0 on the first), so an unauthenticated flood writes a line a minute per bucket instead of one
-  per request; keyed by bucket only (per-IP buckets), so memory is bounded whoever floods. The per-USER `telemetry` bucket is keyed by
-  `telemetry:<userId>` instead and carries `byUserId` -- the server-minted claim of a verified token, never client text; only a signed-in
+  per request; keyed by bucket only (per-IP buckets), so memory is bounded whoever floods. The per-USER `telemetry` and `directory` buckets are keyed by
+  `telemetry:<userId>` / `directory:<userId>` instead and carries `byUserId` -- the server-minted claim of a verified token, never client text; only a signed-in
   account reaches that key, so the key space is the account count. The client address is deliberately NOT a field
   (it is `X-Forwarded-For`-derived behind a proxy, i.e. attacker-chosen text; the ingress log has it), and neither is the
   query string. The per-account lockout's 429s are their own `login.lockout`/`login.rejected_locked` events and do not
@@ -199,7 +205,7 @@ design is multi-process-safe (two replicas, a rolling deploy) and kept that way 
 - **Failure isolation (it must never be the reason something else is slow or down).** Every collector runs in `catchingFailures` and is
   independent of the others; the whole tick runs under `withTimeoutOrNull(interval / 2)`; every statement under the transaction's
   `queryTimeout` (a quarter of the interval, 15..60 s; the only way a statement timeout may be set). Per collector, the FIRST failure is one WARN
-  (`Telemetry collector <name> failed: <exception toString>`, no stack), repeats are DEBUG, and the first success afterwards one INFO
+  (`Telemetry collector <name> failed: <exception toString>`, no stack; a database failure renders as class names and SQLSTATE only, `scrubbedSummary()`), repeats are DEBUG, and the first success afterwards one INFO
   `Telemetry collector <name> recovered` (logger `ch.nokillswit.telemetry.TelemetrySampler`; the tick budget is the collector `tick`). It touches neither
   `/ready` nor any other probe, and no audit event: it records no user action. Pinned by `TelemetrySamplerTest`.
 - **Never recorded:** JVM arguments, environment variables, system properties, request paths with identifiers, any user or ADR data. A process

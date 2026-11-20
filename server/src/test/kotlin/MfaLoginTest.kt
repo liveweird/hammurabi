@@ -7,6 +7,9 @@ import ch.nokillswit.auth.MfaVerifyRequest
 import ch.nokillswit.users.Feature
 import ch.nokillswit.users.UserFeaturesUpdateRequest
 import ch.nokillswit.users.UserRole
+import ch.qos.logback.classic.Level
+import ch.qos.logback.classic.spi.ILoggingEvent
+import ch.qos.logback.classic.spi.ThrowableProxyUtil
 import io.ktor.client.HttpClient
 import io.ktor.client.call.body
 import io.ktor.client.request.get
@@ -23,6 +26,7 @@ import java.util.concurrent.TimeUnit
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertNotNull
+import kotlin.test.assertNull
 import kotlin.test.assertTrue
 
 /**
@@ -75,6 +79,57 @@ class MfaLoginTest {
         }
 
         fun awaitDelivery(): Boolean = delivered.await(5, TimeUnit.SECONDS)
+
+        override fun close() {
+            server.close()
+            executor.shutdownNow()
+        }
+    }
+
+    /** An SMTP server that refuses every recipient and, like real servers, echoes the address in the refusal. */
+    private class RefusingSmtp(port: Int) : AutoCloseable {
+        private val server = ServerSocket(port)
+        private val executor = Executors.newSingleThreadExecutor()
+
+        /** Set once the server has refused a RCPT, so the test proves the failure it scans for really happened. */
+        @Volatile var refusedRecipient = false
+
+        init {
+            executor.submit {
+                while (!server.isClosed) {
+                    val socket = try {
+                        server.accept()
+                    } catch (_: java.io.IOException) {
+                        break
+                    }
+                    socket.use { serve(it) }
+                }
+            }
+        }
+
+        private fun serve(socket: java.net.Socket) {
+            val reader = socket.getInputStream().bufferedReader()
+            val writer = socket.getOutputStream().bufferedWriter()
+            fun reply(line: String) {
+                writer.write("$line\r\n")
+                writer.flush()
+            }
+            reply("220 localhost")
+            while (true) {
+                val line = reader.readLine() ?: break
+                when {
+                    line.startsWith("RCPT TO:") -> {
+                        refusedRecipient = true
+                        reply("550 5.1.1 ${line.removePrefix("RCPT TO:")} recipient refused")
+                    }
+                    line.startsWith("QUIT") -> {
+                        reply("221 bye")
+                        break
+                    }
+                    else -> reply("250 ok")
+                }
+            }
+        }
 
         override fun close() {
             server.close()
@@ -295,6 +350,48 @@ class MfaLoginTest {
         } finally {
             auditEvents.detach()
         }
+    }
+
+    @Test
+    fun `a failed MFA delivery logs a user id and an error type, never the address or the throwable`() = testApplication {
+        val port = ServerSocket(0).use { it.localPort }
+        configureApp(
+            "mail.transport" to "smtp",
+            "mail.smtp.host" to "127.0.0.1",
+            "mail.smtp.port" to port.toString(),
+            "mail.smtp.startTls" to "false",
+        )
+        startApplication()
+        val email = uniqueEmail("mfa-delivery-log")
+        val id = seedMfaUser(email, "pw-123456789")
+        val everything = LogCapture("ROOT")
+        try {
+            RefusingSmtp(port).use { smtp ->
+                assertEquals(HttpStatusCode.OK, jsonClient().login(email, "pw-123456789").status)
+                val failure = assertNotNull(
+                    everything.awaitEvent { it.level == Level.ERROR && "MFA code email delivery failed" in it.formattedMessage },
+                    "the refused delivery is logged",
+                )
+                assertTrue(smtp.refusedRecipient, "the delivery failed on the refused recipient, not on something else")
+                assertNull(failure.throwableProxy, "no throwable (its message can echo the recipient)")
+                assertTrue("userId=$id" in failure.formattedMessage, failure.formattedMessage)
+                assertTrue("errorType=" in failure.formattedMessage, failure.formattedMessage)
+                // The audit trail names the account by email by design (`login.mfa_send_failed`); every other line must not.
+                val rendered = everything.events.filter { it.loggerName != "ch.nokillswit.audit" }.map { it.renderedForLeakCheck() }
+                assertTrue(rendered.none { email in it }, "the address leaked into a log line")
+                assertTrue(rendered.none { "recipient refused" in it }, "the transport's exception message leaked into a log line")
+            }
+        } finally {
+            everything.detach()
+        }
+    }
+
+    /** Everything a log event can carry, as one string (the live-ticket test's rendering). */
+    private fun ILoggingEvent.renderedForLeakCheck(): String = buildString {
+        append(formattedMessage).append(' ').append(message)
+        argumentArray?.forEach { append(' ').append(it) }
+        keyValuePairs?.forEach { append(' ').append(it.key).append('=').append(it.value) }
+        throwableProxy?.let { append(' ').append(ThrowableProxyUtil.asString(it)) }
     }
 
     @Test

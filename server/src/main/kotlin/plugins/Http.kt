@@ -4,6 +4,7 @@ import io.ktor.server.application.*
 import io.ktor.http.*
 import io.ktor.http.content.*
 import io.ktor.server.plugins.cachingheaders.*
+import io.ktor.server.request.httpMethod
 import io.ktor.server.request.path
 import io.ktor.server.response.*
 import io.ktor.server.plugins.cors.routing.*
@@ -16,14 +17,51 @@ import io.ktor.server.routing.*
 import io.ktor.server.plugins.bodylimit.*
 import io.ktor.server.plugins.mutableOriginConnectionPoint
 import ch.nokillswit.infra.config.requireConfigInt
+import ch.nokillswit.infra.revision.EXPECTED_REVISION_HEADER
 
 /**
- * Global request-body ceiling: a memory-DoS backstop, not a business rule — every payload
- * field already carries its own maxLength, and the largest legitimate body (a bulk
- * catalog-file import) sits orders of magnitude below this. Exceeding it answers 413
- * (problem body via ErrorHandling.kt).
+ * Global request-body ceiling: a memory-DoS backstop, not a business rule. 512 KiB is far above any legitimate body of the foundation
+ * (a user, a team, a feature-flag set are a few hundred bytes) and far below what lets a few concurrent callers pin real heap, since
+ * the body is buffered before it decodes. Every payload field already carries its own maxLength. A feature whose documents outgrow it
+ * (an ADR body) sizes its own ceiling in [requestBodyLimit] from its field maxima, the way Adder sized its thread and message writes
+ * (that arithmetic is in Adder's `plugins/Http.kt`). Exceeding it answers 413 (problem body via ErrorHandling.kt).
  */
-const val MAX_REQUEST_BODY_BYTES: Long = 10L * 1024 * 1024
+const val MAX_REQUEST_BODY_BYTES: Long = 512L * 1024
+
+/**
+ * The tight ceiling of the routes whose bodies are a handful of short fields: the anonymous auth routes (an unauthenticated caller can
+ * reach them, so they must not buffer half a megabyte per request). Same 413.
+ */
+const val MAX_SMALL_REQUEST_BODY_BYTES: Long = 16L * 1024
+
+private val SMALL_BODY_PATHS = setOf(
+    "/api/v1/login",
+    "/api/v1/login/mfa",
+    "/api/v1/refresh",
+    "/api/v1/password-reset",
+    "/api/v1/password-reset/confirm",
+)
+
+/**
+ * The path as ROUTING sees it, which is what the ceilings must match: the raw request path split on `/`, empty segments dropped (routing
+ * ignores a trailing or doubled slash) and every segment percent-decoded (`/api/v1/%6Cogin` is `/api/v1/login` to routing). Matching
+ * the raw text let an encoded letter slip past every ceiling to the 512 KiB global one. A segment that does not decode cannot route
+ * either, so the raw path is returned and the call keeps the global ceiling.
+ */
+internal fun routedPath(rawPath: String): String = try {
+    rawPath.split('/').filter { it.isNotEmpty() }.joinToString("/", prefix = "/") { it.decodeURLPart() }
+} catch (_: URLDecodeException) {
+    rawPath
+}
+
+/**
+ * The body ceiling of this call: [MAX_SMALL_REQUEST_BODY_BYTES] for the anonymous auth POSTs, else [MAX_REQUEST_BODY_BYTES]. Matched
+ * against the [routedPath], so an encoded spelling of the same route gets the same ceiling.
+ */
+internal fun requestBodyLimit(call: ApplicationCall): Long {
+    if (call.request.httpMethod != HttpMethod.Post) return MAX_REQUEST_BODY_BYTES
+    return if (routedPath(call.request.path()) in SMALL_BODY_PATHS) MAX_SMALL_REQUEST_BODY_BYTES else MAX_REQUEST_BODY_BYTES
+}
 
 /**
  * Whether Swagger UI + the spec are served: `http.exposeOpenApi` when set, else development mode. ONE
@@ -37,9 +75,8 @@ internal fun Application.exposesOpenApi(): Boolean =
 
 fun Application.configureHttp() {
     install(RequestBodyLimit) {
-        bodyLimit { MAX_REQUEST_BODY_BYTES }
+        bodyLimit(::requestBodyLimit)
     }
-    install(ResponseValidators)
     install(CachingHeaders) {
         options { call, outgoingContent ->
             when (outgoingContent.contentType?.withoutParameters()) {
@@ -59,20 +96,31 @@ fun Application.configureHttp() {
                 // API answers (JSON and RFC 7807 problem+json) carry per-user, bearer-authorized data:
                 // `no-store` keeps them out of browser/proxy caches (a shared machine's back button, an
                 // intermediary replaying one user's list to another). Scoped to /api/ so a static JSON
-                // asset the SPA ships (if one ever appears) is not swept up. The one exception is a view GET's
-                // revalidated `200` (ETag + its own single `no-store`, written by `ResponseValidators` —
-                // `.claude/docs/security.md` "Caching"; the exemption only avoids a duplicate header);
-                // `problem+json` is ALWAYS `no-store`, whatever a route offered before it failed.
+                // asset the SPA ships (if one ever appears) is not swept up (`.claude/docs/security.md` "Caching").
+                // `problem+json` is `no-store` too.
                 ContentType.Application.Json ->
-                    if (call.request.path().startsWith("/api/") && !call.isRevalidated()) {
-                        CachingOptions(CacheControl.NoStore(null))
-                    } else {
-                        null
-                    }
+                    if (call.request.path().startsWith("/api/")) CachingOptions(CacheControl.NoStore(null)) else null
                 ContentType.Application.ProblemJson ->
                     if (call.request.path().startsWith("/api/")) CachingOptions(CacheControl.NoStore(null)) else null
                 else -> null
             }
+        }
+    }
+    // The client address every per-IP bucket (rate limits) keys by is `origin.remoteHost`. On Netty that is
+    // `InetSocketAddress.getHostName()`: a REVERSE-DNS lookup, so a client with forward-confirmed PTR records for many addresses gets a
+    // different key per address, and one whose PTR is shared (or whose lookup times out) shares one. The numeric address
+    // (`remoteAddress`, `getHostString()`) is the key; it is copied FIRST (Setup phase, before anything reads `remoteHost`: the JDK
+    // caches the resolved name), and the proxy-trust interceptor below overrides it with the trusted hop.
+    intercept(ApplicationCallPipeline.Setup) {
+        call.mutableOriginConnectionPoint.remoteHost = numericClientHost(call.request.local)
+    }
+    // No route accepts a request body that carries a `Content-Encoding` (other than `identity`): it is refused here, before any ceiling,
+    // WAF or parser reads it, so a compressed or merely labelled body is never decoded and never parsed (checkup C-SEC-1; the 415
+    // vocabulary of a wrong media type). `Compression` below is response-only for the same reason.
+    intercept(ApplicationCallPipeline.Setup) {
+        if (hasEncodedBody(call.request.headers.getAll(HttpHeaders.ContentEncoding))) {
+            call.respondProblem(HttpStatusCode.UnsupportedMediaType, "Request bodies must not be encoded (Content-Encoding)")
+            finish()
         }
     }
     // CORS is installed only when a cross-origin caller actually exists (an explicit allow-list
@@ -90,6 +138,7 @@ fun Application.configureHttp() {
             allowMethod(HttpMethod.Patch)
             allowHeader(HttpHeaders.Authorization)
             allowHeader(HttpHeaders.ContentType)
+            allowHeader(EXPECTED_REVISION_HEADER)
             corsHosts.forEach { allowHost(it, schemes = listOf("http", "https")) }
         }
     }
@@ -133,7 +182,12 @@ fun Application.configureHttp() {
             forHeaders.clear()
         }
     }
-    install(Compression)
+    // Responses only. The plugin's default mode also INFLATES request bodies (`Content-Encoding`, `maxDecodedContentLength` unlimited),
+    // after `RequestBodyLimit` has counted the wire bytes: an 8 KiB gzip body could inflate past the heap (checkup C-SEC-1). A request with
+    // a `Content-Encoding` is refused with a 415 above, and this keeps the plugin from decoding one even if that guard were lost.
+    install(Compression) {
+        mode = CompressionConfig.Mode.CompressResponse
+    }
     // DefaultHeaders' own `Server: Ktor/<version>` would disclose the framework and its exact version to
     // every client (checkup 2C18); a fixed generic value replaces it. `Date` stays.
     install(DefaultHeaders) {
@@ -151,6 +205,16 @@ fun Application.configureHttp() {
         }
     }
 }
+
+/**
+ * The key a client is known by (see `configureHttp`): the connection's NUMERIC remote address. The origin's `remoteHost` otherwise defaults
+ * to the engine's, a reverse-DNS name. Internal for the unit test, which cannot make a test host resolve one.
+ */
+internal fun numericClientHost(local: RequestConnectionPoint): String = local.remoteAddress
+
+/** Whether a request's `Content-Encoding` header lines ask for anything but `identity` (a blank value is none: nothing was encoded). */
+internal fun hasEncodedBody(lines: List<String>?): Boolean =
+    lines.orEmpty().flatMap { it.split(',') }.map { it.trim() }.any { it.isNotEmpty() && !it.equals("identity", ignoreCase = true) }
 
 /**
  * The proxy-trust counterpart to XForwardedHeaders' built-in for-header handling — the identical

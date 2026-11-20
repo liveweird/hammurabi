@@ -45,6 +45,20 @@ private val SORTABLE_COLUMNS: Map<String, Column<*>> = mapOf(
  *  above, so the two can never drift apart (a mismatch used to be a runtime 500). */
 val USER_SORT_FIELDS: Set<String> = SORTABLE_COLUMNS.keys
 
+/** The directory's sortable columns: the picker orders by name; `id` is the tiebreaker (and `email` is deliberately not offered). */
+private val DIRECTORY_COLUMNS: Map<String, Column<*>> = mapOf(
+    "name" to UserService.Users.name,
+    "id" to UserService.Users.id,
+)
+
+/** The directory's sort whitelist, derived from [DIRECTORY_COLUMNS] so the two cannot drift. */
+val DIRECTORY_SORT_FIELDS: Set<String> = DIRECTORY_COLUMNS.keys
+
+data class UserDirectoryResult(
+    val items: List<UserDirectoryEntry>,
+    val total: Long,
+)
+
 class UserService(private val database: R2dbcDatabase) {
     object Users : UIntIdTable("users"), SoftDeletable {
         val name = varchar("name", length = 50)
@@ -143,6 +157,24 @@ class UserService(private val database: R2dbcDatabase) {
                 row.toUser(featuresByUser[id].orEmpty().toSet()).toResponse(id)
             }
             UserListResult(items = items, total = total)
+        }
+
+    /**
+     * The user-picker lookup for any signed-in user: ACTIVE users only, projected to `{id, name, email}`. [q] (the route requires
+     * it, 2 to 100 characters) matches name OR email, case- and accent-insensitively, on ONE predicate for the count and the
+     * rows. Unlike [list] it carries no role, feature or language filter, and nothing but the three fields leaves the service.
+     */
+    suspend fun directory(q: String, paging: PageRequest): UserDirectoryResult =
+        suspendTransaction(database) {
+            val match = Users.name.containsNormalized(q) or Users.email.containsNormalized(q)
+            val predicate: Op<Boolean> = match and Users.active()
+            val total = Users.selectAll().where { predicate }.count()
+            val rows = Users.select(Users.id, Users.name, Users.email)
+                .where { predicate }
+                .applyPaging(paging, DIRECTORY_COLUMNS)
+                .toList()
+            val items = rows.map { UserDirectoryEntry(it[Users.id].value, it[Users.name], it[Users.email]) }
+            UserDirectoryResult(items = items, total = total)
         }
 
     /**

@@ -86,10 +86,10 @@ class StaleAccessTokenTest {
         roles: String? = "[]",
         typ: String? = "access",
         jti: String? = "\"${UUID.randomUUID()}\"",
-        exp: Long = System.currentTimeMillis() / 1000 + 60,
+        exp: Long? = System.currentTimeMillis() / 1000 + 60,
     ): String {
         val fields = listOfNotNull(
-            "\"aud\":\"hammurabi-api\"", "\"iss\":\"http://0.0.0.0:8090/\"", "\"exp\":$exp", "\"email\":\"x@test\"",
+            "\"aud\":\"hammurabi-api\"", "\"iss\":\"http://0.0.0.0:8090/\"", exp?.let { "\"exp\":$it" }, "\"email\":\"x@test\"",
             userId?.let { "\"userId\":$it" }, revision?.let { "\"credentialRevision\":$it" }, roles?.let { "\"roles\":$it" },
             typ?.let { "\"typ\":\"$it\"" }, jti?.let { "\"jti\":$it" },
         )
@@ -295,6 +295,24 @@ class StaleAccessTokenTest {
     }
 
     @Test
+    fun `a signed access token without an exp is 401 malformed on every bearer route`() = testApplication {
+        startUncoalesced()
+        val email = uniqueEmail("stale-noexp")
+        val id = seed(email, UserRole.USER)
+        val client = jsonClient()
+
+        val control = client.getWith("/api/v1/teams", rawToken(userId = id.toString()))
+        assertEquals(HttpStatusCode.OK, control.status, "the control: same token WITH an exp")
+        withAuditCapture { audit ->
+            val noExp = rawToken(userId = id.toString(), exp = null)
+            val me = client.getWith("/api/v1/teams", noExp)
+            assertEquals(HttpStatusCode.Unauthorized, me.status)
+            assertEquals("Access token is no longer valid - refresh or sign in again", me.body<ProblemDetail>().detail)
+            assertNotNull(audit.awaitEvent(rejected("malformed", id)), "audited access.rejected reason=malformed")
+        }
+    }
+
+    @Test
     fun `a logged-out access token is 401 and the rejection is audited as revoked`() = testApplication {
         usePostgresTestcontainer()
         val email = uniqueEmail("stale-logout")
@@ -351,6 +369,7 @@ class StaleAccessTokenTest {
             "revision beyond Long" to rawToken(userId = id, revision = "99999999999999999999"),
             "revision missing" to rawToken(userId = id, revision = null),
             "roles missing" to rawToken(userId = id, roles = null),
+            "exp missing" to rawToken(userId = id, exp = null),
         )
         withAuditCapture { audit ->
             bad.forEach { (what, token) ->

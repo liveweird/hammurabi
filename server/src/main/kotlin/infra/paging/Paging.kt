@@ -41,19 +41,41 @@ fun ApplicationCall.parsePaging(
     val requested = if (sortParam.isNullOrBlank()) {
         defaultSort
     } else {
-        sortParam.split(',').map { raw ->
-            val trimmed = raw.trim()
-            if (trimmed.isEmpty()) throw BadRequestException("sort contains an empty field")
-            val descending = trimmed.startsWith('-')
-            val field = if (descending) trimmed.drop(1) else trimmed
-            if (field !in sortable) {
-                throw BadRequestException("Unknown sort field: $field (allowed: ${sortable.sorted().joinToString()})")
-            }
-            SortField(field, descending)
-        }
+        parseSortList(sortParam, sortable)
     }
     val withTiebreaker = if (requested.any { it.name == "id" }) requested else requested + SortField("id", false)
     return PageRequest(page = page, pageSize = pageSize, sort = withTiebreaker)
+}
+
+/** The longest rejected sort field echoed back in a `400`, in code points: a megabyte "field" must not become a megabyte error body. */
+private const val MAX_SHOWN_SORT_FIELD = 40
+
+/** [this] cut to [MAX_SHOWN_SORT_FIELD] code points (never splitting a surrogate pair) and marked with an ellipsis. */
+private fun String.shown(): String =
+    if (codePointCount(0, length) <= MAX_SHOWN_SORT_FIELD) this else substring(0, offsetByCodePoints(0, MAX_SHOWN_SORT_FIELD)) + "\u2026"
+
+/**
+ * The `sort` list: at most one entry per whitelisted field, so a list longer than [sortable] and a field named twice (with or without
+ * the `-`) are a `400`. The bound matters because a computed sort costs SQL text and bind parameters per entry, and every distinct
+ * statement text is cached per connection: an unbounded list is an allocation lever.
+ */
+private fun parseSortList(sortParam: String, sortable: Set<String>): List<SortField> {
+    // Counted on the commas first, so an oversized list never allocates its parts.
+    if (sortParam.count { it == ',' } >= sortable.size) {
+        throw BadRequestException("sort names at most ${sortable.size} fields (one per sortable field)")
+    }
+    val seen = HashSet<String>()
+    return sortParam.split(',').map { raw ->
+        val trimmed = raw.trim()
+        if (trimmed.isEmpty()) throw BadRequestException("sort contains an empty field")
+        val descending = trimmed.startsWith('-')
+        val field = if (descending) trimmed.drop(1) else trimmed
+        if (field !in sortable) {
+            throw BadRequestException("Unknown sort field: ${field.shown()} (allowed: ${sortable.sorted().joinToString()})")
+        }
+        if (!seen.add(field)) throw BadRequestException("sort names a field twice: $field")
+        SortField(field, descending)
+    }
 }
 
 fun Query.applyPaging(req: PageRequest, columns: Map<String, Column<*>>): Query {

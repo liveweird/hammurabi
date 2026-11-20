@@ -62,7 +62,7 @@ go through R2DBC.
   `MultiRowInsert.kt` also splits a batch so one statement binds at most `MAX_PAYLOAD_CHARS` (1 MiB) of `String` values (a lone
   heavier row goes alone, never refused there). `insertRows` / `insertRowsIgnoringConflicts` build each row (run the caller's body)
   lazily, only while the statement that carries it is assembled, so the rows in flight are one statement's cap, not the call's, and
-  each body runs exactly once (`upsertRows` builds them all first: its collapse of repeated keys needs every key). Exposed lists every
+  each body runs exactly once. Exposed lists every
   statement a transaction ran until it ends (parsed SQL and encoded parameters included): `insertRows` clears the list after each statement.
 - **Statement timeouts: use the transaction's `queryTimeout`, nothing else.** Exposed's R2DBC executor *requests* the
   transaction's `queryTimeout` (whole seconds, default 0, never null) from the driver before EVERY statement. The telemetry reads
@@ -97,7 +97,8 @@ go through R2DBC.
   (`ConnectionPoolTest` pins the ~2×). A caller that waits past the acquire deadline fails with the pool's timeout
   exception, which `plugins/ErrorHandling.kt`'s catch-all renders as a logged `500` — deliberately NOT a new declared status, since the
   OpenAPI conformance gate would need it on every operation. The pool is disposed on `ApplicationStopped`, so every `testApplication` the
-  suite boots releases its connections. Exposed's `R2dbcDatabase.connect(connectionFactory, databaseConfig)` derives the dialect from
+  suite boots releases its connections. Every background loop (today the telemetry sampler) therefore
+  lives in an `Application.backgroundScope(...)` (`infra/BackgroundScope.kt`), which cancels AND joins it (2 s) on `ApplicationStopping`, earlier. Exposed's `R2dbcDatabase.connect(connectionFactory, databaseConfig)` derives the dialect from
   `databaseConfig.connectionFactoryOptions` alone, so the parsed options (still `driver=postgresql`) are threaded into the config
   unchanged while traffic goes through the pool. The same config pins `defaultMaxAttempts = 1`: Exposed would otherwise retry ANY
   `R2dbcException` three times, and the pool's acquire timeout is one — a saturated pool would cost 3 × the acquire budget per request.
@@ -258,7 +259,7 @@ clash with an **active** row still raises `23505 → 409` (mapped centrally in
 index over `LOWER(name)`).
 
 **`infra/db/Sql.kt`** (ported from Lettuce with the first list endpoint): `containsNormalized` —
-the case- AND accent-insensitive substring filter over `public.unaccent` (V4); every per-column
+the case- AND accent-insensitive substring filter over `public.unaccent` (V4), its LIKE metacharacters escaped in SQL after the fold; every per-column
 substring filter MUST use it. Also `orVanished` (post-commit read-back guard → 500, for every
 create that reads its row back).
 

@@ -16,21 +16,26 @@ import kotlin.test.assertTrue
  * violation.
  */
 class PackageBoundaryTest {
-    private val mainSources: List<File> by lazy {
+    private val sourceRoot: File by lazy {
         val root = File(System.getProperty("repo.root") ?: "..", "server/src/main/kotlin")
         assertTrue(root.isDirectory, "${root.absolutePath} not found")
-        root.walkTopDown().filter { it.isFile && it.extension == "kt" }.toList()
+        root
     }
+
+    private val mainSources: List<File> by lazy { sourceRoot.walkTopDown().filter { it.isFile && it.extension == "kt" }.toList() }
+
+    /** The file's path under `server/src/main/kotlin` (`infra/db/Database.kt`): exemptions are keyed by it, never by a bare file name. */
+    private fun File.relativePath(): String = relativeTo(sourceRoot).invariantSeparatorsPath
 
     /**
      * Composition-root exceptions to "infra never references a feature": `infra/db/Database.kt` builds and publishes the feature
-     * services (`teams`, `users`, `auth`) and `infra/db/Bootstrap.kt` seeds the admin through `users`/`auth`. Keyed by file name,
-     * valued by the feature packages that file may import;
+     * services (`teams`, `users`, `auth`) and `infra/db/Bootstrap.kt` seeds the admin through `users`/`auth`. Keyed by path under
+     * `server/src/main/kotlin`, valued by the feature packages that file may import;
      * a listed package the file no longer uses fails the test (a stale exception is dead permission).
      */
     private val infraCompositionRoot: Map<String, Set<String>> = mapOf(
-        "Database.kt" to setOf("auth", "teams", "users"),
-        "Bootstrap.kt" to setOf("auth", "users"),
+        "infra/db/Database.kt" to setOf("auth", "teams", "users"),
+        "infra/db/Bootstrap.kt" to setOf("auth", "users"),
     )
 
     private val featurePackages = listOf(
@@ -77,7 +82,7 @@ class PackageBoundaryTest {
         val infra = infraSources()
         assertTrue(infra.size > 20, "the scan saw only ${infra.size} infra sources")
         val violations = infra.flatMap { (file, text) ->
-            val allowed = infraCompositionRoot[file.name].orEmpty()
+            val allowed = infraCompositionRoot[file.relativePath()].orEmpty()
             forbiddenReferences(text, featurePackages - allowed).map { "${file.name} $it" }
         }
         assertEquals(emptyList(), violations)
@@ -85,7 +90,7 @@ class PackageBoundaryTest {
 
     @Test
     fun `every composition-root exception is still used`() {
-        val infra = infraSources().associate { (file, text) -> file.name to text }
+        val infra = infraSources().associate { (file, text) -> file.relativePath() to text }
         for ((name, allowed) in infraCompositionRoot) {
             val text = infra[name] ?: error("composition-root file $name is not under infra/")
             for (pkg in allowed) {

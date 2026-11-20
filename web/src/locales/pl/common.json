@@ -12,12 +12,12 @@
     "showPassword": "Pokaż hasło",
     "hidePassword": "Ukryj hasło"
   },
-  "dateFormatHint": "RRRR-MM-DD",
   "field": {
     "email": "E-mail",
     "name": "Nazwa",
     "role": "Rola",
-    "description": "Opis"
+    "description": "Opis",
+    "user": "Użytkownik/czka"
   },
   "state": {
     "any": "Dowolna"
@@ -74,5 +74,16 @@
   "featureHint": {
     "MFA": "6-cyfrowy kod wysyłany e-mailem przy każdym logowaniu (drugi składnik)."
   },
-  "loading": "Ładowanie…"
+  "loading": "Ładowanie…",
+  "picker": {
+    "user": {
+      "placeholder": "Szukaj po nazwie lub e-mailu…",
+      "clear": "Wyczyść użytkownika/czkę",
+      "noMatch": "Brak pasujących użytkowników/czek",
+      "minChars_one": "Wpisz co najmniej {{count}} znak, aby wyszukać",
+      "minChars_few": "Wpisz co najmniej {{count}} znaki, aby wyszukać",
+      "minChars_many": "Wpisz co najmniej {{count}} znaków, aby wyszukać",
+      "minChars_other": "Wpisz co najmniej {{count}} znaku, aby wyszukać"
+    }
+  }
 }

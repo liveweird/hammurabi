@@ -9,8 +9,10 @@ ktor:
     # Ktor cancels module loading after `startupTimeoutMillis` (default 10 s) — which cut the cold-start
     # Flyway retry wait (up to ~103 s at the maximum 15 retries, infra/db/Flyway.kt) short and crashed the
     # pod once on every fresh deploy (checkup 2, live k8s). 140 s outlasts that wait plus boot and stays
-    # inside the k8s startupProbe (~150 s); FlywayConnectRetriesTest pins both bounds.
-    startupTimeoutMillis: 140000
+    # inside the k8s startupProbe (~150 s); FlywayConnectRetriesTest pins both bounds of this DEFAULT. A database whose migrations outrun it
+    # cannot boot: raise it with KTOR_STARTUP_TIMEOUT_MILLIS AND the startupProbe's `failureThreshold` (k8s/app-deployment.yaml) together;
+    # raising one alone only moves the kill.
+    startupTimeoutMillis: "$KTOR_STARTUP_TIMEOUT_MILLIS:140000"
     modules:
       # — base plugins
       - ch.nokillswit.plugins.HttpKt.configureHttp
@@ -90,7 +92,7 @@ security:
     replayGraceSeconds: "$REFRESH_REPLAY_GRACE_SECONDS:60"
   # Self-service password reset: at most one request per submitted email per interval,
   # uniformly whether or not the account exists. In-memory, per-instance, like the lockout.
-  # The emailed link is a persisted single-use grant (V35, only its digest is stored) valid for
+  # The emailed link is a persisted single-use grant (V8, only its digest is stored) valid for
   # tokenTtlSeconds (1..3600; default 15 minutes) - a request never changes a password, only
   # the owner opening the link and choosing one does (auth/PasswordResetService.kt).
   passwordReset:

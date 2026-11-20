@@ -47,7 +47,7 @@ internal fun passwordResetEmailBody(name: String, token: String, appUrl: String,
     }
 
 /**
- * The link WORKER - the business half of `POST /api/v1/password-reset`, launched fire-and-forget after the uniform 202
+ * The link helper - the business half of `POST /api/v1/password-reset`, launched fire-and-forget after the uniform 202
  * (no timing oracle: lookup, grant insert and the SMTP round trip all happen off the request). Nothing about the
  * account changes here; a failed delivery revokes the grant it just minted. Soft-deleted accounts are unknown by
  * construction (`findWithIdByEmail` filters active rows).

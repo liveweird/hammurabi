@@ -63,6 +63,8 @@ stele of the Code of Hammurabi on a lapis disc — the sun disc of Shamash crown
 - **Comments vs issues:** comments/questions are accepted only before `ACTIVE`; issues/escalations only in `ACTIVE` (OPEN/RESOLVED, resolved
   by the Driver, the Approver or an ADMIN). Both stay readable forever.
 - **Not built (one-line map changes if wanted):** `IN_REVIEW → SOLUTION_DRAFT` ("send back") and `ACTIVE → WITHDRAWN`.
+- **User directory:** any signed-in user may look up `{id, name, email}` of active users (`GET /users/directory`, Adder's, for the DACI pickers); the
+  name+email disclosure to every signed-in user that Adder's owner accepted is carried over (`security.md` "What the user directory discloses"). Collapse it to `{id, name}` if that changes.
 - Flow's integration service tokens are not ported: nothing external writes ADRs yet.
 - The coverage floors were re-baselined once after the trim (lines 97, branches 81, as Adder's).
 

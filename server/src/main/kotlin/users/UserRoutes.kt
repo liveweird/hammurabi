@@ -16,16 +16,20 @@ import ch.nokillswit.infra.db.orVanished
 import ch.nokillswit.infra.paging.optionalBoolean
 import ch.nokillswit.infra.paging.optionalEnum
 import ch.nokillswit.infra.paging.optionalString
+import ch.nokillswit.infra.paging.SortField
 import ch.nokillswit.infra.paging.parsePaging
 import ch.nokillswit.infra.paging.toPage
 import ch.nokillswit.infra.validation.canonicalEmail
 import ch.nokillswit.infra.validation.sanitizeSingleLine
+import ch.nokillswit.plugins.RateLimits
 import io.ktor.http.HttpHeaders
 import io.ktor.http.HttpStatusCode
 import io.ktor.resources.Resource
 import io.ktor.server.application.*
 import io.ktor.server.auth.authenticate
 import io.ktor.server.plugins.BadRequestException
+import io.ktor.server.plugins.ratelimit.RateLimitName
+import io.ktor.server.plugins.ratelimit.rateLimit
 import io.ktor.server.request.receive
 import io.ktor.server.resources.delete
 import io.ktor.server.resources.get
@@ -80,6 +84,11 @@ private fun auditUserUpdated(byUserId: UInt, targetUserId: UInt, existing: User,
 @Serializable
 @Resource("/api/v1/users")
 class Users {
+    /** The user-picker lookup; a literal segment, so it wins over `{id}` in routing. */
+    @Serializable
+    @Resource("directory")
+    class Directory(val parent: Users = Users())
+
     @Serializable
     @Resource("{id}")
     class Id(val parent: Users = Users(), val id: UInt) {
@@ -103,6 +112,7 @@ fun Application.configureUserRoutes() {
     routing {
         authenticate {
             userList(userService)
+            userDirectory(userService)
             userCreate(userService)
             userReadUpdateDelete(userService)
             userPassword(userService)
@@ -133,6 +143,46 @@ private fun Route.userList(userService: UserService) {
         )
         val result = userService.list(filter, paging)
         call.respond(HttpStatusCode.OK, paging.toPage(result.items, result.total))
+    }
+}
+
+/** The directory's `q` bounds, in code points (an emoji is one, though two UTF-16 units), applied AFTER trimming. */
+private const val MIN_DIRECTORY_QUERY_LENGTH = 2
+private const val MAX_DIRECTORY_QUERY_LENGTH = 100
+
+/** The directory's page ceiling (the shared maximum is 100): a lookup shows a handful of matches, a harvest needs many pages. */
+private const val MAX_DIRECTORY_PAGE_SIZE = 20
+
+/**
+ * The deliberate exception to "the whole management surface is ADMIN-gated": ANY signed-in user may look up `{id, name, email}` of
+ * ACTIVE users, because a DACI picker (any user may name a Driver, an Approver, Contributors) needs someone to choose. No guard, so no
+ * 403 — the 401 comes from `authenticate`.
+ * Bounds, none of which PREVENTS an insider enumerating (D2 accepts name+email disclosure to any signed-in user): `q` is REQUIRED
+ * and at least 2 code points after trimming (no bare "list everyone"), pages hold at most 20 rows, and the per-USER `directory`
+ * bucket (inside `authenticate`, keyed by the verified caller) caps and audits the rate. A read: no audit event of its own.
+ * It is a separate projection and route from [userList], which stays ADMIN-only and unchanged.
+ */
+private fun Route.userDirectory(userService: UserService) {
+    rateLimit(RateLimitName(RateLimits.DIRECTORY)) {
+        get<Users.Directory> {
+            val paging = call.parsePaging(
+                sortable = DIRECTORY_SORT_FIELDS,
+                defaultSort = listOf(SortField("name", descending = false)),
+            )
+            if (paging.pageSize > MAX_DIRECTORY_PAGE_SIZE) {
+                throw BadRequestException("pageSize must be between 1 and $MAX_DIRECTORY_PAGE_SIZE")
+            }
+            val q = call.request.queryParameters.optionalString("q")?.trim()
+                ?: throw BadRequestException("q is required")
+            val length = q.codePointCount(0, q.length)
+            if (length < MIN_DIRECTORY_QUERY_LENGTH || length > MAX_DIRECTORY_QUERY_LENGTH) {
+                throw BadRequestException(
+                    "q must be $MIN_DIRECTORY_QUERY_LENGTH to $MAX_DIRECTORY_QUERY_LENGTH characters after trimming",
+                )
+            }
+            val result = userService.directory(q, paging)
+            call.respond(HttpStatusCode.OK, paging.toPage(result.items, result.total))
+        }
     }
 }
 

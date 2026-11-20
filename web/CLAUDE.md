@@ -24,7 +24,7 @@ arrives in later versions. Routes are lazy.
   rule tuning lives in `eslint.config.js` ONLY, one commented override per deliberate idiom, and
   any inline `eslint-disable` needs a justifying comment. `npm run lint` runs with `--cache --cache-strategy content`
   (`web/.eslintcache`, gitignored; a warm run is ~0.6 s against ~12 s, CI restores the file between runs —
-  `build-times.md` WHY 20); the config is not type-aware, so a per-file cache is sound, and a config change or an
+  Flow's `build-times.md` WHY 20); the config is not type-aware, so a per-file cache is sound, and a config change or an
   ESLint/node upgrade re-lints everything on its own. `npm run knip` is the dead-code gate
   (unused files/exports/dependencies; `knip.json` ignores the generated `schema.ts` and the
   `ajv` devDependency pinned only for `@stoplight/spectral-cli`'s resolution) — keep exports that
@@ -207,6 +207,8 @@ description, with `utils/charCount.tsx`'s "123 / 4000" counter) and `RegistryEdi
 parent/target fields stay local. Keep each registry's field limits explicit and mirrored from the
 server's own validation (`infra/validation/Text.kt`'s `requireNameAndDescription`).
 
+**Searchable pickers** (Astrolabe's via Adder, ported): `components/SearchPicker.tsx` owns the search-box mechanics (a debounced server-side term, the caller holds the pick so its label survives later searches); thin wrappers own the query and the texts — `UserDirectorySelect` (`GET /users/directory`, open to every signed-in user; the server REQUIRES a term, so the picker searches only from two characters, page size 20, and shows a hint below that — `minTermLength`/`minTermHint`). `TeamManagerSelect` stays on the ADMIN-only users list. The DACI pickers (Driver, Approver, Contributors) are `UserDirectorySelect`s; a team picker joins as a wrapper when an ADR needs one.
+
 ## Forms (the CreateUser/EditUser template)
 
 - Shared vocabulary in `utils/<area>Form.ts`: the `<Area>FormValues` type, length constants
@@ -250,7 +252,7 @@ are English (THE default and fallback everywhere) and Polish. All user-facing st
   `tsc`/`npm run build`. Fields holding a key are typed `ParseKeys` (from `i18next`), never
   `string` (the `NavLeaf` `label` pattern in `utils/navigation.ts`); functions taking a translator
   take `TFunction`, never a hand-written `(key: string) => string`.
-- **`common.*` is the shared source**: actions, field labels, shared vocabulary (`common.dateFormatHint` is the date-input placeholder: `YYYY-MM-DD` in EN, `RRRR-MM-DD` in PL). Reuse it instead
+- **`common.*` is the shared source**: actions, field labels, shared vocabulary. Reuse it instead
   of duplicating; build Mantine `Select` option labels from `t()` at render so they translate.
 - **Keep key parity vs EN for every shipped language** — a shipped bundle is all-or-nothing: every
   English key must exist in each `locales/<lang>/` (language-specific plural variants are

@@ -42,13 +42,6 @@ logs/
 *.local
 local.properties
 
-# Application runtime artifacts
-# Embedded H2 file DB configured in Exposed.kt (r2dbc:h2:file:///./h2)
-h2.mv.db
-h2.trace.db
-*.mv.db
-*.trace.db
-
 # Generated API docs (swagger-codegen output from the OpenAPI spec — never hand-edited,
 # regenerate rather than commit). Covers both the repo-root and server/ generation dirs.
 /docs/

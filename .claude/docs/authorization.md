@@ -67,19 +67,28 @@ Layered RBAC. Implemented in the `server/src/main/kotlin/authz/` package.
   throw `UnauthorizedException`) and then invokes the relevant guard: `isAdmin(caller)`,
   `requireAdmin(caller)`, `requireSelfOrAdmin(caller, targetUserId)`, `requireTeamManagerOrAdmin(caller, teamId,
   isManager)` (ADMIN, or the team's ACTIVE manager via the injected `TeamService.isActiveManager` lookup, which
-  answers false for a missing team so the 403 is uniform — awaiting its first consumer), plus
-  `requireFeatureEnabled` (awaiting its first area-gating consumer); new guards join this file so the whole policy stays
-  in one place.
+  answers false for a missing team so the 403 is uniform — awaiting its first consumer); new guards join
+  this file so the whole policy stays in one place.
 - **Resource rules**:
   - `/api/v1/users` (list/create) and `PUT`/`DELETE /api/v1/users/{id}` → **ADMIN only** — the
     whole management surface is admin-gated (the list included; regular users keep only the self
-    password change). `GET /users/{id}` → target user or ADMIN, **guard-before-read** (an
+    password change, and the narrow user-picker directory below). `GET /users/{id}` → target user or ADMIN, **guard-before-read** (an
     unauthorized caller 403s uniformly whether or not the id exists). Two protections with a
     deliberate 403/409 split: **self-delete is a `ForbiddenException` (403)** — a
     permissions-shaped rule about WHO acts — while **deleting or demoting the LAST active
     administrator is a `ConflictException` (409)** — a state-shaped rule about what the system
     can afford to lose. Initial passwords are client-generated (the SPA) and stored only as
     bcrypt hashes; no response carries plaintext.
+  - `GET /api/v1/users/directory?q=&page=&pageSize=&sort=` → **any authenticated user, no guard** (so no 403; the 401 is `authenticate`'s): the
+    user-picker lookup (the DACI pickers: anyone may be named Driver, Approver, Contributor or Informed, and `GET /users` is ADMIN-only). It is a
+    deliberate, narrow exception to the "management surface is admin-gated" rule above, and it is NOT the ADMIN list opened up: a separate route
+    (the literal `directory` segment wins over `{id}`), a separate service method (`UserService.directory`) and a separate projection,
+    `{id, name, email}` of ACTIVE users only (`UserDirectoryEntry`; roles, feature flags, language and the password hash never leave the service).
+    `q` matches name OR email (`containsNormalized`); `q` is REQUIRED and 2 to 100 code points after trimming, a page holds at most 20 rows, `400`
+    otherwise; sortable `name` (default) and `id`. Because it lets a regular user list accounts it rides the per-USER `directory` bucket (120/min,
+    `security.md`; `429` beyond). Those bounds slow and audit a bulk harvest; they do not prevent an insider enumerating (the name+email disclosure
+    to any signed-in user is accepted, `product.md` "Assumptions"). A read: no audit event (a 429 is the generic `rate_limit.exceeded`). The ADMIN
+    `GET /users` is unchanged. Tests: `UserDirectoryTest`.
   - `/api/v1/teams` (V6, flat teams) → `GET` list and `GET /{id}` **any authenticated user**
     (the Teams page reads them); `POST` and `PUT`/`DELETE /{id}` **ADMIN only**, with `requireAdmin` BEFORE the body decodes and the
     id lookup (guard-before-read: a non-admin probe gets a uniform 403 whether or not the id exists, and a
@@ -98,10 +107,9 @@ Layered RBAC. Implemented in the `server/src/main/kotlin/authz/` package.
     flags (V5, Lettuce's model)**: `Feature { MFA }` stored as the DISABLED set
     (`user_disabled_features`, no row = enabled). **`MFA` is inverted-default and login-scoped** —
     every user starts with the MFA row present (the V5 seed + the `UserService.create`
-    chokepoint), so email MFA is opt-in; it gates the LOGIN FLOW only, and no route names it in
-    `requireFeatureEnabled` (which awaits the first area-gating feature; run it as the FIRST
-    guard when one arrives — before any read, so a disabled caller gets a uniform 403 even for a
-    missing id). Mind the wholesale-replace PUT: a disabled set omitting MFA — including the
+    chokepoint), so email MFA is opt-in; it gates the LOGIN FLOW only, and no route is gated on a
+    feature yet (the first gated area adds a `requireFeatureEnabled(caller, feature)` guard to `Guards.kt`, run as the FIRST
+    guard — before any read, so a disabled caller gets a uniform 403 even for a missing id). Mind the wholesale-replace PUT: a disabled set omitting MFA — including the
     empty "re-enable everything" array — ENABLES the second factor. The set rides both JWTs as
     the `disabledFeatures` claim (missing claim = empty — outstanding tokens survive the deploy;
     unknown value = 401) and `LoginResponse`/`UserResponse.disabledFeatures`, so a change takes
@@ -177,7 +185,8 @@ Layered RBAC. Implemented in the `server/src/main/kotlin/authz/` package.
   in `authz/Exceptions.kt` and are mapped in `plugins/ErrorHandling.kt`. **All error bodies are
   RFC 7807 `application/problem+json` (API-ERR-001/002)**
   (`ProblemDetail{type,title,status,detail,instance}`; `instance` defaults to the request path
-  without query parameters) — emit them via the `ApplicationCall.respondProblem(status, detail)`
+  without query parameters; a stale `X-Expected-Revision` is the typed 409
+  `urn:hammurabi:problem:revision-conflict`, `infra/revision/ExpectedRevision.kt`; every typed URN is registered in `infra/ProblemTypes.kt` and listed on the spec's `ProblemDetail.type`, `ProblemTypesTest`) — emit them via the `ApplicationCall.respondProblem(status, detail)`
   helper (it uses an explicit `TextContent` so ContentNegotiation does not relabel the media type
   as `application/json`). `StatusPages` routes `BadRequestException`→400 (**with fixed vocabulary
   for converter failures**: a `ContentConvertException` anywhere in the cause chain
@@ -192,8 +201,8 @@ Layered RBAC. Implemented in the `server/src/main/kotlin/authz/` package.
   `respondProblem(NotFound, …)` + return), unique-violation `23505`→409 and NUL-byte `22021`→400
   (via the R2DBC/Exposed cause-chain walkers), and a catch-all `Throwable`→500 (logged) through
   that helper. A `status(TooManyRequests)` handler additionally gives the `RateLimit`
-  plugin's bodiless 429 (per-IP buckets, and the per-USER `telemetry` bucket) a generic problem body and emits the `rate_limit.exceeded` audit event
-  (bucket/method/path, coalesced to one per bucket per minute with a `suppressed` count — per user, with `byUserId`, for the `telemetry` bucket —
+  plugin's bodiless 429 (per-IP buckets, and the per-USER `telemetry` and `directory` buckets) a generic problem body and emits the `rate_limit.exceeded` audit event
+  (bucket/method/path, coalesced to one per bucket per minute with a `suppressed` count — per user, with `byUserId`, for the `telemetry` and `directory` buckets —
   `observability.md`) — **that handler rewrites any non-StatusPages
   429**, which is why caller-specific 429s (the login lockout) must go through
   `TooManyRequestsException` (handled calls are marked and skipped) — and a sibling

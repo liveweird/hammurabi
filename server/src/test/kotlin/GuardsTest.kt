@@ -4,7 +4,6 @@ import ch.nokillswit.authz.CallerPrincipal
 import ch.nokillswit.authz.ForbiddenException
 import ch.nokillswit.authz.isAdmin
 import ch.nokillswit.authz.requireAdmin
-import ch.nokillswit.authz.requireFeatureEnabled
 import ch.nokillswit.authz.requireSelfOrAdmin
 import ch.nokillswit.authz.requireTeamManagerOrAdmin
 import ch.nokillswit.users.UserRole
@@ -25,18 +24,6 @@ class GuardsTest {
     fun `isAdmin reflects the ADMIN role`() {
         assertTrue(admin.isAdmin())
         assertFalse(user.isAdmin())
-    }
-
-    @Test
-    fun `requireFeatureEnabled rejects a caller whose set carries the feature`() {
-        requireFeatureEnabled(user, ch.nokillswit.users.Feature.MFA)
-        val gated = CallerPrincipal(
-            userId = 3u,
-            email = "gated@test",
-            roles = emptySet(),
-            disabledFeatures = setOf(ch.nokillswit.users.Feature.MFA),
-        )
-        assertFailsWith<ForbiddenException> { requireFeatureEnabled(gated, ch.nokillswit.users.Feature.MFA) }
     }
 
     @Test

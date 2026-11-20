@@ -69,6 +69,6 @@ private suspend fun databaseAnswers(database: R2dbcDatabase): Boolean = catching
     } ?: false
 }) { e ->
     // Probes fire every few seconds: the failure is the answer (503), the cause a debug line, not a stack trace per poll.
-    log.debug("Readiness probe failed: {}", e.toString())
+    log.debug("Readiness probe failed: {}", e.scrubbedSummary())
     false
 }

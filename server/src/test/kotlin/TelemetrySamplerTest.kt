@@ -179,6 +179,7 @@ class TelemetrySamplerTest {
             val warns = capture.events.filter { it.level == ch.qos.logback.classic.Level.WARN }.map { it.formattedMessage }
             assertEquals(2, warns.size)
             assertTrue(warns[0].startsWith("Telemetry collector broken-sql failed:"), warns[0])
+            assertTrue("22012" in warns[0] && "division by zero" !in warns[0], "SQLSTATE yes, message no: ${warns[0]}")
             assertTrue(warns[1].startsWith("Telemetry collector throwing failed:"), warns[1])
         } finally {
             capture.detach()

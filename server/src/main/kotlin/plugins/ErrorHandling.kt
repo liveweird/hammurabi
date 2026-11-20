@@ -6,6 +6,8 @@ import ch.nokillswit.authz.ForbiddenException
 import ch.nokillswit.authz.NotFoundException
 import ch.nokillswit.authz.TooManyRequestsException
 import ch.nokillswit.authz.UnauthorizedException
+import ch.nokillswit.infra.revision.REVISION_CONFLICT_PROBLEM_TYPE
+import ch.nokillswit.infra.revision.RevisionConflictException
 import io.ktor.server.auth.jwt.JWTPrincipal
 import io.ktor.server.auth.principal
 import io.ktor.http.ContentType
@@ -139,7 +141,8 @@ private suspend fun ApplicationCall.respondDbFailure(cause: Throwable) = when {
 // blocklist-lookup failure with this same catch-all 500 instead of a 401 (the 500-not-401 rule —
 // see "JWT model" in .claude/docs/security.md).
 internal suspend fun ApplicationCall.respondInternalError(cause: Throwable) {
-    application.log.error("Unhandled exception while processing ${request.local.method.value} ${request.path()}", cause)
+    // A database failure is logged by class names, SQLSTATE and frames only (plugins/ScrubbedFailure.kt): its message can carry values.
+    application.log.error("Unhandled exception while processing ${request.local.method.value} ${request.path()}", cause.scrubbedForLog())
     respondProblem(HttpStatusCode.InternalServerError, "An unexpected error occurred")
 }
 
@@ -178,8 +181,8 @@ private fun ApplicationCall.hasNegativeIdSegment(): Boolean {
 fun Application.configureErrorHandling() {
     val rateLimitAudit = RateLimitAuditThrottle()
     install(StatusPages) {
-        // The RateLimit plugin (per-IP buckets and the per-USER telemetry bucket) rejects with a bodiless 429; give it the same RFC 7807
-        // body every other error carries. NOTE: this status handler intercepts EVERY 429 that
+        // The RateLimit plugin (per-IP buckets and the per-USER telemetry and directory buckets) rejects with a bodiless 429;
+        // give it the same RFC 7807 body every other error carries. NOTE: this status handler intercepts EVERY 429 that
         // StatusPages itself didn't produce — so caller-specific 429s (the login lockout) must
         // go through TooManyRequestsException below (handled calls are marked and skipped),
         // never a direct respondProblem, or their specific detail would be replaced.
@@ -187,7 +190,7 @@ fun Application.configureErrorHandling() {
             // A rate-limit rejection leaves the security trail too (checkup 2C15): the bucket (stamped by the
             // bucket's own requestKey, plugins/RateLimits.kt) and the path — never the client address
             // (X-Forwarded-For-derived, so attacker-chosen text) or the query string. Coalesced to one event per
-            // bucket per minute (per bucket AND user for the per-user telemetry bucket, which also names `byUserId`)
+            // bucket per minute (per bucket AND user for the per-user telemetry and directory buckets, which also name `byUserId`)
             // carrying `suppressed` (the rejections folded in since the previous one), so a flood cannot write a
             // line per request.
             val bucket = call.attributes.getOrNull(RateLimitBucketKey) ?: "unknown"
@@ -254,6 +257,9 @@ fun Application.configureErrorHandling() {
         }
         exception<ConflictException> { call, cause ->
             call.respondProblem(HttpStatusCode.Conflict, cause.message ?: "Conflict", instance = cause.instance, type = cause.problemType)
+        }
+        exception<RevisionConflictException> { call, cause ->
+            call.respondProblem(HttpStatusCode.Conflict, cause.message, type = REVISION_CONFLICT_PROBLEM_TYPE)
         }
         // Non-unique DB failures fall through to a 500 problem (logged) instead of rethrowing,
         // which would escape StatusPages and yield a bodiless default 500.

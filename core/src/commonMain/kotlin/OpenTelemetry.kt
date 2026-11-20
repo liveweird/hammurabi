@@ -22,6 +22,8 @@ fun getOpenTelemetry(serviceName: String): OpenTelemetrySdk =
                 "otel.logs.exporter" to "console", // interim: System.out; overridable by OTEL_LOGS_EXPORTER
             )
         }
+        // Whatever exporter is configured gets the scrubbing wrapper: recorded exceptions lose their message and stack trace.
+        .addSpanExporterCustomizer { exporter, _ -> ScrubbedSpanExporter(exporter) }
         .addResourceCustomizer { oldResource, _ ->
             oldResource.toBuilder()
                 .putAll(oldResource.attributes)

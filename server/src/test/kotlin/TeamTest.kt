@@ -24,7 +24,7 @@ import kotlin.test.assertNotNull
 import kotlin.test.assertTrue
 
 /**
- * The flat-teams surface (V6): CRUD, the manager (V23), the list filters, the authz split (any
+ * The flat-teams surface (V6): CRUD, the manager (V6), the list filters, the authz split (any
  * authenticated reads, ADMIN writes with guard-before-read), and the soft-delete/partial-index
  * semantics. Teams are SHARED suite state — every test mints UNIQUE names.
  */

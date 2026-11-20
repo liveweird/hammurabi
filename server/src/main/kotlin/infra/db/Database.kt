@@ -124,7 +124,7 @@ internal const val PREPARED_STATEMENT_CACHE_QUERIES = 256
  * setting — and no `SET` ever touches it): the server ends a session that sits idle INSIDE a transaction for longer, rolling the
  * transaction back and releasing its locks. It is the backstop for a session whose client stopped talking to it with a
  * transaction open — the r2dbc-postgresql socket leak `LeakedSocketGuard.kt` closes is the one seen (build-times WHY 24), a
- * frozen worker or a coroutine stuck mid-transaction are the others. An idle gap inside a transaction can never be longer than
+ * frozen request thread or a coroutine stuck mid-transaction are the others. An idle gap inside a transaction can never be longer than
  * the transaction, and no transaction spans an outbound call or a mail send, and every one is a few statements, so 5 minutes is
  * far beyond any legitimate gap. It ends only an IDLE session — one stuck `active` (in `ClientWrite`) is the guard's job.
  */

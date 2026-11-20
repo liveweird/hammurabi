@@ -151,7 +151,11 @@ Rendering & UI wiring:
   on mount. **Bodies are authored EN+PL only, by policy** — a new shipped UI language does NOT
   add changelog fields; non-authored languages read the English body (`AUTHORED_LANGUAGES` in the
   page). `components/MarkdownView.tsx` (Typography + react-markdown + remark-gfm/gemoji, all
-  lazy-chunk-only deps) is the one markdown renderer — reuse it for future markdown content.
+  lazy-chunk-only deps) is the one markdown renderer — reuse it for future markdown content. **Two variants** (`variant`, default `"document"`): `document` is plain react-markdown output
+  (the changelog; real headings, plain links), `message` is for discussion bodies (Adder's chat bodies, ported; Hammurabi's comments and issues), where many user-written bodies share one page: headings render as BOLD PARAGRAPHS (50 comments cannot flood the heading
+  outline; the page's own h1/h2/h3 outline stays), an image renders as a LINK to its address labelled by its alt text (the CSP is `img-src 'self' data:`, so a remote image would be
+  blocked anyway; an unsafe `src` that react-markdown's default `urlTransform` blanks stays as plain alt text), and every link opens with `target="_blank" rel="noopener noreferrer"`. Neither variant
+  renders raw HTML (no `rehype-raw`; never add it). The CSP is not changed. `MarkdownView.module.css` carries the `message` styling only. **Not ported: the emoji trio** (`EmojiTextarea`, `EmojiButton`, `EmojiPicker`, Lettuce's via Adder): it needs `emoji-mart`, `@emoji-mart/react` and `@emoji-mart/data` (a `package.json` and lockfile change, `dependencies.md`), so it comes with the first feature that needs an emoji picker; Adder's `dependencies.md` entry explains the no-CDN rule (`data` and `i18n` passed explicitly).
 - `components/VersionStamp.tsx` shows `v<APP_VERSION> · <sha> · <time>`; its optional `to` prop
   renders it as a router link — the navbar footer instance links to `/changelog` (no dot on it any
   more), the Login/AuthCard instance deliberately stays plain (the route is behind auth). The

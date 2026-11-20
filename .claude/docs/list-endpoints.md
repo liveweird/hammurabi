@@ -11,13 +11,15 @@
   with count + page rows in the **same `suspendTransaction`**; cursor paging is a documented
   per-endpoint opt-in [API-LIST-001/002, API-STRUCT-004].
 - Sorting: `sort=field`/`-field`, comma-separated multi-field, validated against a per-endpoint
-  whitelist → `400`; `id` asc always appended as tiebreaker; default `id` asc documented
+  whitelist → `400`; a field named twice (with or without `-`) or a list longer than the whitelist is a `400`
+  (a computed sort costs SQL per entry; `SortListBoundsTest`); `id` asc always appended as tiebreaker; default `id` asc documented
   [API-LIST-003].
 - Filtering: whitelisted equality filters on the field's own name plus `field[gte|gt|lte|lt]`
   bracket operators only where needed; strict `true`/`false` booleans; enums by string name; a repeated
   scalar key is a `400` (never silent first-value-wins; unknown parameter *names* stay ignored by deliberate
   leniency), see "Repeated keys" below [API-LIST-004].
-- Free text: `q` first, per-column substring only when a UI requires it [API-LIST-005].
+- Free text: `q` first, per-column substring only when a UI requires it [API-LIST-005]. The first `q` consumer is `GET /users/directory?q=` (name OR email on
+  one `containsNormalized` predicate for count and rows; `q` REQUIRED, 2 to 100 code points after trimming; pages capped at 20 via its own `DirectoryPageSize` component; spec parameter component `Q`); `GET /users` still filters per column.
 - Naming: camelCase params; reusable `Page`/`PageSize`/`Sort` under `#/components/parameters`
   `$ref`'d from each list path; one `*Page` envelope schema per resource; sortable/filterable
   whitelists documented per path [API-NAME-001..004].
@@ -36,7 +38,8 @@ New list endpoints copy `users/` (service `list`, routes `get<X>`, the OpenAPI `
 
 **Substring filters:** every per-column substring filter must be case- AND accent-insensitive —
 use `containsNormalized` (`infra/db/Sql.kt`, rendering
-`LOWER(public.unaccent(col)) LIKE LOWER(public.unaccent(?))`, extension enabled in V4); never
+`LOWER(public.unaccent(col)) LIKE (SELECT concat('%', <escaped LOWER(public.unaccent(?))>, '%'))`, extension enabled in V4; the LIKE
+metacharacters of the needle are escaped AFTER the fold, in SQL: unaccent maps the fullwidth `％ ＿ ＼` to ASCII, so an earlier escape would be undone, `ContainsPatternTest`); never
 hand-roll `lowerCase() like containsPattern(...)`, and keep unaccent-before-LOWER (the reverse
 breaks uppercase-diacritic input under a C-locale database). The SPA mirrors the rule via the
 theme-level `foldedOptionsFilter` (`web/src/utils/text.ts`).

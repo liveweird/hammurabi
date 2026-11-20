@@ -104,20 +104,23 @@ Source files sit flat under `server/src/main/kotlin/<area>/` but declare `packag
 override). One line per package; `ls` gives the files. **Layering is one-way (`PackageBoundaryTest`):** `infra/` imports no feature package
 except the composition root (`infra/db/Database.kt`, `Bootstrap.kt`); `telemetry/` is imported by nothing.
 
-- `plugins/` — cross-cutting Ktor wiring (`configureXxx` that only `install` plugins; Security = JWT, ErrorHandling = RFC 7807). `Routing` (the SPA catch-all) is registered strictly last; `Health` (`/api/v1/health`, `/api/v1/ready`) after Database; `RateLimits` holds every per-IP bucket (and the per-user `telemetry` one); `ResponseValidators` is the `ETag` seam.
+- `plugins/` — cross-cutting Ktor wiring (`configureXxx` that only `install` plugins; Security = JWT, ErrorHandling = RFC 7807). `Routing` (the SPA catch-all) is registered strictly last; `Health` (`/api/v1/health`, `/api/v1/ready`) after Database; `RateLimits` holds every per-IP bucket (and the per-user `telemetry` and `directory` ones), keyed by `infra/ClientAddress.kt`'s `clientAddressKey()`.
 - `infra/mail/` — outbound email (Lettuce's, ported): `MAIL_TRANSPORT` log/smtp/disabled; the `log` transport is refused in production (fail-closed); a null mailer = email features answer 503.
 - `infra/crypto/` — encryption at rest (Lettuce's, ported): `FieldCipher` (AES-256-GCM `enc:v1:` envelopes, current + rotation key), `configureCrypto` (`DATA_ENCRYPTION_KEY`; a burned key fails startup closed). No consumer yet; Flow's `EncryptedAtRest` registry and `Reencrypt` come back with the first encrypted column.
 - `infra/db/` — Flyway bootstrap, the R2DBC composition root, the seed bootstrap (admin rotation, prod fail-closed), `SoftDelete.kt` (`SoftDeletable`: ONE `active()` predicate, `nowMillis()`, `lockActiveForWrite`), `Sql.kt` (`containsNormalized` — the only substring filter), `Jsonb.kt`, `MultiRowInsert.kt`, `StatementTimeoutCache.kt` (only `queryTimeout` may set `STATEMENT_TIMEOUT`), `LeakedSocketGuard.kt`, `DetachingConnectionFactory.kt` (pool hygiene, `persistence.md`).
 - `infra/paging/` — the shared list-endpoint machinery (Lettuce's, ported verbatim; `list-endpoints.md`).
-- `infra/validation/` — cross-feature input helpers (`sanitizeSingleLine`: trim + control-char 400).
-- `infra/json/` — `CanonicalJson.kt` (canonical JSON + sha256 for stored payloads), `JsonArrays.kt`.
+- `infra/validation/` — cross-feature input helpers (`sanitizeSingleLine`: trim + control/hidden-direction-char 400; `sanitizeMultiLine`: free text, `\n`/`\t` kept; `requireNoDuplicates`).
+- `infra/json/` — `CanonicalJson.kt` (canonical JSON + sha256 for stored payloads).
+- `infra/revision/` — `X-Expected-Revision` for whole-document PUTs (Toadie's, header REQUIRED): `expectedRevision()` (400), `requireRevision` (typed 409 `urn:hammurabi:problem:revision-conflict`); no route uses it yet (the ADR PUT will).
+- `infra/BackgroundScope.kt` — `Application.backgroundScope(name)`: the ONE way to own a background loop (cancel + bounded join on `ApplicationStopping`, before the pool is disposed; a source guard keeps hand-built scopes out).
 - `infra/time/` — `Millis.kt`, `MILLIS_PER_DAY`, the one fixed-24h-day constant.
 - `infra/config/` — `requireConfigInt`/`requireConfigLong`, boot-validated numeric config (Lettuce's).
-- `infra/Failures.kt` — `catchingFailures` (keeps the failure without swallowing cancellation).
+- `infra/ProblemTypes.kt` — the ONE registry of the typed `urn:hammurabi:problem:*` URIs (`ProblemTypesTest` diffs it against the spec and the SPA).
+- `infra/ClientAddress.kt` — the ONE per-IP key (IPv4 whole, IPv6 by /64, junk counts under the TCP peer). `infra/Failures.kt` — `catchingFailures` (keeps the failure without swallowing cancellation).
 - `audit/` — the security audit trail: `audit(event, fields…)` → AUDIT-marked structured logs.
 - `authz/` — `CallerPrincipal`, the guards (`requireAdmin`, `requireSelfOrAdmin`, `requireTeamManagerOrAdmin`) and the typed HTTP exceptions (401/403/404/409/429).
 - `auth/` — login (+ the email-MFA second step), refresh, logout, self-service password reset, token minting, password hashing, the revoked-token blocklist; in-memory auth state is capacity-bounded with audited 429 saturation.
-- `users/` — Hammurabi's login accounts (REST `/api/v1/users`): ADMIN-only CRUD (self-delete 403, last-admin 409), per-user feature flags (`Feature` enum, the V5 disabled-set model; MFA is the inverted-default login-scoped flag), the ONE synced per-user UI+email language (`Languages.kt` = `SUPPORTED_LANGUAGES`).
+- `users/` — Hammurabi's login accounts (REST `/api/v1/users`): ADMIN-only CRUD (self-delete 403, last-admin 409) plus the any-signed-in-user picker lookup `GET /users/directory` (`{id, name, email}`, own rate bucket), per-user feature flags (`Feature` enum, the V5 disabled-set model; MFA is the inverted-default login-scoped flag), the ONE synced per-user UI+email language (`Languages.kt` = `SUPPORTED_LANGUAGES`).
 - `teams/` — flat teams (V6) with an optional manager: GET any authenticated, POST/PUT/DELETE ADMIN only. **The feature template** (below).
 - `telemetry/` — per-process JVM/cgroup/request/storage samples in `ops.*` (V9), 90 days, hourly, ADMIN read API (`observability.md`).
 

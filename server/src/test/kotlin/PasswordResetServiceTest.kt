@@ -20,7 +20,7 @@ import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.coroutineScope
 import org.jetbrains.exposed.v1.r2dbc.transactions.suspendTransaction
 
-/** The grant store (`auth/PasswordResetService.kt`, V35) over the shared container: digests, expiry, single use, staleness. */
+/** The grant store (`auth/PasswordResetService.kt`, V8) over the shared container: digests, expiry, single use, staleness. */
 class PasswordResetServiceTest {
     @Test
     fun `only digests are stored and exact expiry and delivery revocation reject grants`() = testApplication {

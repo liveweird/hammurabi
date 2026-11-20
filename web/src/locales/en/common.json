@@ -12,12 +12,12 @@
     "showPassword": "Show password",
     "hidePassword": "Hide password"
   },
-  "dateFormatHint": "YYYY-MM-DD",
   "field": {
     "email": "Email",
     "name": "Name",
     "role": "Role",
-    "description": "Description"
+    "description": "Description",
+    "user": "User"
   },
   "state": {
     "any": "Any"
@@ -74,5 +74,14 @@
   "featureHint": {
     "MFA": "A 6-digit code emailed at every sign-in (second factor)."
   },
-  "loading": "Loading…"
+  "loading": "Loading…",
+  "picker": {
+    "user": {
+      "placeholder": "Search by name or email…",
+      "clear": "Clear the user",
+      "noMatch": "No matching users",
+      "minChars_one": "Type at least {{count}} character to search",
+      "minChars_other": "Type at least {{count}} characters to search"
+    }
+  }
 }

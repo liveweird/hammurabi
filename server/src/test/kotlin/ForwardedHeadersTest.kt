@@ -64,6 +64,49 @@ class ForwardedHeadersTest {
     }
 
     @Test
+    fun `junk X-Forwarded-For text mints no bucket - it counts against the connection that sent it`() = testApplication {
+        configureApp("http.behindProxy" to "true", "security.rateLimit.loginPerMinute" to "10")
+        startApplication()
+        val client = jsonClient()
+        // Hostnames, junk with colons, an overlong value, an out-of-range quad: none is an address literal, so none is a key of its own.
+        val junk = listOf("a", "client-1.attacker.example", "x:y", "a:b:c", "999.1.1.1", "1.2.3", "0x7f.1", "evil:80", "zz") +
+            "q".repeat(300)
+        junk.forEach { assertEquals(HttpStatusCode.Unauthorized, client.login(it), it.take(20)) }
+        assertEquals(HttpStatusCode.TooManyRequests, client.login("fresh-junk-after-the-tenth"), "the eleventh value: the same client")
+        assertEquals(HttpStatusCode.TooManyRequests, client.login(null), "no header at all is the same connection")
+        // A real address the proxy reports is still its own client.
+        assertEquals(HttpStatusCode.Unauthorized, client.login("203.0.113.44"))
+    }
+
+    @Test
+    fun `a forwarded IPv4 address with a port is that address, not junk (Azure Application Gateway, IIS ARR)`() = testApplication {
+        configureApp("http.behindProxy" to "true", "security.rateLimit.loginPerMinute" to "10")
+        startApplication()
+        val client = jsonClient()
+        // Each client is its own bucket, whatever source port the proxy saw; the source port rotates inside one client.
+        repeat(10) { i -> assertEquals(HttpStatusCode.Unauthorized, client.login("203.0.113.7:${51234 + i}")) }
+        assertEquals(HttpStatusCode.TooManyRequests, client.login("203.0.113.7:60000"))
+        assertEquals(HttpStatusCode.TooManyRequests, client.login("203.0.113.7"), "the same client without its port")
+        assertEquals(HttpStatusCode.Unauthorized, client.login("203.0.113.8:51234"), "another address is another client")
+    }
+
+    @Test
+    fun `addresses of one IPv6 64 share a bucket, and distinct IPv4 addresses keep their own`() = testApplication {
+        configureApp("http.behindProxy" to "true", "security.rateLimit.loginPerMinute" to "10")
+        startApplication()
+        val client = jsonClient()
+        repeat(10) { i -> assertEquals(HttpStatusCode.Unauthorized, client.login("2001:db8:1:2::${i + 1}")) }
+        assertEquals(HttpStatusCode.TooManyRequests, client.login("2001:db8:1:2:ffff:ffff:ffff:ffff"), "same /64, another spelling")
+        assertEquals(HttpStatusCode.TooManyRequests, client.login("[2001:DB8:1:2::99]"), "brackets and case")
+        assertEquals(HttpStatusCode.Unauthorized, client.login("2001:db8:1:3::1"), "the next /64 is another client")
+        // The mapped spelling of an IPv4 address is that address.
+        repeat(10) { assertEquals(HttpStatusCode.Unauthorized, client.login("::ffff:198.51.100.7")) }
+        assertEquals(HttpStatusCode.TooManyRequests, client.login("198.51.100.7"))
+        assertEquals(HttpStatusCode.Unauthorized, client.login("198.51.100.8"), "distinct IPv4 addresses are distinct clients")
+        assertEquals(HttpStatusCode.Unauthorized, client.login("198.51.100.9"))
+    }
+
+    @Test
     fun `proxyHops 2 trusts the value before the last one`() = testApplication {
         configureApp(
             "http.behindProxy" to "true",

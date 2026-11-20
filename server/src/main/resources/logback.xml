@@ -21,4 +21,14 @@
     </root>
     <logger name="org.eclipse.jetty" level="INFO"/>
     <logger name="io.netty" level="INFO"/>
+    <!-- Log hygiene (security.md): these two log a failure's message below INFO, and a database failure's message can carry bound values.
+         Exposed's retry logger prints "Transaction attempt #N failed: ${cause.message}" at DEBUG; StatusPages traces the request URI
+         (query string included) and `cause.toString()` at TRACE. Pinned to INFO so a root-level change cannot switch them on.
+         The same for the R2DBC driver (its QUERY and PARAM loggers print every statement with its bound values at DEBUG, and inherit this
+         pin) and for Ktor's authentication and rate-limit loggers, which trace `request.uri` (the query string included). -->
+    <logger name="Exposed" level="INFO"/>
+    <logger name="io.ktor.server.plugins.statuspages" level="INFO"/>
+    <logger name="io.r2dbc.postgresql" level="INFO"/>
+    <logger name="io.ktor.server.auth.Authentication" level="INFO"/>
+    <logger name="io.ktor.server.plugins.ratelimit.RateLimit" level="INFO"/>
 </configuration>

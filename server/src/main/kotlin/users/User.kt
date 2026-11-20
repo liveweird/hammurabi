@@ -22,8 +22,7 @@ enum class UserRole { ADMIN, USER }
  * enum is the whitelist — a future gateable feature is just a new value here (no migration).
  * [MFA] is the one INVERTED-DEFAULT, login-scoped flag: every user starts with the disabled
  * row present (the V5 seed + the `UserService.create` chokepoint), so email MFA is opt-in;
- * it gates the LOGIN FLOW only — no route names it in `requireFeatureEnabled` (which awaits
- * its first area-gating consumer).
+ * it gates the LOGIN FLOW only — no route is gated on a feature yet.
  */
 @Serializable
 enum class Feature { MFA }
@@ -118,6 +117,15 @@ data class UserLanguageUpdateRequest(val language: String)
 data class UserFeaturesUpdateRequest(val disabledFeatures: List<Feature>)
 
 typealias UserPageResponse = ch.nokillswit.infra.paging.PageResponse<UserResponse>
+
+/**
+ * The user-directory projection (`GET /api/v1/users/directory`, any signed-in user): exactly these three fields, never roles, feature
+ * flags or language — the picker needs a person to choose, and the email tells namesakes apart.
+ */
+@Serializable
+data class UserDirectoryEntry(val id: UInt, val name: String, val email: String)
+
+typealias UserDirectoryPageResponse = ch.nokillswit.infra.paging.PageResponse<UserDirectoryEntry>
 
 /** The single stored role from a wire roles set: ADMIN present wins, else the baseline. */
 fun rolesToStored(roles: Collection<UserRole>?): UserRole =

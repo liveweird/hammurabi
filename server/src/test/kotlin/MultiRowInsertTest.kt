@@ -3,16 +3,13 @@ package ch.nokillswit
 import ch.nokillswit.infra.db.StatementProbe
 import ch.nokillswit.infra.db.insertRows
 import ch.nokillswit.infra.db.insertRowsIgnoringConflicts
-import ch.nokillswit.infra.db.upsertRows
 import kotlinx.coroutines.flow.toList
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.withContext
-import org.jetbrains.exposed.v1.core.Column
 import org.jetbrains.exposed.v1.core.SortOrder
 import org.jetbrains.exposed.v1.core.Table
 import org.jetbrains.exposed.v1.core.eq
 import org.jetbrains.exposed.v1.r2dbc.batchInsert
-import org.jetbrains.exposed.v1.r2dbc.batchUpsert
 import org.jetbrains.exposed.v1.r2dbc.selectAll
 import org.jetbrains.exposed.v1.r2dbc.transactions.suspendTransaction
 import kotlin.test.Test
@@ -31,7 +28,6 @@ class MultiRowInsertTest {
     private data class Item(val id: Long, val name: String, val note: String?)
 
     private val t = MultiRowScratch
-    private val db get() = sharedDatabaseForTests()
 
     private fun Item.asRow(owner: Int) = listOf(owner, id, name, note)
 
@@ -99,93 +95,6 @@ class MultiRowInsertTest {
         } finally {
             cleanUp(OWNER_BATCH, OWNER_ROWS)
         }
-    }
-
-    private fun values(id: Long, variant: Int): Map<Column<*>, Any?> = mapOf(
-        t.name to "name-$id-v$variant",
-        t.note to if (variant == 0) null else "note-$variant",
-        t.flag to (variant == 1),
-    )
-
-    private suspend fun write(owner: Int, rows: List<Pair<Long, Int>>, viaUpsertRows: Boolean) = suspendTransaction(db) {
-        @Suppress("UNCHECKED_CAST") // every pair's value comes from its own column's declared type
-        if (viaUpsertRows) {
-            t.upsertRows(rows, listOf(t.owner, t.id)) { (id, variant) ->
-                this[t.owner] = owner
-                this[t.id] = id
-                for ((column, value) in values(id, variant)) this[column as Column<Any?>] = value
-            }
-        } else {
-            t.batchUpsert(rows, t.owner, t.id, shouldReturnGeneratedValues = false) { (id, variant) ->
-                this[t.owner] = owner
-                this[t.id] = id
-                for ((column, value) in values(id, variant)) this[column as Column<Any?>] = value
-            }
-        }
-    }
-
-    @Test
-    fun `upsert - insert path then update path over several chunks, NULLs both ways - equals batchUpsert`() = runBlocking {
-        t.ensureCreated()
-        try {
-            val first = (1L..7_000L).map { it to 0 }
-            val second = (1L..7_000L).map { it to (if (it % 2 == 0L) 1 else 2) }
-            for (rows in listOf(first, second)) {
-                write(OWNER_BATCH, rows, viaUpsertRows = false)
-                write(OWNER_ROWS, rows, viaUpsertRows = true)
-                assertEquals(read(OWNER_BATCH).map { it.drop(1) }, read(OWNER_ROWS).map { it.drop(1) })
-            }
-            val stored = read(OWNER_ROWS)
-            assertEquals(7_000, stored.size)
-            assertEquals("note-1", stored.first { it[1] == 2L }[3], "the update path overwrote the NULL note")
-        } finally {
-            cleanUp(OWNER_BATCH, OWNER_ROWS)
-        }
-    }
-
-    @Test
-    fun `upsertRows collapses a repeated key to its last row like batchUpsert's sequential executions`() = runBlocking {
-        t.ensureCreated()
-        try {
-            // id 5 appears twice with different values: a single ON CONFLICT statement would otherwise raise
-            // "cannot affect row a second time"; batchUpsert executes in order, so the last one wins.
-            val rows = listOf(5L to 0, 6L to 0, 5L to 1, 7L to 0)
-            write(OWNER_BATCH, rows, viaUpsertRows = false)
-            write(OWNER_ROWS, rows, viaUpsertRows = true)
-            val expected = read(OWNER_BATCH)
-            assertEquals(3, expected.size)
-            assertEquals("name-5-v1", expected.first()[2], "the reference: the last row for id 5 wins")
-            assertEquals(expected.map { it.drop(1) }, read(OWNER_ROWS).map { it.drop(1) })
-        } finally {
-            cleanUp(OWNER_BATCH, OWNER_ROWS)
-        }
-    }
-
-    @Test
-    fun `upsertRows refuses an empty or unset conflict target and a table that is all key`() = runBlocking {
-        t.ensureCreated()
-        assertFailsWith<IllegalArgumentException> {
-            suspendTransaction(sharedDatabaseForTests()) { t.upsertRows(listOf(1L), emptyList()) { this[t.owner] = OWNER_ROWS } }
-        }
-        val unset = assertFailsWith<IllegalArgumentException> {
-            suspendTransaction(sharedDatabaseForTests()) {
-                t.upsertRows(listOf(1L), listOf(t.owner, t.id)) { this[t.owner] = OWNER_ROWS }
-            }
-        }
-        assertTrue(unset.message!!.contains("conflict key"), unset.message)
-        val allKey = assertFailsWith<IllegalArgumentException> {
-            suspendTransaction(sharedDatabaseForTests()) {
-                AllKey.upsertRows(listOf(1L), listOf(AllKey.owner, AllKey.id)) { this[AllKey.owner] = 1; this[AllKey.id] = it }
-            }
-        }
-        assertTrue(allKey.message!!.contains("nothing to update"), allKey.message)
-        Unit
-    }
-
-    /** A table that is all key: nothing to update on conflict (the statement is refused before it is ever sent). */
-    private object AllKey : Table("multi_row_allkey") {
-        val owner = integer("owner")
-        val id = long("id")
     }
 
     @Test

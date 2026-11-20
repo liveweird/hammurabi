@@ -32,7 +32,7 @@ tags:
   - name: auth
     description: Login (with the optional email second factor), token refresh, logout and the self-service password reset.
   - name: users
-    description: Hammurabi's own login accounts - ADMIN-managed CRUD, per-user feature flags, language and password change.
+    description: Hammurabi's own login accounts - ADMIN-managed CRUD, per-user feature flags, language and password change, plus the user-picker directory open to any signed-in user.
   - name: teams
     description: Flat teams, the ownership unit chat features scope to - readable by any authenticated user, written by ADMIN only.
   - name: telemetry
@@ -400,6 +400,47 @@ paths:
         '403': { $ref: '#/components/responses/Forbidden' }
         '409': { $ref: '#/components/responses/Conflict' }
         '413': { $ref: '#/components/responses/PayloadTooLarge' }
+        '500': { $ref: '#/components/responses/InternalServerError' }
+
+  /api/v1/users/directory:
+    get:
+      tags: [users]
+      operationId: searchUserDirectory
+      summary: Look up active users (user picker)
+      description: |
+        ANY signed-in user — deliberately not the ADMIN-only management list (`GET /users`, which stays
+        unchanged). Any user may be asked to take a DACI role (Driver, Approver, Contributor, Informed), and
+        needs somebody to pick, so this returns the minimum a picker needs: `{id, name, email}` of ACTIVE users (soft-deleted accounts are absent). Roles,
+        feature flags and language are never exposed; the email tells namesakes apart.
+
+        It is the one read that lets a regular user list accounts. The bounds slow and audit a bulk
+        harvest; they do not prevent one by a signed-in insider (the disclosure is accepted):
+        `q` is REQUIRED and needs at least 2 characters, a page holds at most 20 rows, and the
+        endpoint rides a per-USER rate bucket of 120 per minute (`429` beyond it).
+
+        Supports offset pagination, sorting and one free-text filter.
+
+        - `q` — case- and accent-insensitive substring match on name OR email. It is trimmed
+          before the limits apply; 2 to 100 characters (code points) after trimming, `400` otherwise
+          (a missing or blank `q` included).
+        - `pageSize` — 1 to 20 (default 20), `400` beyond.
+        - Sortable fields: `name` (default) and `id`; `id` ascending is always appended as a
+          deterministic tiebreaker.
+      parameters:
+        - $ref: '#/components/parameters/Page'
+        - $ref: '#/components/parameters/DirectoryPageSize'
+        - $ref: '#/components/parameters/Sort'
+        - $ref: '#/components/parameters/Q'
+      responses:
+        '200':
+          description: A page of active users
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UserDirectoryPage'
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '429': { $ref: '#/components/responses/TooManyRequests' }
         '500': { $ref: '#/components/responses/InternalServerError' }
 
   /api/v1/users/{id}:
@@ -802,6 +843,29 @@ components:
         comma-separated, leftmost wins: `sort=-updatedAt,name`. The endpoint declares its
         sortable-field whitelist; unknown fields are rejected with `400`. `id` ascending is
         always appended as a deterministic tiebreaker.
+    DirectoryPageSize:
+      name: pageSize
+      in: query
+      required: false
+      schema: { type: integer, minimum: 1, maximum: 20, default: 20 }
+      description: Rows per page for the user directory only. Defaults to 20, maximum 20 (the shared maximum is 100).
+    Q:
+      name: q
+      in: query
+      required: true
+      schema: { type: string, minLength: 2, maxLength: 100 }
+      description: >-
+        Free-text search (API-LIST-005), REQUIRED where declared (the user directory). Case- and accent-insensitive
+        substring match; the endpoint declares which fields it searches. The value is trimmed before the length limits
+        apply, so it needs 2 to 100 characters (code points) after trimming.
+    ExpectedRevision:
+      name: X-Expected-Revision
+      in: header
+      required: true
+      schema: { type: integer, format: int64, minimum: 1 }
+      description: |
+        The revision of the document the caller read (`revision`). Missing, repeated or malformed is a `400`; a stale one is a `409`
+        of type `urn:hammurabi:problem:revision-conflict`. Every successful PUT bumps the revision.
   responses:
     UnsupportedMediaType:
       description: Request body must use application/json. A missing body or Content-Type remains a 400.
@@ -836,7 +900,8 @@ components:
     TooManyRequests:
       description: >-
         Throttled — either the per-IP rate-limit bucket is exhausted (generic detail), on a telemetry read
-        (`/api/v1/telemetry/**`) the per-USER telemetry bucket is exhausted (30/min), or, on /login, the
+        (`/api/v1/telemetry/**`) the per-USER telemetry bucket is exhausted (30/min), on the user directory
+        (`/api/v1/users/directory`) the per-USER directory bucket is exhausted (120/min), or, on /login, the
         per-account lockout is active (account-specific detail). All carry a ProblemDetail body.
       content:
         application/problem+json:
@@ -1068,6 +1133,31 @@ components:
           minimum: 0
           description: Row count after filters, before pagination.
 
+    UserDirectoryEntry:
+      type: object
+      required: [id, name, email]
+      description: The whole directory projection - nothing else about a user is exposed.
+      properties:
+        id: { type: integer, format: int32, minimum: 1 }
+        name: { type: string }
+        email: { type: string }
+
+    UserDirectoryPage:
+      type: object
+      required: [items, page, pageSize, total]
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/UserDirectoryEntry'
+        page: { type: integer, minimum: 1 }
+        pageSize: { type: integer, minimum: 1, maximum: 100 }
+        total:
+          type: integer
+          format: int64
+          minimum: 0
+          description: Row count after filters, before pagination.
+
     PasswordUpdateRequest:
       type: object
       required: [password]
@@ -1164,8 +1254,12 @@ components:
         type:
           type: string
           default: about:blank
-          description: >-
-            A URI reference identifying the problem type; `about:blank` for every problem today.
+          description: |
+            A URI reference identifying the problem type: `about:blank`, or one of the typed problems below, which a client tells apart
+            from the plain status by the URI, never by the detail text. This list is the whole set (it equals the server's registry,
+            `ProblemTypes`, pinned by `ProblemTypesTest`); the status in brackets is the one it answers.
+
+            - `urn:hammurabi:problem:revision-conflict` (409): a stale `X-Expected-Revision`.
         title:
           type: string
           description: Short, human-readable summary of the problem type.

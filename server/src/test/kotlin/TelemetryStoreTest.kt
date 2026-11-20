@@ -23,7 +23,7 @@ import kotlin.test.assertNull
 import kotlin.test.assertTrue
 
 /**
- * `telemetry/TelemetryStore.kt` over the shared container (V36): the process registry, the idempotent multi-row insert, the hourly
+ * `telemetry/TelemetryStore.kt` over the shared container (V9): the process registry, the idempotent multi-row insert, the hourly
  * rollup (sum of `n`, n-weighted mean, max of max, the complete-hour rule, idempotence), the prune boundaries, the cascade and the
  * cluster lock. `ops` is the telemetry tests' own schema; each test starts from empty and scopes its assertions by its own process ids.
  */

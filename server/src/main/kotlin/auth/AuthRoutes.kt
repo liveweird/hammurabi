@@ -112,7 +112,7 @@ fun Application.configureAuthRoutes() {
         ),
         mailer = mailer(),
         // Email MFA: pending challenges for MFA-enabled accounts mid-login. In-memory, per-instance,
-        // like the throttles above. The issuance worker lives beside the email content (auth/MfaEmail.kt).
+        // like the throttles above. The issuance helper lives beside the email content (auth/MfaEmail.kt).
         mfaChallenges = MfaChallenges(
             ttlMillis = mfaTtlSeconds * 1000,
             maxAttempts = requireConfigInt(environment.config, "security.mfa.maxAttempts", min = 1, max = 100),

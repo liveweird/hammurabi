@@ -109,7 +109,6 @@ class AdrParticipantsTest {
         val updatedAt = cast.driver.client.getAdr(adr.id).updatedAt
         withAuditCapture { capture ->
             assertEquals(HttpStatusCode.NoContent, cast.driver.client.setParticipants(adr.id, same.reversed()).status)
-            kotlinx.coroutines.delay(300)
             assertTrue(capture.events.none { it.message == "adr.participants_changed" && it.hasKeyValue("adrId", adr.id.toLong()) })
         }
         assertEquals(before, cast.driver.client.adrEvents(adr.id).total)

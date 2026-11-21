@@ -1,5 +1,5 @@
 import { Anchor, Badge, SimpleGrid, Stack, Text, VisuallyHidden } from "@mantine/core";
-import { IconCalendarDue, IconCircleCheck, IconHourglass } from "@tabler/icons-react";
+import { IconCalendarDue, IconCalendarOff, IconCircleCheck, IconCircleOff, IconHourglass, IconHourglassOff } from "@tabler/icons-react";
 import { useQuery } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
 import { Link as RouterLink } from "react-router-dom";
@@ -8,6 +8,7 @@ import AdrLogRow from "../components/AdrLogRow";
 import DecisionLogCard, { LogList } from "../components/DecisionLogCard";
 import DecisionLogCounts from "../components/DecisionLogCounts";
 import DecisionLogInForce from "../components/DecisionLogInForce";
+import EmptyState from "../components/EmptyState";
 import ErrorAlert from "../components/ErrorAlert";
 import LoadingBlock from "../components/LoadingBlock";
 import PageHeader from "../components/PageHeader";
@@ -18,14 +19,6 @@ import { addDays, epochMillisToIsoDate } from "../utils/isoDate";
 function Dim({ children }: { children: string }) {
   return (
     <Text size="xs" c="dimmed">
-      {children}
-    </Text>
-  );
-}
-
-function EmptyLine({ children }: { children: string }) {
-  return (
-    <Text size="sm" c="dimmed">
       {children}
     </Text>
   );
@@ -53,7 +46,7 @@ function Awaiting({ awaiting }: { awaiting: AdrOverview["awaitingDecision"] }) {
         </Anchor>
       )}
       {awaiting.items.length === 0 ? (
-        <EmptyLine>{t("decisionLog.awaiting.empty")}</EmptyLine>
+        <EmptyState compact icon={IconHourglassOff} label={t("decisionLog.awaiting.empty")} />
       ) : (
         <LogList label={t("decisionLog.awaiting.title")}>
           {awaiting.items.map((item) => (
@@ -92,7 +85,7 @@ function Expiring({ expiring, generatedAt }: { expiring: AdrOverview["expiringSo
   return (
     <DecisionLogCard icon={IconCalendarDue} title={t("decisionLog.expiring.title")} hint={t("decisionLog.expiring.hint", { count: expiring.days })}>
       {expiring.items.length === 0 ? (
-        <EmptyLine>{t("decisionLog.expiring.empty")}</EmptyLine>
+        <EmptyState compact icon={IconCalendarOff} label={t("decisionLog.expiring.empty")} />
       ) : (
         <LogList label={t("decisionLog.expiring.title")}>
           {expiring.items.map((item) => (
@@ -124,7 +117,7 @@ function Recent({ recent }: { recent: AdrOverview["recentlyDecided"] }) {
   return (
     <DecisionLogCard icon={IconCircleCheck} title={t("decisionLog.recent.title")} hint={t("decisionLog.recent.hint")}>
       {recent.items.length === 0 ? (
-        <EmptyLine>{t("decisionLog.recent.empty")}</EmptyLine>
+        <EmptyState compact icon={IconCircleOff} label={t("decisionLog.recent.empty")} />
       ) : (
         <LogList label={t("decisionLog.recent.title")}>
           {recent.items.map((item) => (

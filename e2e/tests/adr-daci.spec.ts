@@ -6,6 +6,7 @@ import type { APIRequestContext } from "@playwright/test";
 import {
   apiAs,
   apiAsAdmin,
+  completeAdrBody,
   createAdrViaApi,
   createUserViaApi,
   deleteViaApi,
@@ -87,14 +88,7 @@ test.describe("ADR roles", () => {
     const approver = await createUserViaApi(admin, "E2E Approver");
     cleanup.push(`/api/v1/users/${approver.id}`);
     const { api: driverApi } = await apiAs(driver.email, driver.password);
-    const inForce = await createAdrViaApi(driverApi, {
-      name: uniqueText("e2e-adr"),
-      problem: "Which queue do we run?",
-      context: "Several services need one.",
-      decision: "Use a managed queue.",
-      consequences: "A vendor dependency.",
-      participants: [{ userId: approver.id, role: "APPROVER" }],
-    });
+    const inForce = await createAdrViaApi(driverApi, completeAdrBody(approver.id, { name: uniqueText("e2e-adr") }));
     cleanup.unshift(`/api/v1/adrs/${inForce.id}`);
     await transitionViaApi(driverApi, inForce.id, "IN_REVIEW");
     await driverApi.dispose();

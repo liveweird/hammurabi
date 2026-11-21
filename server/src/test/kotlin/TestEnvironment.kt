@@ -141,6 +141,10 @@ suspend fun ApplicationTestBuilder.seededClient(prefix: String, role: UserRole =
  * Captures a logger's events (the audit trail on `ch.nokillswit.audit`, or another logger — e.g.
  * the ROOT logger during application startup). Use in a try/finally with [detach]; [awaitEvent]
  * polls for asynchronously produced events.
+ *
+ * An ABSENCE assertion needs no settle delay (checkup C-TEST-6): `audit()` is a plain synchronous logger call made by the handler
+ * before it answers and this appender adds to its list on the calling thread, so once the request under test has returned, every
+ * line it wrote is already in [events]. Only an event written off the request thread (a sweep, a stream's end) needs [awaitEvent].
  */
 class LogCapture(loggerName: String) {
     private val logger = org.slf4j.LoggerFactory.getLogger(loggerName) as ch.qos.logback.classic.Logger

@@ -4,7 +4,7 @@
 // `SuccessorGraphTest`); this asserts what a person SEES. The predecessor's Driver also detaches a pending successor somebody else parked on it. Owns: its throwaway users (unique `e2e-*` names) and the ADRs they raise
 // (unique `e2e-adr-*` names) - deleted through the API in afterEach (the ADRs first, then the users).
 import type { APIRequestContext } from "@playwright/test";
-import { adrRevision, apiAs, apiAsAdmin, createAdrViaApi, createUserViaApi, deleteViaApi, expect, login, signOut, test, transitionViaApi, uniqueText } from "./helpers";
+import { adrRevision, apiAs, apiAsAdmin, completeAdrBody, createAdrViaApi, createUserViaApi, deleteViaApi, expect, login, signOut, test, transitionViaApi, uniqueText } from "./helpers";
 
 type Person = Awaited<ReturnType<typeof createUserViaApi>>;
 
@@ -34,14 +34,7 @@ test.describe("ADR successors", () => {
 
   /** An ADR the Driver raises with an Approver and complete content, so it can go to review and be activated. */
   async function raise(name: string): Promise<{ id: number; key: string }> {
-    const adr = await createAdrViaApi(driverApi, {
-      name,
-      problem: "Which queue do we run?",
-      context: "The team already runs PostgreSQL.",
-      decision: "Use a PostgreSQL-backed queue.",
-      consequences: "No new infrastructure to run.",
-      participants: [{ userId: approver.id, role: "APPROVER" }],
-    });
+    const adr = await createAdrViaApi(driverApi, completeAdrBody(approver.id, { name }));
     cleanup.unshift(`/api/v1/adrs/${adr.id}`);
     return adr;
   }
@@ -206,14 +199,7 @@ test.describe("ADR successors", () => {
     const { api: otherApproverApi } = await apiAs(otherApprover.email, otherApprover.password);
     let next: { id: number; key: string };
     try {
-      next = await createAdrViaApi(otherDriverApi, {
-        name: uniqueText("e2e-adr-next"),
-        problem: "Which queue do we run?",
-        context: "The team already runs PostgreSQL.",
-        decision: "Use a PostgreSQL-backed queue.",
-        consequences: "No new infrastructure to run.",
-        participants: [{ userId: otherApprover.id, role: "APPROVER" }],
-      });
+      next = await createAdrViaApi(otherDriverApi, completeAdrBody(otherApprover.id, { name: uniqueText("e2e-adr-next") }));
       cleanup.unshift(`/api/v1/adrs/${next.id}`);
       const linked = await otherDriverApi.put(`/api/v1/adrs/${next.id}/supersedes`, {
         data: { supersedesId: old.id },

@@ -1,6 +1,9 @@
 import { useTranslation } from "react-i18next";
-import { Button, Group, Pagination, Stack, Text, Timeline } from "@mantine/core";
+import { Button, Stack, Text, Timeline } from "@mantine/core";
+import { IconHistory } from "@tabler/icons-react";
 import { browserTimeZone, formatDateTime } from "../utils/formatDate";
+import CompactPagination from "./CompactPagination";
+import EmptyState from "./EmptyState";
 import ErrorAlert from "./ErrorAlert";
 import LoadingBlock from "./LoadingBlock";
 
@@ -57,20 +60,7 @@ export default function EventTimeline({
   const { t } = useTranslation();
 
   // Past one page. Kept on screen when a later page fails to load (the caller passes the last total it knew), so a failed page 2 is never a dead end.
-  const pager =
-    total > pageSize ? (
-      <Group justify="center">
-        <Pagination
-          size="sm"
-          value={page}
-          onChange={onPageChange}
-          total={Math.ceil(total / pageSize)}
-          siblings={0}
-          // Icon-only controls need names (WCAG 4.1.2; the axe e2e spec pins it).
-          getControlProps={(control) => ({ "aria-label": t(`common.table.${control}Page`) })}
-        />
-      </Group>
-    ) : null;
+  const pager = <CompactPagination page={page} totalPages={Math.ceil(total / pageSize)} onChange={onPageChange} siblings={0} />;
 
   if (isLoading) return <LoadingBlock py="sm" />;
   if (isError) {
@@ -85,11 +75,7 @@ export default function EventTimeline({
     );
   }
   if (!items || items.length === 0) {
-    return (
-      <Text c="dimmed" size="sm">
-        {emptyMessage}
-      </Text>
-    );
+    return <EmptyState compact icon={IconHistory} label={emptyMessage} />;
   }
 
   return (

@@ -20,7 +20,6 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.coroutineScope
-import kotlinx.coroutines.delay
 import java.io.File
 import java.sql.SQLException
 import kotlin.test.Test
@@ -203,7 +202,6 @@ class AdrSuccessorAcceptTest {
             assertTrue(line.hasKeyValue("successorId", next.id.toLong()) && line.hasKeyValue("successorNumber", next.number))
             cast.approver.client.acceptSuccessorOk(old.id, next.id)
             cast.admin.client.acceptSuccessorOk(old.id, next.id)
-            delay(300)
             assertEquals(1, capture.events.count { it.message == "adr.successor_accepted" && it.hasKeyValue("adrId", old.id.toLong()) })
         }
         assertEquals(nextRevision, cast.driver.client.getAdr(next.id).revision, "no revision bump on the successor")

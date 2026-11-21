@@ -18,7 +18,6 @@ import io.ktor.client.statement.bodyAsText
 import io.ktor.http.HttpHeaders
 import io.ktor.http.HttpStatusCode
 import io.ktor.server.testing.testApplication
-import kotlinx.coroutines.delay
 import java.io.ByteArrayInputStream
 import java.net.URLEncoder
 import java.time.LocalDate
@@ -265,11 +264,9 @@ class AdrExportTest {
             assertNotNull(bulk, "a bulk export audits")
             assertTrue(bulk.hasKeyValue("count", 2))
             assertTrue(bulk.hasKeyValue("byUserId", cast.stranger.id.toLong()))
-            delay(200)
             assertFalse(capture.events.any { e -> e.keyValuePairs.orEmpty().any { tag in it.value.toString() } }, "no name, no filter")
             cast.stranger.client.get("/api/v1/adrs/4000000/export")
             cast.stranger.client.get("/api/v1/adrs/export?participantRole=DRIVER")
-            delay(200)
             assertEquals(1, capture.events.count { it.message == "adr.exported" }, "a 404 exports nothing")
             assertEquals(1, capture.events.count { it.message == "adr.exported_bulk" }, "a refusal exports nothing")
         }

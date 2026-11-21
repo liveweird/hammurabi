@@ -4,7 +4,7 @@
 // `AdrSendBackWithdrawTest`; this asserts what a person SEES and clicks.
 // Owns: its throwaway users (unique `e2e-*` names) and the ADRs they raise, deleted through the API in afterEach (the ADRs first).
 import type { APIRequestContext } from "@playwright/test";
-import { apiAs, apiAsAdmin, createAdrViaApi, createUserViaApi, deleteViaApi, expect, login, signOut, test, transitionViaApi, uniqueText } from "./helpers";
+import { apiAs, apiAsAdmin, completeAdrBody, createAdrViaApi, createUserViaApi, deleteViaApi, expect, login, signOut, test, transitionViaApi, uniqueText } from "./helpers";
 
 type Person = Awaited<ReturnType<typeof createUserViaApi>>;
 
@@ -30,14 +30,7 @@ test.describe("sending an ADR back and withdrawing a decision", () => {
 
   test("the Approver sends an ADR back with a reason, the Driver resubmits it, and the Approver activates and then withdraws it", async ({ page }) => {
     const { api: driverApi } = await apiAs(driver.email, driver.password);
-    const adr = await createAdrViaApi(driverApi, {
-      name: uniqueText("e2e-adr"),
-      problem: "Which cache do we run?",
-      context: "Several services read the same data.",
-      decision: "Use a shared cache.",
-      consequences: "One more thing to operate.",
-      participants: [{ userId: approver.id, role: "APPROVER" }],
-    });
+    const adr = await createAdrViaApi(driverApi, completeAdrBody(approver.id, { name: uniqueText("e2e-adr") }));
     cleanup.unshift(`/api/v1/adrs/${adr.id}`);
     await transitionViaApi(driverApi, adr.id, "IN_REVIEW");
     await driverApi.dispose();
@@ -99,17 +92,16 @@ test.describe("sending an ADR back and withdrawing a decision", () => {
 
   test("a Contributor cannot withdraw a decision in force: no button, and the API answers 403", async ({ page }) => {
     const { api: driverApi } = await apiAs(driver.email, driver.password);
-    const adr = await createAdrViaApi(driverApi, {
-      name: uniqueText("e2e-adr"),
-      problem: "Which logger do we use?",
-      context: "Logs are scattered.",
-      decision: "Use structured logs.",
-      consequences: "A migration.",
-      participants: [
-        { userId: approver.id, role: "APPROVER" },
-        { userId: contributor.id, role: "CONTRIBUTOR" },
-      ],
-    });
+    const adr = await createAdrViaApi(
+      driverApi,
+      completeAdrBody(approver.id, {
+        name: uniqueText("e2e-adr"),
+        participants: [
+          { userId: approver.id, role: "APPROVER" },
+          { userId: contributor.id, role: "CONTRIBUTOR" },
+        ],
+      }),
+    );
     cleanup.unshift(`/api/v1/adrs/${adr.id}`);
     await transitionViaApi(driverApi, adr.id, "IN_REVIEW");
     const { api: approverApi } = await apiAs(approver.email, approver.password);
@@ -141,14 +133,7 @@ test.describe("sending an ADR back and withdrawing a decision", () => {
 
   test("a Driver cannot take the Approver seat of a decision in force to withdraw it: the picker is locked and the API answers 403", async ({ page }) => {
     const { api: driverApi } = await apiAs(driver.email, driver.password);
-    const adr = await createAdrViaApi(driverApi, {
-      name: uniqueText("e2e-adr"),
-      problem: "Which queue do we run?",
-      context: "Jobs are lost on restart.",
-      decision: "Use a durable queue.",
-      consequences: "One more thing to operate.",
-      participants: [{ userId: approver.id, role: "APPROVER" }],
-    });
+    const adr = await createAdrViaApi(driverApi, completeAdrBody(approver.id, { name: uniqueText("e2e-adr") }));
     cleanup.unshift(`/api/v1/adrs/${adr.id}`);
     await transitionViaApi(driverApi, adr.id, "IN_REVIEW");
     const { api: approverApi } = await apiAs(approver.email, approver.password);

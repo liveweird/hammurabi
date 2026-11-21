@@ -1,7 +1,7 @@
 import { describe, expect, test } from "vitest";
 import i18n from "../i18n";
 import { ApiError } from "../api/http";
-import { loadErrorMessage, saveErrorMessage } from "./saveError";
+import { isLastAdminConflict, loadErrorMessage, saveErrorMessage } from "./saveError";
 
 const t = i18n.t;
 
@@ -48,5 +48,23 @@ describe("loadErrorMessage", () => {
     );
     expect(loadErrorMessage(typed("urn:hammurabi:problem:search-busy"), t)).toBe("Search is busy right now. Try again in a moment.");
     expect(loadErrorMessage(typed("about:blank"), t)).toBe("Too many requests. Wait a minute and try again.");
+  });
+});
+
+describe("isLastAdminConflict", () => {
+  const conflict = (body: object) => new ApiError(409, { title: "Conflict", status: 409, ...body });
+
+  test("tells the last-administrator 409 by its problem type", () => {
+    expect(isLastAdminConflict(conflict({ type: "urn:hammurabi:problem:last-administrator", detail: "x" }))).toBe(true);
+  });
+
+  test("never by the detail text: an untyped 409 that mentions an administrator is not it", () => {
+    expect(isLastAdminConflict(conflict({ detail: "The last administrator cannot be demoted" }))).toBe(false);
+    expect(isLastAdminConflict(conflict({ type: "about:blank", detail: "The last administrator cannot be demoted" }))).toBe(false);
+  });
+
+  test("only a 409, only an ApiError", () => {
+    expect(isLastAdminConflict(new ApiError(400, { type: "urn:hammurabi:problem:last-administrator", title: "x", status: 400 }))).toBe(false);
+    expect(isLastAdminConflict(new Error("net"))).toBe(false);
   });
 });

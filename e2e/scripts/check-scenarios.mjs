@@ -1,8 +1,11 @@
 // The scenario-parity gate (2026-08 review round): every spec has its scenario file and every
 // test() title appears as a `## Scenario:` heading VERBATIM — and vice versa (the compiler
 // contract in scenarios/README.md, previously verified by hand at every checkup).
-// accessibility.spec.ts is the registered exception: its titles are a template literal
-// instantiated per page, so its scenario keeps a placeholder heading (see scenarios/README.md).
+// accessibility.spec.ts is checked too, in the template-aware way: a title written as a template literal (`${path} has no ...`) is
+// instantiated per page, so its scenario keeps a placeholder heading (see scenarios/README.md). Such a title matches a heading whole,
+// with its fixed text verbatim: an interpolation that OPENS the title (`${path} has ...`) must be a backticked `<placeholder>` in the
+// heading, so a literal heading can never hide behind a template; a later one (a `${suffix}` variant) may hold any text. Every other
+// title and heading must match verbatim.
 import { readdirSync, readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { dirname, join } from "node:path";
@@ -10,12 +13,29 @@ import { dirname, join } from "node:path";
 const root = dirname(dirname(fileURLToPath(import.meta.url)));
 const testsDir = join(root, "tests");
 const scenariosDir = join(root, "scenarios");
-const SKIP = new Set(["accessibility.spec.ts"]);
-
 // Matches a top-level test declaration's double-quoted title (also when the title starts on
 // the next line); modifier calls (`test.skip(`, `test.only(`) don't match — they are preceded by a dot.
 // The quoted-string body is the unrolled `[^"\\]*(?:\\.[^"\\]*)*` form — linear, no alternation backtracking.
 const TITLE_RE = /(?<![.\w])test\(\s*"([^"\\]*(?:\\.[^"\\]*)*)"/g;
+
+// A template-literal title (a backtick string): its `${...}` parts are the per-instance values, the fixed text between them is what a
+// heading must hold.
+const TEMPLATE_RE = /(?<![.\w])test\(\s*`([^`\\]*(?:\\.[^`\\]*)*)`/g;
+
+const escapeRe = (text) => text.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+
+/** The whole-heading pattern of a template title: an opening interpolation is a `<placeholder>`, a later one any text. */
+function templatePattern(template) {
+  const parts = template.split(/\$\{[^}]*\}/);
+  /** What the interpolation before fixed part `i` may be in a heading. */
+  const slot = (i) => {
+    if (i === 0) return "";
+    if (i === 1 && parts[0] === "") return "`<[^>`]+>`";
+    return "(?:.*)";
+  };
+  const body = parts.map((fixed, i) => slot(i) + escapeRe(fixed)).join("");
+  return new RegExp(`^${body}$`);
+}
 
 let failures = 0;
 const fail = (msg) => {
@@ -36,20 +56,27 @@ for (const spec of specs) {
     continue;
   }
   scenarioFiles.delete(scenarioName);
-  if (SKIP.has(spec)) continue;
 
   const src = readFileSync(join(testsDir, spec), "utf8");
   const titles = [...src.matchAll(TITLE_RE)].map((m) => m[1]);
+  const templates = [...src.matchAll(TEMPLATE_RE)].map((m) => ({ text: m[1], pattern: templatePattern(m[1]) }));
   const scenario = readFileSync(join(scenariosDir, scenarioName), "utf8");
   const headings = [...scenario.matchAll(/^## Scenario: (.+)$/gm)].map((m) => m[1].trimEnd());
 
   for (const t of titles) {
     if (!headings.includes(t)) fail(`${spec}: title has no matching heading in ${scenarioName}:\n    "${t}"`);
   }
-  for (const h of headings) {
-    if (!titles.includes(h)) fail(`scenarios/${scenarioName}: heading matches no test() title in ${spec}:\n    "${h}"`);
+  for (const template of templates) {
+    if (!headings.some((h) => template.pattern.test(h))) {
+      fail(`${spec}: template title has no matching heading in ${scenarioName}:\n    \`${template.text}\``);
+    }
   }
-  if (titles.length === 0) fail(`${spec}: no test() titles extracted — the checker's regex needs a look`);
+  for (const h of headings) {
+    if (!titles.includes(h) && !templates.some((template) => template.pattern.test(h))) {
+      fail(`scenarios/${scenarioName}: heading matches no test() title in ${spec}:\n    "${h}"`);
+    }
+  }
+  if (titles.length + templates.length === 0) fail(`${spec}: no test() titles extracted — the checker's regex needs a look`);
 }
 
 for (const orphan of scenarioFiles) {

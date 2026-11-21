@@ -346,7 +346,7 @@ export interface paths {
         /**
          * Update a user's name, email, and roles
          * @description ADMIN only. The password is deliberately not writable here (it has its own endpoint).
-         *     Demoting the LAST active administrator is a `409` — the management surface must stay
+         *     Demoting the LAST active administrator is the typed `409` `urn:hammurabi:problem:last-administrator` — the management surface must stay
          *     reachable. An email already used by another active account is also a `409`.
          */
         put: operations["updateUser"];
@@ -356,7 +356,7 @@ export interface paths {
          * @description ADMIN only, soft delete: the account can no longer sign in, outstanding refresh
          *     tokens die (`user_gone`), the email is freed for reuse, and what the user wrote or created (ADRs, discussion
          *     entries, lenses, history events) stays with a deleted-account marker. Deleting YOURSELF is a `403`; deleting the LAST
-         *     active administrator is a `409`.
+         *     active administrator is the typed `409` `urn:hammurabi:problem:last-administrator`.
          */
         delete: operations["deleteUser"];
         options?: never;
@@ -2179,6 +2179,7 @@ export interface components {
              *     - `urn:hammurabi:problem:illegal-transition` (409): an ADR lifecycle move the map does not allow, or one only the system makes.
              *     - `urn:hammurabi:problem:adr-frozen` (409): a write the ADR's status closes - content (and the successor link) once `ACTIVE`, anything once terminal.
              *     - `urn:hammurabi:problem:successor-not-accepted` (409): a successor activated over a decision in force whose Approver has not accepted the link - `POST /adrs/{id}/successor/accept` on the predecessor first.
+             *     - `urn:hammurabi:problem:last-administrator` (409): a demotion or deletion of a user that would leave no active administrator (`PUT` / `DELETE /users/{id}`); an email already in use is a plain 409.
              *     - `urn:hammurabi:problem:search-timeout` (429, `Retry-After`): a full-text search outran its deadline - narrow it.
              *     - `urn:hammurabi:problem:search-busy` (429, `Retry-After`): the server already runs its maximum of searches - retry shortly.
              *     - `urn:hammurabi:problem:export-busy` (429, `Retry-After`): the server already streams its maximum of bulk ADR exports - retry shortly.

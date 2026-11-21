@@ -5,7 +5,6 @@ import ch.nokillswit.adrs.DiscussionState
 import io.ktor.client.request.delete
 import io.ktor.http.HttpStatusCode
 import io.ktor.server.testing.testApplication
-import kotlinx.coroutines.delay
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertNotNull
@@ -71,7 +70,6 @@ class AdrDiscussionAuditTest {
             cast.driver.client.setEntryState(adr.id, entry.id, DiscussionState.ANSWERED)
             cast.stranger.client.postEntry(adr.id, DiscussionKind.ISSUE)
             cast.stranger.client.postEntry(adr.id, DiscussionKind.COMMENT, "")
-            delay(300)
             val audits = capture.events.filter {
                 it.message?.startsWith("adr.discussion_") == true && it.hasKeyValue("adrId", adr.id.toLong())
             }

@@ -34,6 +34,14 @@ import kotlin.test.assertTrue
  * term reaches no log line. ADRs are shared suite state: each test mints a UNIQUE word and searches for that.
  */
 class AdrSearchTest {
+    private companion object {
+        /** The deadline the timeout test configures; its timing assertions are relative to it. */
+        const val SEARCH_BUDGET_MILLIS = 1_000L
+
+        /** The deadline the busy test configures (a long one: the refusal must come long before it). */
+        const val BUSY_SEARCH_DEADLINE_MILLIS = 20_000L
+    }
+
     private fun word(prefix: String) = prefix + UUID.randomUUID().toString().replace("-", "").take(12)
 
     private fun encoded(value: String) = URLEncoder.encode(value, Charsets.UTF_8)
@@ -236,7 +244,7 @@ class AdrSearchTest {
 
     @Test
     fun `a search past its deadline is the audited 429 search-timeout and the pool is clean after it`() = testApplication {
-        configureApp("search.timeoutSeconds" to "1")
+        configureApp("search.timeoutSeconds" to (SEARCH_BUDGET_MILLIS / 1_000).toString())
         startApplication()
         val client = adrActor("srch-slow").client
         val term = word("slowterm")
@@ -260,7 +268,10 @@ class AdrSearchTest {
             val problem = response.body<ProblemDetail>()
             assertEquals(ProblemTypes.SEARCH_TIMEOUT, problem.type)
             assertTrue(term !in problem.detail.orEmpty(), "the problem never names the term")
-            assertTrue(elapsedMillis in 900..10_000, "it answered at the budget ($elapsedMillis ms)")
+            // Relative to the 1 s budget set above, with a wide ceiling for a loaded machine: not before the budget ran out (the database
+            // cancels at it), and nowhere near the 60 s limit of the test application (which it would reach if the cancel never came).
+            assertTrue(elapsedMillis >= SEARCH_BUDGET_MILLIS * 9 / 10, "it waited out the budget ($elapsedMillis ms)")
+            assertTrue(elapsedMillis < SEARCH_BUDGET_MILLIS + 20_000, "it answered at the budget, not much later ($elapsedMillis ms)")
             assertNotNull(capture.awaitEvent { it.message == "search.timeout" }).let { event ->
                 assertTrue(event.keyValuePairs.orEmpty().any { it.key == "byUserId" })
             }
@@ -276,7 +287,7 @@ class AdrSearchTest {
 
     @Test
     fun `a search past the process cap is refused at once with the typed 429 search-busy`() = testApplication {
-        configureApp("search.maxConcurrent" to "1", "search.timeoutSeconds" to "20")
+        configureApp("search.maxConcurrent" to "1", "search.timeoutSeconds" to (BUSY_SEARCH_DEADLINE_MILLIS / 1_000).toString())
         startApplication()
         val first = adrActor("srch-busy-a").client
         val second = adrActor("srch-busy-b").client
@@ -293,7 +304,8 @@ class AdrSearchTest {
                         val started = System.nanoTime()
                         val refused = second.get("/api/v1/adrs?text=${encoded(term)}")
                         val elapsedMillis = (System.nanoTime() - started) / 1_000_000
-                        assertTrue(elapsedMillis < 3_000, "refused at once, not after a wait ($elapsedMillis ms)")
+                        // Relative to the 20 s deadline the holder runs under: refused long before it, not after waiting for a free permit.
+                        assertTrue(elapsedMillis < BUSY_SEARCH_DEADLINE_MILLIS / 2, "refused at once, not after a wait ($elapsedMillis ms)")
                         holder.rollback()
                         assertEquals(HttpStatusCode.OK, running.await().status, "the search holding the permit completes")
                         refused

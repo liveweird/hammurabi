@@ -176,7 +176,7 @@ Rendering & UI wiring:
   more), the Login/AuthCard instance deliberately stays plain (the route is behind auth). The
   "Changelog" entry is an `ACCOUNT_NAV` leaf rendered by the `UserMenu` and the command palette,
   not a sidebar item.
-- The **"what's new" dot** is a red Mantine `Indicator` around the header `UserMenu` trigger (it
+- The **"what's new" dot** is a brand-accent (`hammurabi`) Mantine `Indicator` around the header `UserMenu` trigger (it
   carries the `title="What's new"` e2e locates; the Changelog menu item shows a text badge
   instead of a second title, which would trip strict-mode locators while the menu is open), shown
   while localStorage `hammurabi.changelog` (`{seenVersion}`) differs from `APP_VERSION`. It's driven

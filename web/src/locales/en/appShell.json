@@ -21,6 +21,7 @@
   },
   "userMenu": {
     "open": "Account menu",
+    "identityFailed": "Could not load your account details.",
     "language": "Language",
     "theme": "Theme",
     "themeLight": "Light",

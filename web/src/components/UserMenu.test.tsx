@@ -72,6 +72,39 @@ describe("UserMenu", () => {
     expect(screen.getByRole("menuitem", { name: /Changelog/ })).toHaveAttribute("href", "/changelog");
   });
 
+  test("a failed identity read is said in the menu, in words, and Sign out still works", async () => {
+    stubFetch((url) => (url === "/api/v1/users/7" ? Response.json({ title: "Boom", status: 500 }, { status: 500 }) : undefined));
+    const user = userEvent.setup();
+    renderMenu();
+    await user.click(screen.getByRole("button", { name: /account menu/i }));
+    const alert = await screen.findByRole("alert");
+    expect(alert).toHaveTextContent("Could not load your account details.");
+    expect(alert).toHaveTextContent("Load failed (500)");
+    expect(alert).not.toHaveTextContent("Boom");
+    expect(screen.getByRole("menuitem", { name: "Sign out" })).toBeInTheDocument();
+  });
+
+  test("the what's-new cues (the trigger's dot, the Changelog badge) are the brand accent, never the blocking red", async () => {
+    stubFetch((url) => (url === "/api/v1/users/7" ? Response.json(ME) : undefined));
+    const user = userEvent.setup();
+    const { baseElement } = renderMenu();
+    expect(screen.getByTitle("What's new").closest(".mantine-Indicator-root")?.getAttribute("style")).toContain("hammurabi");
+    await user.click(screen.getByRole("button", { name: /account menu/i }));
+    const badge = (await screen.findByText("New")).closest(".mantine-Badge-root");
+    expect(badge?.getAttribute("style")).toContain("hammurabi");
+    // Red stays where it means "destructive" (Sign out): no indicator or badge of the menu is red.
+    expect(baseElement.querySelectorAll(".mantine-Indicator-root[style*='red'], .mantine-Badge-root[style*='red']")).toHaveLength(0);
+  });
+
+  test("a loaded identity shows no such alert", async () => {
+    stubFetch((url) => (url === "/api/v1/users/7" ? Response.json(ME) : undefined));
+    const user = userEvent.setup();
+    renderMenu();
+    await user.click(screen.getByRole("button", { name: /account menu/i }));
+    await screen.findByText("alice@hammurabi.local");
+    expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+  });
+
   test("an admin's menu has the Telemetry panel toggle: a check mark and aria-current while it is on, off again on the next pick", async () => {
     stubFetch(() => undefined);
     const user = userEvent.setup();

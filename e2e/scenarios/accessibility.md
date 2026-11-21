@@ -7,8 +7,9 @@
   through the API before the detail-page block and deleted after it; the list/form pages and
   the login screen are read-only
 
-This is the registered template-title exception (see README.md): one `test()` per page is
-generated from a list, so a single scenario section stands in for each list.
+Some titles are template literals (see README.md): one `test()` per page is generated from a list,
+so a single scenario section with a placeholder heading stands in for each list; the checker matches
+such a section by the fixed words of the template. The other titles are matched verbatim.
 
 ## Scenario: login screen has no WCAG A/AA violations
 
@@ -23,6 +24,29 @@ generated from a list, so a single scenario section stands in for each list.
 
 The list covers the Home page, the Decision log, the ADR list and its create form, the Teams list, the Users list and its create form, the ADMIN feature-flags screen,
 Change password and the Changelog — see `tests/accessibility.spec.ts`'s `AUTHED_PAGES` list for the current set.
+
+## Scenario: `<name>` has no WCAG A/AA violations
+
+1. The admin signs in and opens one detail page of an API-seeded fixture: the team page, the ADR page, the admin's own edit-user page or
+   its user-features page, and waits for that page's heading.
+   - *Expected*: an axe scan (same tags) reports zero violations.
+
+## Scenario: the reset-password page has no WCAG A/AA violations
+
+1. An anonymous visitor opens `/reset-password` and waits for the "Reset password" heading; the page is scanned. They then open the
+   emailed link's page (`/reset-password/confirm` with a well-formed token in the fragment, nothing submitted) and wait for **Set new
+   password**; it is scanned too.
+   - *Expected*: both scans report zero violations.
+
+## Scenario: the not-found page has no WCAG A/AA violations
+
+1. The admin signs in and opens a path that does not exist, and waits for the page's heading.
+   - *Expected*: an axe scan reports zero violations.
+
+## Scenario: a team editor modal has no WCAG A/AA violations
+
+1. The admin signs in, opens `/teams`, clicks **New team** and waits for the dialog to settle at full opacity.
+   - *Expected*: an axe scan scoped to the dialog reports zero violations.
 
 ## Scenario: `<path>` has no WCAG A/AA violations in the dark scheme
 

@@ -21,6 +21,7 @@ import { getUser, setUserLanguage } from "../api/users";
 import { flagSignedOut, useAdmin } from "../auth";
 import { asSupportedLanguage, NATIVE_LANGUAGE_NAMES, SUPPORTED_LANGUAGES } from "../i18n";
 import { notificationPreferencesPath } from "../utils/notificationLinks";
+import ErrorAlert from "./ErrorAlert";
 import { useChangelogUnseen } from "../hooks/useChangelogSeen";
 import { setTelemetryPanelOpen, useTelemetryPanelOpen } from "../hooks/useTelemetryPanel";
 
@@ -90,7 +91,7 @@ export default function UserMenu() {
       {/* The Indicator wraps the TARGET, not the other way round: Menu.Target clones its child
           with aria-expanded/aria-controls, which are only allowed on the button. */}
       <Indicator
-        color="red"
+        color="hammurabi"
         size={8}
         offset={4}
         disabled={!changelogUnseen}
@@ -131,6 +132,12 @@ export default function UserMenu() {
             )}
           </Group>
         </Box>
+        {/* A failed identity read is said, not swallowed into the dashes above: everything else in the menu works without it. */}
+        {identity.isError && (
+          <Box px="sm" pb="xs">
+            <ErrorAlert error={identity.error} title={t("appShell.userMenu.identityFailed")} />
+          </Box>
+        )}
         <Menu.Divider />
         <Menu.Label>{t("appShell.userMenu.language")}</Menu.Label>
         {SUPPORTED_LANGUAGES.map((lng) => (
@@ -172,7 +179,7 @@ export default function UserMenu() {
           leftSection={<IconHistory size={14} />}
           rightSection={
             changelogUnseen ? (
-              <Badge size="xs" color="red" variant="filled">
+              <Badge size="xs" color="hammurabi" variant="filled">
                 {t("changelog.newBadge")}
               </Badge>
             ) : undefined

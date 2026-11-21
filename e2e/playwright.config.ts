@@ -11,6 +11,11 @@ export const MAILPIT_URL = target.mailpitUrl;
 
 const desktopChrome = { ...devices["Desktop Chrome"] };
 
+// Specs that READ a section of a global, capped overview (the decision log's "Awaiting decision", "Recently decided" and "Expiring soon"
+// list the newest few of EVERY user's ADRs) cannot own what they read: another spec activating or sending to review at the same moment
+// can push their rows off the cap. They run in a second phase, after the parallel pool has finished and deleted its ADRs.
+const GLOBAL_READERS = /decision-log\.spec\.ts$/;
+
 export default defineConfig({
   testDir: "./tests",
   // The serial unit is the FILE (fullyParallel stays false so a file's tests may be
@@ -37,5 +42,8 @@ export default defineConfig({
     screenshot: "only-on-failure",
     video: "off",
   },
-  projects: [{ name: "chromium", use: desktopChrome }],
+  projects: [
+    { name: "chromium", use: desktopChrome, testIgnore: GLOBAL_READERS },
+    { name: "global-readers", use: desktopChrome, testMatch: GLOBAL_READERS, dependencies: ["chromium"] },
+  ],
 });

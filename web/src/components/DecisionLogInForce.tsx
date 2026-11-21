@@ -1,11 +1,12 @@
 import { Anchor, Badge, Group, SimpleGrid, Stack, Text, Title, VisuallyHidden } from "@mantine/core";
-import { IconTags } from "@tabler/icons-react";
+import { IconTags, IconTagsOff } from "@tabler/icons-react";
 import { useTranslation } from "react-i18next";
 import { Link as RouterLink } from "react-router-dom";
 import type { AdrOverview } from "../api/adrs";
 import { adrListPath } from "../utils/adrListParams";
 import AdrLogRow from "./AdrLogRow";
 import DecisionLogCard, { LogList } from "./DecisionLogCard";
+import EmptyState from "./EmptyState";
 
 type InForce = AdrOverview["inForce"];
 type Items = InForce["untagged"]["items"];
@@ -47,9 +48,7 @@ export default function DecisionLogInForce({ inForce }: { inForce: InForce }) {
         {t("decisionLog.inForce.total", { count: inForce.total })}
       </Text>
       {inForce.total === 0 && (
-        <Text size="sm" c="dimmed">
-          {t("decisionLog.inForce.empty")}
-        </Text>
+        <EmptyState compact icon={IconTagsOff} label={t("decisionLog.inForce.empty")} />
       )}
       {inForce.categories.map((category) => (
         <Stack key={category.id} gap="sm">

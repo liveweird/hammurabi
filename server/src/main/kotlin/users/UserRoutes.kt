@@ -11,6 +11,7 @@ import ch.nokillswit.authz.caller
 import ch.nokillswit.authz.orNotFound
 import ch.nokillswit.authz.requireAdmin
 import ch.nokillswit.authz.requireSelfOrAdmin
+import ch.nokillswit.infra.ProblemTypes
 import ch.nokillswit.infra.db.orVanished
 import ch.nokillswit.infra.paging.optionalBoolean
 import ch.nokillswit.infra.paging.optionalEnum
@@ -54,6 +55,10 @@ internal fun validatePassword(password: String) {
         throw BadRequestException("Password must be at most $MAX_PASSWORD_BYTES bytes in UTF-8")
     }
 }
+
+/** The 409 of the last-admin protections, typed so the SPA tells it from an email clash by the URI, never by the detail text. */
+private fun lastAdministrator(action: String) =
+    ConflictException("The last administrator cannot be $action", ProblemTypes.LAST_ADMINISTRATOR)
 
 /** Audit format for a roles/features set: comma-joined sorted names, "" = empty set. */
 private fun <T : Enum<T>> Set<T>.joinedNames(): String = map { it.name }.sorted().joinToString(",")
@@ -252,12 +257,12 @@ private fun Route.userReadUpdateDelete(userService: UserService) {
         if (existing.role == UserRole.ADMIN && requestedRole != UserRole.ADMIN &&
             userService.countActiveAdmins() <= 1
         ) {
-            throw ConflictException("The last administrator cannot be demoted")
+            throw lastAdministrator("demoted")
         }
         when (userService.updateGuarded(route.id, name, email, requestedRole)) {
             UserService.GuardedMutation.NOT_FOUND -> throw NotFoundException("User not found")
             UserService.GuardedMutation.LAST_ADMIN ->
-                throw ConflictException("The last administrator cannot be demoted")
+                throw lastAdministrator("demoted")
             UserService.GuardedMutation.DONE -> Unit
         }
         auditUserUpdated(caller.userId, route.id, existing, name = name, email = email)
@@ -286,7 +291,7 @@ private fun Route.userReadUpdateDelete(userService: UserService) {
         when (userService.deleteGuarded(route.id)) {
             UserService.GuardedMutation.NOT_FOUND -> throw NotFoundException("User not found")
             UserService.GuardedMutation.LAST_ADMIN ->
-                throw ConflictException("The last administrator cannot be deleted")
+                throw lastAdministrator("deleted")
             UserService.GuardedMutation.DONE -> Unit
         }
         audit(

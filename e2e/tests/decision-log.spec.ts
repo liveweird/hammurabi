@@ -4,16 +4,12 @@
 // (`AdrOverviewTest`, `AdrOverviewCapsTest`) and the page's (`DecisionLog.test.tsx`); this asserts what a person SEES. Owns: its two
 // throwaway users (a Driver and an Approver), its ADRs (unique `e2e-adr-*` names) and its throwaway tag category (a unique `E2E Log
 // Category` with an `e2e-tag-log-*` tag; the registry is shared, append-only state and the seeded categories are never touched) - all
-// deleted through the API in afterEach (the ADRs, then the category, then the users).
+// deleted through the API in afterEach (the ADRs, then the category, then the users). The page's sections are GLOBAL and capped (the newest few ADRs of every
+// user), so this spec runs in the config's second phase (`global-readers`, after the parallel pool) where no other spec activates or reviews at the same time.
 import type { APIRequestContext } from "@playwright/test";
-import { apiAs, apiAsAdmin, createAdrViaApi, createUserViaApi, deleteViaApi, expect, login, test, transitionViaApi, uniqueText } from "./helpers";
+import { apiAs, apiAsAdmin, completeAdrBody, createAdrViaApi, createUserViaApi, deleteViaApi, expect, login, test, transitionViaApi, uniqueText, utcDayFromNow } from "./helpers";
 
 type Person = Awaited<ReturnType<typeof createUserViaApi>>;
-
-/** A UTC calendar day `days` from now, `YYYY-MM-DD` (the day the server judges expiry by). */
-function utcDayFromNow(days: number): string {
-  return new Date(Date.now() + days * 86_400_000).toISOString().slice(0, 10);
-}
 
 test.describe("the decision log", () => {
   let admin: APIRequestContext;
@@ -42,15 +38,7 @@ test.describe("the decision log", () => {
   /** Raises a complete ADR (Approver named) as the Driver and returns it; `fields` lays over the body. */
   async function raise(fields: Record<string, unknown> = {}) {
     const name = uniqueText("e2e-adr-log");
-    const adr = await createAdrViaApi(driverApi, {
-      name,
-      problem: "What do we decide?",
-      context: "The context.",
-      decision: "The decision.",
-      consequences: "The consequences.",
-      participants: [{ userId: approver.id, role: "APPROVER" }],
-      ...fields,
-    });
+    const adr = await createAdrViaApi(driverApi, completeAdrBody(approver.id, { name, ...fields }));
     cleanup.unshift(`/api/v1/adrs/${adr.id}`);
     return adr;
   }

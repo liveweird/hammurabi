@@ -1,13 +1,16 @@
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
-import { Button, Group, Pagination, Stack, Switch, Text, Title } from "@mantine/core";
+import { Button, Group, Stack, Switch, Text, Title } from "@mantine/core";
+import { IconMessages } from "@tabler/icons-react";
 import { keepPreviousData, useQuery } from "@tanstack/react-query";
 import { listDiscussion } from "../api/adrDiscussion";
 import type { AdrResponse } from "../api/adrs";
 import { DISCUSSION_PAGE_SIZE, DISCUSSION_VARIANT_KINDS, lastDiscussionPage, type DiscussionVariant } from "../utils/adrDiscussion";
 import { isPreActive } from "../utils/adrStatus";
+import CompactPagination from "./CompactPagination";
 import DiscussionComposer from "./DiscussionComposer";
 import DiscussionEntryCard from "./DiscussionEntryCard";
+import EmptyState from "./EmptyState";
 import ErrorAlert from "./ErrorAlert";
 import LoadingBlock from "./LoadingBlock";
 
@@ -75,22 +78,10 @@ export default function AdrDiscussion({ adr, variant }: { adr: AdrResponse; vari
           ))}
         </Stack>
       ) : (
-        <Text c="dimmed" size="sm">
-          {t(onlyOpen ? "adrs.discussion.noneOpen" : `adrs.discussion.${variant}.empty`)}
-        </Text>
+        <EmptyState compact icon={IconMessages} label={t(onlyOpen ? "adrs.discussion.noneOpen" : `adrs.discussion.${variant}.empty`)} />
       )}
 
-      {total > DISCUSSION_PAGE_SIZE && (
-        <Group justify="center">
-          <Pagination
-            size="sm"
-            value={page}
-            onChange={setPage}
-            total={lastDiscussionPage(total)}
-            getControlProps={(control) => ({ "aria-label": t(`common.table.${control}Page`) })}
-          />
-        </Group>
-      )}
+      <CompactPagination page={page} totalPages={lastDiscussionPage(total)} onChange={setPage} />
 
       {mayPost ? (
         <DiscussionComposer

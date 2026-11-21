@@ -40,9 +40,15 @@ object ProblemTypes {
      */
     const val SUCCESSOR_NOT_ACCEPTED = "urn:hammurabi:problem:successor-not-accepted"
 
+    /**
+     * A demotion or deletion that would leave no active administrator (409; `users/UserRoutes.kt`). Every other 409 of the users API is
+     * `about:blank` (an email already in use), so the SPA's editor tells the two apart by this URI.
+     */
+    const val LAST_ADMINISTRATOR = "urn:hammurabi:problem:last-administrator"
+
     /** Every registered URI; the spec's list and the main sources are diffed against it. */
     val ALL: Set<String> = setOf(
         REVISION_CONFLICT, ILLEGAL_TRANSITION, ADR_FROZEN, DISCUSSION_CLOSED, SEARCH_TIMEOUT, SEARCH_BUSY, EXPORT_BUSY,
-        SUCCESSOR_NOT_ACCEPTED,
+        SUCCESSOR_NOT_ACCEPTED, LAST_ADMINISTRATOR,
     )
 }

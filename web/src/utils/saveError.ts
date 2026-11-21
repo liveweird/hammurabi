@@ -38,10 +38,12 @@ export function saveErrorMessage(err: unknown, t: TFunction, keys: SaveErrorKeys
   return t(keys.failed);
 }
 
-/** The user-save 409 disambiguator: last-admin demotion vs an email already in use. */
+/** The typed 409 of a demotion or deletion that would leave no active administrator (`ProblemTypes.kt`); an email clash is a plain `about:blank` 409. */
+const LAST_ADMINISTRATOR = "urn:hammurabi:problem:last-administrator";
+
+/** The user-save 409 disambiguator: last-admin demotion vs an email already in use, told apart by the problem type, never the detail text. */
 export function isLastAdminConflict(err: unknown): boolean {
-  return err instanceof ApiError && err.status === 409 &&
-    (err.detail?.toLowerCase().includes("administrator") ?? false);
+  return err instanceof ApiError && err.status === 409 && err.type === LAST_ADMINISTRATOR;
 }
 
 /** The two typed 429s of the ADR full-text search (`ProblemTypes.kt`): the search outran its deadline / the process runs its maximum of searches. */

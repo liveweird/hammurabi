@@ -21,6 +21,7 @@
   },
   "userMenu": {
     "open": "Menu konta",
+    "identityFailed": "Nie udało się wczytać danych Twojego konta.",
     "language": "Język",
     "theme": "Motyw",
     "themeLight": "Jasny",

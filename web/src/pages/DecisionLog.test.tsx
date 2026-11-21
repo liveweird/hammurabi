@@ -162,6 +162,10 @@ describe("DecisionLog", () => {
     expect(screen.getByText("No decision in force expires soon.")).toBeInTheDocument();
     expect(screen.getAllByText("No decision is in force yet.")).toHaveLength(2);
     expect(screen.getByText("0 decisions in force.")).toBeInTheDocument();
+    // Each says so through the shared (compact) empty state: its glyph sits beside the words.
+    for (const words of [screen.getByText("Nothing is waiting for a decision."), screen.getByText("No decision in force expires soon."), ...screen.getAllByText("No decision is in force yet.")]) {
+      expect(words.parentElement?.querySelector("svg")).not.toBeNull();
+    }
     expect(screen.queryAllByRole("list").filter((list) => list.tagName === "UL" && list.getAttribute("aria-label"))).toHaveLength(0);
     expect(headingOutline()).toEqual([
       [2, "Decision log"],

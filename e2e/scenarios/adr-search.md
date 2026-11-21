@@ -19,10 +19,10 @@
 
 ## Scenario: the filters combine with the search and the whole view is a link that round-trips
 
-1. The user raises three ADRs about the same unique word through the API: a draft and a problem-raised one, both expiring in 2031, and one with
-   no expiry date.
+1. The user raises three ADRs about the same unique word through the API: a draft and a problem-raised one, both expiring just over a year from today, and one
+   with no expiry date.
 2. They open the list with the word in the URL (`?text=`): all three are listed.
-3. They open **Filters** and set **Expires before** to 2032-01-01.
+3. They open **Filters** and set **Expires before** to a day a year after that expiry (both dates are derived from the current date).
    - *Expected*: the ADR with no date drops out; the two dated ones stay.
 4. They pick the **Solution draft** status.
    - *Expected*: only the draft remains; the URL carries `text`, `expiresBefore` and `status`.

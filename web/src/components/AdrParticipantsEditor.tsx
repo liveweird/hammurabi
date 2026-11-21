@@ -3,7 +3,8 @@ import { useTranslation } from "react-i18next";
 import { Button, Group, Stack } from "@mantine/core";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { replaceAdrParticipants, type AdrResponse } from "../api/adrs";
-import { getUserId, isAdmin } from "../api/session";
+import { getUserId } from "../api/session";
+import { useAdmin } from "../auth";
 import { participantsRequest, participantsState, type ParticipantsState } from "../utils/adrParticipants";
 import { refreshQueriesAfterMutation } from "../utils/queryRefresh";
 import { showSuccessToast } from "../utils/toast";
@@ -23,7 +24,8 @@ export default function AdrParticipantsEditor({ adr, onClose }: { adr: AdrRespon
   const [openedAtRevision] = useState(adr.revision);
   // Nobody but an ADMIN names themselves Approver (the server answers 403): the caller is left out of the Approver picker.
   const me = getUserId();
-  const withheld = me === null || isAdmin() ? [] : [String(me)];
+  const admin = useAdmin();
+  const withheld = me === null || admin ? [] : [String(me)];
   const save = useMutation({
     mutationFn: () => replaceAdrParticipants(adr.id, openedAtRevision, participantsRequest(state)),
     onSuccess: async () => {

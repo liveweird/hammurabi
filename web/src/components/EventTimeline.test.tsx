@@ -41,9 +41,11 @@ describe("EventTimeline", () => {
     expect(screen.getByRole("status", { name: "Loading…" })).toBeInTheDocument();
   });
 
-  test("an empty history is a note, not an error", () => {
-    renderTimeline({ items: [], total: 0 });
+  test("an empty history is the shared empty state, not an error", () => {
+    const { container } = renderTimeline({ items: [], total: 0 });
     expect(screen.getByText("No history yet.")).toBeInTheDocument();
+    expect(container.querySelector("svg")).not.toBeNull();
+    expect(screen.queryByRole("alert")).not.toBeInTheDocument();
     renderTimeline({ items: undefined, total: 0 });
   });
 

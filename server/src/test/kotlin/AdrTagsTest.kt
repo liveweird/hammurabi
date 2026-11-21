@@ -67,7 +67,6 @@ class AdrTagsTest {
         val events = cast.driver.client.adrEvents(adr.id).total
         withAuditCapture { capture ->
             assertEquals(HttpStatusCode.NoContent, cast.driver.client.setTags(adr.id, listOf(" ${tag.uppercase()} ")).status)
-            kotlinx.coroutines.delay(300)
             assertTrue(capture.events.none { it.message == "adr.tags_changed" && it.hasKeyValue("adrId", adr.id.toLong()) })
         }
         assertEquals(before.revision, cast.driver.client.getAdr(adr.id).revision)
@@ -245,7 +244,6 @@ class AdrTagsTest {
             assertTrue(event.hasKeyValue("byUserId", cast.driver.id.toLong()) && event.hasKeyValue("revision", adr.revision + 1))
             val count = capture.events.count { it.message == "adr.tags_changed" }
             cast.driver.client.setTags(adr.id, listOf("unregistered-${a}"))
-            kotlinx.coroutines.delay(200)
             assertEquals(count, capture.events.count { it.message == "adr.tags_changed" }, "a refused write does not audit")
             cast.stranger.client.setTags(adr.id, emptyList())
             assertNotNull(capture.awaitEvent { it.message == "authz.denied" }, "a denial is the generic authz.denied")

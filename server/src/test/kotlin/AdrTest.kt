@@ -28,7 +28,6 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.coroutineScope
-import kotlinx.coroutines.delay
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertNotNull
@@ -188,7 +187,6 @@ class AdrTest {
         val before = cast.driver.client.adrEvents(adr.id).total
         withAuditCapture { capture ->
             assertEquals(HttpStatusCode.NoContent, cast.driver.client.saveAdr(adr.id, adr.revision, adr.asUpdate()).status)
-            delay(300)
             val audited = capture.events.any { it.message == "adr.updated" && it.hasKeyValue("adrId", adr.id.toLong()) }
             assertTrue(!audited, "a no-op does not audit")
         }
@@ -365,7 +363,6 @@ class AdrTest {
             // Nor is a stale save with a past date a 400.
             val past = cast.approver.client.saveAdr(adr.id, adr.revision, adr.asUpdate().copy(expiresOn = "2000-01-01"))
             assertEquals(ProblemTypes.REVISION_CONFLICT, past.body<ProblemDetail>().type)
-            delay(300)
             val denied = capture.events.any { it.message == "authz.denied" && it.hasKeyValue("byUserId", cast.approver.id.toLong()) }
             assertTrue(!denied, "a stale save leaves no false denial on the trail")
         }

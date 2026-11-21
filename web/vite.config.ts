@@ -62,10 +62,10 @@ export default defineConfig({
     // No CSS is processed under happy-dom (it lays nothing out; the Mantine `env="test"` rule
     // already bypasses CSS-dependent visibility) — EXCEPT src/index.css, which theme.test.ts reads
     // `?raw` to pin its first-paint hexes to the canvas tokens, and src/print.css, which print.test.tsx
-    // reads `?raw` to pin the Mantine class names it targets. Measured in build-times.md (WHY 6).
+    // reads `?raw` to pin the Mantine class names it targets.
     css: { include: [/src[\\/](index|print)\.css/] },
     // Worker threads instead of forked processes: a cheaper spawn — measured -6 % wall and -30 % sys
-    // time on the CI-shaped 3-worker run (build-times.md, WHY 6).
+    // time on the CI-shaped 3-worker run.
     pool: 'threads',
     // One worker runs many files with NO per-file fresh worker (each isolated file paid ~275 ms of
     // worker start + the Mantine/i18n setup import). What keeps that safe: `src/test/setup.ts`
@@ -79,7 +79,8 @@ export default defineConfig({
     testTimeout: 10000,
     coverage: {
       provider: 'v8',
-      reporter: ['text', 'html'],
+      // json-summary: machine-readable totals (coverage/coverage-summary.json) for a tool or a CI step that reads the numbers instead of the text table.
+      reporter: ['text', 'html', 'json-summary'],
       include: ['src/**/*.{ts,tsx}'],
       exclude: [
         'src/api/schema.ts',

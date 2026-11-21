@@ -392,7 +392,6 @@ class AdrSuccessorTest {
             assertNotNull(event)
             assertTrue(event.hasKeyValue("supersedesTo", old.id.toLong()) && event.hasKeyValue("supersedesFrom", null))
             cast.driver.client.setSupersedes(draft.id, draft.id)
-            kotlinx.coroutines.delay(200)
             assertEquals(1, capture.events.count { it.message == "adr.successor_changed" && it.hasKeyValue("adrId", draft.id.toLong()) })
         }
     }

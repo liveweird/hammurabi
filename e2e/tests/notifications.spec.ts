@@ -6,7 +6,7 @@
 // 5-minute digest it fails with the message saying so.
 // Owns: its throwaway users (unique `e2e-*` names) and the ADR they share, deleted through the API in afterEach. Notices are per recipient.
 import type { APIRequestContext } from "@playwright/test";
-import { apiAs, apiAsAdmin, createAdrViaApi, createUserViaApi, deleteViaApi, expect, login, mailText, test, transitionViaApi, uniqueText } from "./helpers";
+import { apiAs, apiAsAdmin, completeAdrBody, createAdrViaApi, createUserViaApi, deleteViaApi, expect, login, mailText, test, transitionViaApi, uniqueText } from "./helpers";
 
 type Person = Awaited<ReturnType<typeof createUserViaApi>>;
 
@@ -27,14 +27,7 @@ test.describe("Notifications", () => {
     ({ api: driverApi } = await apiAs(driver.email, driver.password));
     adrName = uniqueText("e2e-adr");
     // The Driver raises a complete ADR and names the recipient its Approver: that is the first notice.
-    const adr = await createAdrViaApi(driverApi, {
-      name: adrName,
-      problem: "Which broker do we use?",
-      context: "Several teams publish events.",
-      decision: "Use the managed broker.",
-      consequences: "A vendor dependency.",
-      participants: [{ userId: recipient.id, role: "APPROVER" }],
-    });
+    const adr = await createAdrViaApi(driverApi, completeAdrBody(recipient.id, { name: adrName }));
     adrId = adr.id;
     adrKey = adr.key;
     cleanup = [`/api/v1/adrs/${adrId}`, `/api/v1/users/${recipient.id}`, `/api/v1/users/${driver.id}`];

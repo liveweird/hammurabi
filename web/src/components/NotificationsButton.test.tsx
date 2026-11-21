@@ -108,6 +108,21 @@ describe("NotificationsButton", () => {
     expect(calls).toContain("GET /api/v1/notifications?page=1&pageSize=1&seen=false");
   });
 
+  test("the unread cues are the brand accent, never the blocking red", async () => {
+    unseenPage = page([], 3);
+    listPage = page([notice()], 1);
+    const user = userEvent.setup();
+    const { baseElement } = renderBell();
+    await user.click(await bell());
+    await screen.findByRole("link", { name: /Ada changed the status of ADR-0042/ });
+    const dot = baseElement.querySelector("[data-unseen-dot]");
+    expect(dot?.getAttribute("style")).toContain("hammurabi");
+    const count = baseElement.querySelector(".mantine-Indicator-root");
+    expect(count?.getAttribute("style")).toContain("hammurabi");
+    const inlineStyles = Array.from(baseElement.querySelectorAll("[style]"), (el) => el.getAttribute("style")).join(" ");
+    expect(inlineStyles).not.toMatch(/--mantine-color-red|\bred\b/);
+  });
+
   test("at the server's cap the badge reads 999+ and the label says so", async () => {
     unseenPage = page([], 1000);
     renderBell();

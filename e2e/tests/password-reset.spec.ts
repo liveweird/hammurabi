@@ -1,4 +1,4 @@
-import { createUserViaUi, deleteUserRow, expect, login, loginViaForm, mailText, signOut, test, uniqueText } from "./helpers";
+import { createUserViaUi, deleteUserRow, expect, login, loginViaForm, mailText, signOut, test, uniqueEmail } from "./helpers";
 
 // Self-service password reset: the "Forgot password?" flow on the login screen.
 // The full email roundtrip needs the stack's Mailpit catcher (E2E_MAILPIT_URL), which global setup REQUIRES (the suite refuses to
@@ -6,10 +6,6 @@ import { createUserViaUi, deleteUserRow, expect, login, loginViaForm, mailText, 
 // idiom) and the confirm bucket, so back-to-back runs never trip them; the per-email throttle is exercised
 // explicitly. The emailed link is followed by path + fragment RELATIVE to the baseURL: the compose stack's
 // MAIL_APP_URL may name another origin than the stack under test (an isolated project on another port).
-
-function uniqueEmail(prefix: string): string {
-  return `${uniqueText(prefix).toLowerCase().replace(/[^a-z0-9-]/g, "-")}@hammurabi.local`;
-}
 
 test("the forgot-password link leads to the reset form; unknown emails get the neutral answer", async ({
   page,

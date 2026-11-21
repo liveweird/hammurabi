@@ -15,7 +15,6 @@ import kotlinx.coroutines.delay
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
-import kotlin.test.assertNotNull
 import kotlin.test.assertNull
 import kotlin.test.assertTrue
 
@@ -25,6 +24,11 @@ import kotlin.test.assertTrue
  * horizon are pinned in [AdrOverviewCapsTest], which controls "today".
  */
 class AdrOverviewTest {
+    private companion object {
+        /** Earlier than any overdue date another test forces (2000-01-01 and later): a row carrying it heads the shared "expiring soon". */
+        const val OWN_OVERDUE_DAY = "1900-01-01"
+    }
+
     private suspend fun HttpClient.overview(): AdrOverviewResponse {
         val response = get("/api/v1/adrs/overview")
         assertEquals(HttpStatusCode.OK, response.status)
@@ -198,7 +202,9 @@ class AdrOverviewTest {
         val cast = adrCast()
         val overdue = cast.raise()
         cast.activate(overdue)
-        forceAdrExpiry(overdue.id, "1999-12-31")
+        // The section is a capped, shared head: a date earlier than any other test's (they use 2000 and later) puts OUR row first, so the
+        // assertions below read rows this test owns and not whatever else is overdue right now.
+        forceAdrExpiry(overdue.id, OWN_OVERDUE_DAY)
         val far = cast.raise()
         cast.activate(far)
         cast.driver.client.getAdr(far.id).let {
@@ -212,9 +218,9 @@ class AdrOverviewTest {
         val listed = log.expiringSoon.items.map { it.id }
         assertTrue(overdue.id in listed)
         assertFalse(far.id in listed)
-        assertEquals("1999-12-31", log.expiringSoon.items.single { it.id == overdue.id }.expiresOn)
+        assertEquals(OWN_OVERDUE_DAY, log.expiringSoon.items.single { it.id == overdue.id }.expiresOn)
+        assertEquals(overdue.id, log.expiringSoon.items.first().id, "the earliest date leads")
         assertTrue(log.expiringSoon.items.zipWithNext().all { (a, b) -> a.expiresOn.orEmpty() <= b.expiresOn.orEmpty() }, "soonest first")
-        assertNotNull(log.expiringSoon.items.firstOrNull())
         // The list has no lower bound: leave no overdue ACTIVE ADR behind for the cap tests' horizon.
         forceAdrStatus(overdue.id, AdrStatus.EXPIRED)
     }

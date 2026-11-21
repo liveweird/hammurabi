@@ -1,7 +1,7 @@
 import { useState, useSyncExternalStore, type MouseEvent } from "react";
 import { Link as RouterLink, useLocation } from "react-router-dom";
 import { useTranslation } from "react-i18next";
-import { ActionIcon, Anchor, Box, Button, Drawer, Group, Indicator, Pagination, Stack, Text, VisuallyHidden } from "@mantine/core";
+import { ActionIcon, Anchor, Box, Button, Drawer, Group, Indicator, Stack, Text, VisuallyHidden } from "@mantine/core";
 import { IconBell, IconBellOff, IconChecks } from "@tabler/icons-react";
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { listNotifications, markAllNotificationsSeen, markNotificationSeen, NOTIFICATION_TOTAL_CAP, type NotificationItem } from "../api/notifications";
@@ -14,6 +14,7 @@ import { describeNotification } from "../utils/notificationText";
 import { refreshQueriesAfterMutation } from "../utils/queryRefresh";
 import { saveErrorMessage } from "../utils/saveError";
 import { subscribeLogicalSession } from "../utils/sessionQueryCache";
+import CompactPagination from "./CompactPagination";
 import EmptyState from "./EmptyState";
 import ErrorAlert from "./ErrorAlert";
 import FormErrorAlert from "./FormErrorAlert";
@@ -27,9 +28,9 @@ function NoticeRow({ n, onOpen }: { n: NotificationItem; onOpen: (n: Notificatio
     <Box component="li" py="sm" px={4} style={{ borderTop: "1px solid var(--mantine-color-default-border)" }}>
       <Anchor component={RouterLink} to={adrPath(n.adrId)} onClick={(event: MouseEvent<HTMLAnchorElement>) => onOpen(n, event)} display="block" underline="hover" c="inherit">
         <Group align="flex-start" wrap="nowrap" gap="sm">
-          {/* The dot is a shape for sighted users (red, like the what's-new dot of the account menu); the hidden word carries "unseen" for the rest. */}
+          {/* The dot is a shape for sighted users (the brand accent, like the what's-new dot of the account menu: red means blocking, never unread); the hidden word carries "unseen" for the rest. */}
           <Box w={8} pt={6} style={{ flex: "none" }}>
-            {!n.seen && <Box aria-hidden="true" data-unseen-dot="" w={8} h={8} bg="red.6" style={{ borderRadius: "50%" }} />}
+            {!n.seen && <Box aria-hidden="true" data-unseen-dot="" w={8} h={8} bg="hammurabi" style={{ borderRadius: "50%" }} />}
           </Box>
           <Stack gap={2} style={{ minWidth: 0, flex: 1 }}>
             {!n.seen && <VisuallyHidden>{t("notifications.unseenRow")}</VisuallyHidden>}
@@ -99,7 +100,7 @@ export default function NotificationsButton() {
   const anyUnseen = unseen.total > 0 || items.some((n) => !n.seen);
   return (
     <>
-      <Indicator label={<span aria-hidden="true">{badgeText(unseen.total)}</span>} color="red" size={16} offset={4} disabled={unseen.total === 0}>
+      <Indicator label={<span aria-hidden="true">{badgeText(unseen.total)}</span>} color="hammurabi" size={16} offset={4} disabled={unseen.total === 0}>
         <ActionIcon
           variant="subtle"
           color="gray"
@@ -148,17 +149,7 @@ export default function NotificationsButton() {
               ))}
             </Box>
           )}
-          {total > PAGE_SIZE && (
-            <Group justify="center">
-              <Pagination
-                size="sm"
-                value={page}
-                onChange={setPage}
-                total={Math.ceil(total / PAGE_SIZE)}
-                getControlProps={(control) => ({ "aria-label": t(`common.table.${control}Page`) })}
-              />
-            </Group>
-          )}
+          <CompactPagination page={page} totalPages={Math.ceil(total / PAGE_SIZE)} onChange={setPage} />
         </Stack>
       </Drawer>
     </>

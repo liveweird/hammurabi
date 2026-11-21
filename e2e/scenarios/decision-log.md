@@ -6,6 +6,8 @@
 - **Owns** (exclusive server-side state): its two throwaway users (`E2E Log Driver-*`, `E2E Log Approver-*`), the ADRs they raise (unique
   `e2e-adr-log-*` names) and one throwaway tag category (`E2E Log Category-*` with an `e2e-tag-log-*` tag; the seeded categories are never
   touched) - all deleted through the API after each test (the ADRs, then the category, then the users)
+- **Phase**: the page's sections list the newest few ADRs of EVERY user (capped), which a spec cannot own, so this spec runs in the
+  `global-readers` project, after the parallel pool has finished and deleted its ADRs (`playwright.config.ts`)
 
 ## Scenario: an activated tagged ADR shows under its tag and in recently decided, and one expiring in five days shows in expiring soon
 

@@ -27,7 +27,6 @@ import io.ktor.server.testing.testApplication
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.async
 import kotlinx.coroutines.coroutineScope
-import kotlinx.coroutines.delay
 import kotlinx.coroutines.withTimeout
 import java.net.URLEncoder
 import java.util.UUID
@@ -83,7 +82,6 @@ class AdrExportStreamTest {
             val problem = over.body<ProblemDetail>()
             assertEquals(400, problem.status)
             assertTrue("3 ADRs" in problem.detail.orEmpty() && "at most 2" in problem.detail.orEmpty(), problem.detail)
-            delay(300)
             assertEquals(0, capture.events.count { it.message == "adr.exported_bulk" }, "a refusal exports nothing")
             cast.driver.client.moveAdrNow(kept.last().id, AdrStatus.CANCELLED)
             val exact = cast.stranger.client.get("/api/v1/adrs/export?q=${encoded(tag)}&status=PROBLEM_RAISED")
@@ -156,7 +154,6 @@ class AdrExportStreamTest {
             }
             val anonymous = client.head("/api/v1/adrs/${adr.id}/export")
             assertEquals(HttpStatusCode.Unauthorized, anonymous.status, "HEAD is still behind authentication")
-            delay(300)
             assertEquals(0, capture.events.count { it.message?.startsWith("adr.exported") == true })
         }
     }

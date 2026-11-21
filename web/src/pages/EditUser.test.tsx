@@ -142,6 +142,7 @@ describe("EditUser page", () => {
 
   test("a last-administrator 409 shows its dedicated message", async () => {
     mockGetAndPut(mockFetch, 409, {
+      type: "urn:hammurabi:problem:last-administrator",
       title: "Conflict",
       status: 409,
       detail: "The last administrator cannot be demoted",
@@ -155,6 +156,19 @@ describe("EditUser page", () => {
 
     expect(await screen.findByText(/last administrator cannot be removed/i)).toBeInTheDocument();
     expect(screen.queryByTestId("probe")).not.toBeInTheDocument();
+  });
+
+  test("an untyped 409 reads as email-in-use even when its detail names an administrator", async () => {
+    mockGetAndPut(mockFetch, 409, { title: "Conflict", status: 409, detail: "An administrator already uses this email" });
+    const user = userEvent.setup();
+    renderEdit();
+
+    const nameInput = (await screen.findByLabelText(/^name( \*)?$/i)) as HTMLInputElement;
+    await waitFor(() => expect(nameInput.value).toBe("Bob Basic"));
+    await user.click(screen.getByRole("button", { name: /^save$/i }));
+
+    expect(await screen.findByText(/already used by another account/i)).toBeInTheDocument();
+    expect(screen.queryByText(/last administrator cannot be removed/i)).not.toBeInTheDocument();
   });
 
   test("a plain 409 reads as email-in-use", async () => {

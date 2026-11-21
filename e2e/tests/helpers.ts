@@ -1,11 +1,64 @@
 import AxeBuilder from "@axe-core/playwright";
-import { type APIRequestContext, expect, type Page, request as playwrightRequest, test } from "@playwright/test";
+import { type APIRequestContext, expect, type Page, request as playwrightRequest, test as base } from "@playwright/test";
 import { randomUUID } from "node:crypto";
 import { readFile } from "node:fs/promises";
 import { inflateRawSync } from "node:zlib";
 import { BASE_URL, MAILPIT_URL } from "../playwright.config";
 
-export { expect, test };
+export { expect };
+
+/**
+ * Console messages a test may leave behind: the ALLOWLIST of the console-error guard below. Anything else the page logs at
+ * `error` level, and every uncaught exception, fails the test that caused it. Keep an entry only for noise the app cannot avoid, with
+ * the reason.
+ */
+const ALLOWED_CONSOLE_ERRORS: { pattern: RegExp; apiOnly: boolean; reason: string }[] = [
+  {
+    // The browser itself logs every 4xx subresource answer as an error. Specs that exercise a refusal on purpose (a 401 that triggers
+    // the silent refresh, a 403, a 404 page) cause them; the status is the server's, asserted where it matters. Only an answer of the
+    // app's own API qualifies: a 4xx for a static asset (a logo, a font, a chunk) is a real fault and still fails the test.
+    pattern: /^Failed to load resource: the server responded with a status of 4\d\d\b/,
+    apiOnly: true,
+    reason: "an HTTP 4xx answer of /api/ that the app handles",
+  },
+];
+
+/** Is `url` a request to the app's own API (same origin as the page under test, path under /api/)? */
+function isOwnApi(url: string, pageUrl: string): boolean {
+  try {
+    const target = new URL(url);
+    return target.origin === new URL(pageUrl).origin && target.pathname.startsWith("/api/");
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * The suite's `test`: the plain Playwright one plus an automatic console-error guard. Every page of the test's browser context is
+ * watched; a `console.error` outside ALLOWED_CONSOLE_ERRORS or an uncaught page exception (React crash, failed chunk, CSP
+ * violation) fails the test at its end, listing each message. (Contexts a spec opens by hand are not watched.)
+ */
+export const test = base.extend<{ consoleGuard: void }>({
+  consoleGuard: [
+    async ({ context }, use) => {
+      const problems: string[] = [];
+      context.on("console", (message) => {
+        if (message.type() !== "error") return;
+        const text = message.text();
+        const source = message.location().url;
+        const pageUrl = message.page()?.url() ?? "";
+        if (ALLOWED_CONSOLE_ERRORS.some(({ pattern, apiOnly }) => pattern.test(text) && (!apiOnly || isOwnApi(source, pageUrl)))) return;
+        problems.push(`console.error: ${text.slice(0, 300)}`);
+      });
+      context.on("weberror", (webError) => {
+        problems.push(`uncaught: ${webError.error().message.slice(0, 300)}`);
+      });
+      await use();
+      expect(problems, "the page logged errors nobody allowed (ALLOWED_CONSOLE_ERRORS in tests/helpers.ts)").toEqual([]);
+    },
+    { auto: true },
+  ],
+});
 
 /** The seeded bootstrap admin (V3) — the compose demo leaves its password unrotated. */
 export const ADMIN = "admin@hammurabi.local";
@@ -23,7 +76,7 @@ async function gotoSignInForm(page: Page): Promise<void> {
   } else {
     // A fresh page (about:blank) is a fresh browser context: there is no session to clear, so ONE
     // load of the SPA is enough — the clear-and-reload branch above cost a second one in every
-    // login (~125 per run, ~95 of them on the axe sweeps; build-times.md WHY 7).
+    // login (~125 per run, ~95 of them on the axe sweeps).
     await page.goto("/login");
   }
   await expect(page.getByRole("button", { name: "Sign in" })).toBeVisible();
@@ -69,7 +122,7 @@ function sessionEntries(body: LoginBody): [string, string][] {
  * Sign in WITHOUT the form: the real `POST /api/v1/login` through the page's request context (so the tokens, the revocation
  * blocklist and any credential-revision check are the server's own), then the session written to `localStorage` exactly as the SPA
  * would persist it, then ONE load of `/`. The form costs a full SPA boot on `/login`, two fills, a click and a client-side redirect
- * per sign-in, and the suite signs in ~190 times (build-times.md WHY 37). The session is minted per call: `signOut` revokes the pair
+ * per sign-in, and the suite signs in ~190 times. The session is minted per call: `signOut` revokes the pair
  * server-side, so one reused across tests would be a revoked one. A refused login (wrong password, an MFA challenge, a rate limit) or a
  * session the shell does not accept falls back to the real form, which then reports what is wrong. Pass credentials as a regular
  * user to read as one; the specs whose subject is a credential call `loginViaForm`.
@@ -133,7 +186,7 @@ export async function createUserViaUi(
   namePrefix = "E2E User",
 ): Promise<{ id: number; name: string; email: string; password: string }> {
   const name = uniqueText(namePrefix);
-  const email = `${name.toLowerCase().replace(/[^a-z0-9-]/g, "-")}@hammurabi.local`;
+  const email = emailFor(name);
   await page.goto("/users/new");
   await page.getByRole("textbox", { name: "Name" }).fill(name);
   await page.getByRole("textbox", { name: "Email" }).fill(email);
@@ -160,6 +213,21 @@ export async function createUserViaUi(
 /** Collision-free text so specs never depend on absolute counts or clean state. */
 export function uniqueText(prefix: string): string {
   return `${prefix}-${randomUUID().slice(0, 8)}`;
+}
+
+/** The login email a throwaway account named `name` gets: lower-cased, anything but letters, digits and hyphens folded to a hyphen. */
+function emailFor(name: string): string {
+  return `${name.toLowerCase().replace(/[^a-z0-9-]/g, "-")}@hammurabi.local`;
+}
+
+/** A unique, well-formed email nobody owns (for the specs that ask the server about an address, e.g. a password-reset request). */
+export function uniqueEmail(prefix: string): string {
+  return emailFor(uniqueText(prefix));
+}
+
+/** A UTC calendar day `days` from now, `YYYY-MM-DD` (the day the server judges an expiry by): a date that stays in the future however long the suite lives. */
+export function utcDayFromNow(days: number): string {
+  return new Date(Date.now() + days * 86_400_000).toISOString().slice(0, 10);
 }
 
 /**
@@ -227,7 +295,7 @@ export async function apiAsAdmin(): Promise<{ api: APIRequestContext; userId: nu
  */
 export async function createUserViaApi(admin: APIRequestContext, namePrefix: string): Promise<{ id: number; name: string; email: string; password: string }> {
   const name = uniqueText(namePrefix);
-  const email = `${name.toLowerCase().replace(/[^a-z0-9-]/g, "-")}@hammurabi.local`;
+  const email = emailFor(name);
   const password = `pw-${randomUUID()}`;
   const created = await admin.post("/api/v1/users", { data: { name, email, password, roles: [], language: "en" } });
   expect(created.status(), await created.text()).toBe(201);
@@ -247,6 +315,21 @@ export async function createAdrViaApi(api: APIRequestContext, body: Record<strin
   const created = await api.post("/api/v1/adrs", { data: body });
   expect(created.status(), await created.text()).toBe(201);
   return (await created.json()) as AdrSeed;
+}
+
+/**
+ * The body of a COMPLETE ADR (all four sections written, `approverId` as its Approver), ready to go to review and be activated; `fields`
+ * lays over it (a `name`, a different `problem`, more `participants`, an `expiresOn`). The text is filler no spec asserts on.
+ */
+export function completeAdrBody(approverId: number, fields: Record<string, unknown> = {}): Record<string, unknown> {
+  return {
+    problem: "Which queue do we run?",
+    context: "The team already runs PostgreSQL.",
+    decision: "Use a PostgreSQL-backed queue.",
+    consequences: "No new infrastructure to run.",
+    participants: [{ userId: approverId, role: "APPROVER" }],
+    ...fields,
+  };
 }
 
 /** The ADR's current revision, for the next guarded write (`X-Expected-Revision`). */

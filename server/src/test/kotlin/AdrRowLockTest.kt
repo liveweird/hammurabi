@@ -10,7 +10,6 @@ import io.ktor.server.testing.testApplication
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.async
 import kotlinx.coroutines.coroutineScope
-import kotlinx.coroutines.delay
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.withTimeout
 import java.sql.Connection
@@ -74,7 +73,6 @@ class AdrRowLockTest {
                     cast.driver.client.saveAdr(adr.id, adr.revision, adr.asUpdate().copy(context = "waits for the lock"))
                 }
                 awaitLockWait("adrs")
-                delay(300)
                 assertFalse(pending.isCompleted, "the write waits while another transaction holds the row")
                 writer.close()
                 assertEquals(HttpStatusCode.NoContent, promptly { pending.await() }.status)
@@ -97,7 +95,6 @@ class AdrRowLockTest {
             coroutineScope {
                 val pending = async(Dispatchers.Default) { cast.stranger.client.postEntry(adr.id, DiscussionKind.COMMENT) }
                 awaitLockWait("adrs")
-                delay(300)
                 assertFalse(pending.isCompleted, "the post waits while a lifecycle move may be in flight")
                 writer.close()
                 assertEquals(HttpStatusCode.Created, promptly { pending.await() }.status)

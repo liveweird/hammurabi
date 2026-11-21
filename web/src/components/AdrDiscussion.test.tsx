@@ -35,8 +35,11 @@ describe("AdrDiscussion", () => {
 
   test("an empty thread says so", async () => {
     stubFetch(() => jsonResponse(200, discussionPageFixture([])));
-    renderWithProviders(<AdrDiscussion adr={adrFixture()} variant="discussion" />);
-    expect(await screen.findByText("Nothing has been said yet.")).toBeInTheDocument();
+    const { container } = renderWithProviders(<AdrDiscussion adr={adrFixture()} variant="discussion" />);
+    const note = await screen.findByText("Nothing has been said yet.");
+    expect(note).toBeInTheDocument();
+    // The shared empty state (its glyph beside the words), not a hand-rolled dimmed line.
+    expect(container.querySelector("svg")).not.toBeNull();
   });
 
   test("the composer posts a comment or a question by the chosen kind, then clears", async () => {

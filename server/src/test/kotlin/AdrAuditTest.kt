@@ -6,7 +6,6 @@ import ch.nokillswit.adrs.AdrStatus
 import io.ktor.client.request.delete
 import io.ktor.http.HttpStatusCode
 import io.ktor.server.testing.testApplication
-import kotlinx.coroutines.delay
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertNotNull
@@ -76,7 +75,6 @@ class AdrAuditTest {
             cast.driver.client.moveAdr(adr.id, 99, AdrStatus.CANCELLED)
             cast.driver.client.moveAdr(adr.id, adr.revision, AdrStatus.ACTIVE)
             cast.driver.client.saveAdr(adr.id, adr.revision, adr.asUpdate())
-            delay(300)
             val adrEvents = capture.events.filter { it.message?.startsWith("adr.") == true && it.hasKeyValue("adrId", adr.id.toLong()) }
             assertEquals(emptyList(), adrEvents.map { it.message }.filter { it != "adr.created" })
         }

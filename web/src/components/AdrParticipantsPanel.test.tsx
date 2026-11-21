@@ -3,7 +3,8 @@ import userEvent from "@testing-library/user-event";
 import { adrFixture } from "../test/adrFixtures";
 import { noContent, problem, stubFetch } from "../test/fetchStub";
 import { jsonResponse } from "../test/http";
-import { renderWithProviders, screen, waitFor, within } from "../test/render";
+import { notifyAuthChange } from "../auth";
+import { act, renderWithProviders, screen, waitFor, within } from "../test/render";
 import AdrParticipantsPanel from "./AdrParticipantsPanel";
 
 const PEOPLE = [
@@ -143,6 +144,23 @@ describe("AdrParticipantsPanel", () => {
       await user.click(screen.getByRole("button", { name: "Edit participants" }));
       await user.click(screen.getAllByLabelText("Clear the user")[0]);
       await user.type(screen.getByRole("combobox", { name: "Approver" }), "da");
+      expect(await screen.findByRole("option", { name: "Dana Driver (dana@example.test)" })).toBeInTheDocument();
+    });
+
+    test("the offer follows the caller's roles live: an ADMIN role arriving while the editor is open lifts the withholding", async () => {
+      serveCaller();
+      const user = userEvent.setup();
+      renderWithProviders(<AdrParticipantsPanel adr={adrFixture({ participants: [{ userId: 5, name: "Dana Driver", role: "DRIVER" }] })} />);
+      await user.click(screen.getByRole("button", { name: "Edit participants" }));
+      await user.click(screen.getAllByLabelText("Clear the user")[0]);
+      await user.type(screen.getByRole("combobox", { name: "Approver" }), "da");
+      expect(await screen.findByRole("option", { name: "Dave Driver (dave@example.test)" })).toBeInTheDocument();
+      expect(screen.queryByRole("option", { name: "Dana Driver (dana@example.test)" })).not.toBeInTheDocument();
+      // A silent refresh (or another tab) publishes the promotion: the editor re-reads it without being re-opened.
+      act(() => {
+        localStorage.setItem("hammurabi.auth.roles", JSON.stringify(["ADMIN"]));
+        notifyAuthChange();
+      });
       expect(await screen.findByRole("option", { name: "Dana Driver (dana@example.test)" })).toBeInTheDocument();
     });
 

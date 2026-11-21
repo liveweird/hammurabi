@@ -4,7 +4,7 @@
 // (`AdrSearchTest`, `AdrFiltersTest`); this asserts what a person SEES. Owns: its throwaway user (a unique `e2e-*` email) and the ADRs
 // it raises (unique `e2e-adr-*` names) - deleted through the API in afterEach (the ADRs first, then the user).
 import type { APIRequestContext } from "@playwright/test";
-import { apiAs, apiAsAdmin, createAdrViaApi, createUserViaApi, deleteViaApi, expect, login, openFilters, test, transitionViaApi, uniqueText } from "./helpers";
+import { apiAs, apiAsAdmin, createAdrViaApi, createUserViaApi, deleteViaApi, expect, login, openFilters, test, transitionViaApi, uniqueText, utcDayFromNow } from "./helpers";
 
 type Person = Awaited<ReturnType<typeof createUserViaApi>>;
 
@@ -75,9 +75,13 @@ test.describe("ADR search", () => {
     const draftName = uniqueText("e2e-adr-draft");
     const raisedName = uniqueText("e2e-adr-raised");
     const undatedName = uniqueText("e2e-adr-undated");
-    const draft = await raise({ name: draftName, decision: `About ${word}`, expiresOn: "2031-01-01" });
+    // Dates derived from now (a fixed year would pass into the past some day and stop being a valid expiry): the two dated ADRs expire
+    // in just over a year, the "Expires before" limit is a year after that.
+    const expiresOn = utcDayFromNow(400);
+    const expiresBefore = utcDayFromNow(800);
+    const draft = await raise({ name: draftName, decision: `About ${word}`, expiresOn });
     await transitionViaApi(driverApi, draft.id, "SOLUTION_DRAFT");
-    await raise({ name: raisedName, decision: `About ${word}`, expiresOn: "2031-01-01" });
+    await raise({ name: raisedName, decision: `About ${word}`, expiresOn });
     await raise({ name: undatedName, decision: `About ${word}` });
 
     await login(page, driver.email, driver.password);
@@ -86,7 +90,7 @@ test.describe("ADR search", () => {
 
     // Expires before drops the ADR with no date; the status filter then narrows to the draft.
     await openFilters(page);
-    await page.getByLabel("Expires before").fill("2032-01-01");
+    await page.getByLabel("Expires before").fill(expiresBefore);
     await expect(page.getByRole("row").filter({ hasText: undatedName })).toHaveCount(0);
     await expect(page.getByRole("row").filter({ hasText: raisedName })).toBeVisible();
     await page.getByRole("combobox", { name: "Status" }).click();
@@ -95,7 +99,7 @@ test.describe("ADR search", () => {
     await expect(page.getByRole("row").filter({ hasText: raisedName })).toHaveCount(0);
     await expect(page.getByRole("row").filter({ hasText: draftName })).toBeVisible();
     await expect(page).toHaveURL(new RegExp(`text=${word}`));
-    await expect(page).toHaveURL(/expiresBefore=2032-01-01/);
+    await expect(page).toHaveURL(new RegExp(`expiresBefore=${expiresBefore}`));
     await expect(page).toHaveURL(/status=SOLUTION_DRAFT/);
 
     // A creation range wholly in the past empties the list; the filters panel counts its three active filters (the search box is its own).

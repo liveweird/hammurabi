@@ -4,7 +4,7 @@
 // Owns: its throwaway users (unique `e2e-*` names) and the ADRs they share (unique `e2e-adr-*` names) — deleted through the API in
 // afterEach (the ADRs first, then the users).
 import type { APIRequestContext } from "@playwright/test";
-import { apiAs, apiAsAdmin, axeViolations, createAdrViaApi, createUserViaApi, deleteViaApi, expect, login, signOut, test, transitionViaApi, uniqueText } from "./helpers";
+import { apiAs, apiAsAdmin, axeViolations, completeAdrBody, createAdrViaApi, createUserViaApi, deleteViaApi, expect, login, signOut, test, transitionViaApi, uniqueText } from "./helpers";
 
 type Person = Awaited<ReturnType<typeof createUserViaApi>>;
 
@@ -33,14 +33,7 @@ test.describe("the ADR discussion", () => {
 
   /** An ADR the Driver raises with an Approver and complete content (so it can go to review and be activated). */
   async function raise(name: string): Promise<{ id: number }> {
-    const adr = await createAdrViaApi(driverApi, {
-      name,
-      problem: "Which queue do we run?",
-      context: "The team already runs PostgreSQL.",
-      decision: "Use a PostgreSQL-backed queue.",
-      consequences: "No new infrastructure to run.",
-      participants: [{ userId: approver.id, role: "APPROVER" }],
-    });
+    const adr = await createAdrViaApi(driverApi, completeAdrBody(approver.id, { name }));
     cleanup.unshift(`/api/v1/adrs/${adr.id}`);
     return adr;
   }

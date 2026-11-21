@@ -1,6 +1,7 @@
 package ch.nokillswit
 
 import ch.nokillswit.auth.LoginRequest
+import ch.nokillswit.infra.ProblemTypes
 import ch.nokillswit.plugins.ProblemDetail
 import ch.nokillswit.users.UserCreateRequest
 import ch.nokillswit.users.UserPageResponse
@@ -86,6 +87,7 @@ class UserRoutesTest {
         assertEquals(HttpStatusCode.Conflict, duplicate.status)
         // The central 23505 handler names WHAT clashed (per-constraint detail, ErrorHandling.kt).
         assertEquals("A user with this email already exists", duplicate.body<ProblemDetail>().detail)
+        assertEquals("about:blank", duplicate.body<ProblemDetail>().type)
 
         // Soft-deleting frees the email for reuse (the V1 partial index).
         assertEquals(HttpStatusCode.NoContent, client.delete("/api/v1/users/${created.id}").status)
@@ -229,6 +231,8 @@ class UserRoutesTest {
                 UserUpdateRequest(name = solo.name, email = soloEmail, roles = emptyList()),
             )
             assertEquals(HttpStatusCode.Conflict, demote.status)
+            // ... typed, so the SPA tells it from an email clash (a plain `about:blank` 409) by the URI, not the detail text.
+            assertEquals(ProblemTypes.LAST_ADMINISTRATOR, demote.body<ProblemDetail>().type)
             // ... and cannot delete itself either: the permissions-shaped self-delete 403 wins over the last-admin 409.
             assertEquals(HttpStatusCode.Forbidden, soloClient.delete("/api/v1/users/${solo.id}").status)
 
@@ -274,7 +278,9 @@ class UserRoutesTest {
                             val deleting = async { client.delete("/api/v1/users/${solo.id}") }
                             awaitLockWait("FOR UPDATE")
                             raw.commit()
-                            assertEquals(HttpStatusCode.Conflict, deleting.await().status)
+                            val refused = deleting.await()
+                            assertEquals(HttpStatusCode.Conflict, refused.status)
+                            assertEquals(ProblemTypes.LAST_ADMINISTRATOR, refused.body<ProblemDetail>().type)
                         }
                     } finally {
                         raw.rollback() // a no-op after the commit; releases the lock if an assertion failed first

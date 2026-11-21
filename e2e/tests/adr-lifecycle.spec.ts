@@ -2,7 +2,7 @@
 // confirming; the Approver withdraws one in review. Owns: its throwaway users (unique `e2e-*` names) and the ADRs they raise — all
 // deleted through the API in afterEach (the ADRs first, then the users).
 import type { APIRequestContext } from "@playwright/test";
-import { apiAs, apiAsAdmin, createAdrViaApi, createUserViaApi, deleteViaApi, expect, login, signOut, test, transitionViaApi, uniqueText } from "./helpers";
+import { apiAs, apiAsAdmin, completeAdrBody, createAdrViaApi, createUserViaApi, deleteViaApi, expect, login, signOut, test, transitionViaApi, uniqueText } from "./helpers";
 
 type Person = Awaited<ReturnType<typeof createUserViaApi>>;
 
@@ -110,14 +110,7 @@ test.describe("the ADR lifecycle", () => {
 
   test("the Approver withdraws an ADR in review", async ({ page }) => {
     const { api } = await apiAs(driver.email, driver.password);
-    const adr = await createAdrViaApi(api, {
-      name: uniqueText("e2e-adr"),
-      problem: "Should we adopt X?",
-      context: "Context.",
-      decision: "Adopt X.",
-      consequences: "Some.",
-      participants: [{ userId: approver.id, role: "APPROVER" }],
-    });
+    const adr = await createAdrViaApi(api, completeAdrBody(approver.id, { name: uniqueText("e2e-adr") }));
     cleanup.unshift(`/api/v1/adrs/${adr.id}`);
     await transitionViaApi(api, adr.id, "IN_REVIEW");
     await api.dispose();
@@ -134,14 +127,7 @@ test.describe("the ADR lifecycle", () => {
 
   test("the Lifecycle tab shows the workflow with where the ADR is and the moves the Approver can make now", async ({ page }) => {
     const { api } = await apiAs(driver.email, driver.password);
-    const adr = await createAdrViaApi(api, {
-      name: uniqueText("e2e-adr"),
-      problem: "Should we adopt Y?",
-      context: "Context.",
-      decision: "Adopt Y.",
-      consequences: "Some.",
-      participants: [{ userId: approver.id, role: "APPROVER" }],
-    });
+    const adr = await createAdrViaApi(api, completeAdrBody(approver.id, { name: uniqueText("e2e-adr") }));
     cleanup.unshift(`/api/v1/adrs/${adr.id}`);
     await transitionViaApi(api, adr.id, "IN_REVIEW");
     await api.dispose();

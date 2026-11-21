@@ -150,7 +150,7 @@ Layered RBAC. Implemented in the `server/src/main/kotlin/authz/` package.
     out), a changed `credentialRevision` is `401` `credential_changed`, a logged-out `jti` is `401` `revoked`. The
     `ADMIN` guards therefore never run on a stale role, `caller()` still reads `roles`/`disabledFeatures` off the (now
     verified) claims, and `disabledFeatures` alone still lags to the next refresh (`FeatureFlagsTest`). Over HTTP the
-    caller of `DELETE /users/{id}` is therefore always an active admin, so the last-admin `409` is reachable only
+    caller of `DELETE /users/{id}` is therefore always an active admin, so the last-admin `409` (typed `urn:hammurabi:problem:last-administrator`, so the SPA tells it from an email clash by the URI) is reachable only
     as a race (the caller deleted between the access check and the locked admin count; pinned with a lock-wait test in
     `UserRoutesTest`) - the self-delete `403` is the HTTP answer.
   - **`/api/v1/adrs` — the ADR/DACI matrix** (`adrs/AdrAccess.kt`, `AdrRoutes.kt`, `AdrService.kt`; `product.md` "Decisions", `adr-model.md` "DACI roles and verdicts"): "the Driver drives, the Approver decides", ADMIN overrides every verdict. Every authenticated user **reads** every ADR (`GET /adrs`, `/{id}`, `/{id}/events`: an open decision log, so a missing ADR is a plain `404`, nothing to disclose) and **creates** one, becoming its Driver. The role a caller holds on an ADR (`adr_participants`) is read per request, in the database, inside the write's transaction — never from the JWT, so a participant change takes effect on the next request. **Read-before-guard**: a write first resolves the ADR (`404`), then the coarse guard, then the header and body; the same guards run AGAIN under the row lock on the fresh role.

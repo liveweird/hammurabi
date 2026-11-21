@@ -117,6 +117,27 @@ class AdrExportTest {
     }
 
     @Test
+    fun `an ended predecessor names no pending successor in a file or the ZIP, and the successor still names it`() = testApplication {
+        usePostgresTestcontainer()
+        val cast = adrCast()
+        val tag = marker()
+        val predecessor = cast.driver.client.raise("$tag old")
+        val successor = cast.driver.client.raise("$tag new")
+        assertEquals(HttpStatusCode.NoContent, cast.driver.client.setSupersedes(successor.id, predecessor.id).status)
+        val files = cast.stranger.client.get("/api/v1/adrs/export?q=${encoded(tag)}").zip()
+        fun file(adr: AdrResponse) = files.keys.first { it.startsWith(adr.key) }
+        assertTrue("\nSuccessor proposed: [${successor.key}" in files.getValue(file(predecessor)), "pending: named")
+        cast.driver.client.moveAdrNow(predecessor.id, AdrStatus.CANCELLED)
+        val ended = cast.stranger.client.get("/api/v1/adrs/${predecessor.id}/export").bodyAsText()
+        assertFalse("Successor proposed" in ended || "superseded by" in ended.lowercase(), ended)
+        val bulk = cast.stranger.client.get("/api/v1/adrs/export?q=${encoded(tag)}").zip()
+        val bulkOld = bulk.getValue(bulk.keys.first { it.startsWith(predecessor.key) })
+        assertFalse("Successor proposed" in bulkOld || "superseded by" in bulkOld.lowercase(), bulkOld)
+        val next = cast.stranger.client.get("/api/v1/adrs/${successor.id}/export").bodyAsText()
+        assertTrue("Supersedes [${predecessor.key}: ${predecessor.name}]" in next, "the successor keeps naming it: $next")
+    }
+
+    @Test
     fun `the date is the first activation, else the creation day`() = testApplication {
         usePostgresTestcontainer()
         val cast = adrCast()

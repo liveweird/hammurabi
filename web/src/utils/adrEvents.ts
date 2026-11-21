@@ -51,6 +51,9 @@ export function describeAdrEvent(event: AdrEventResponse, t: TFunction): string 
     case "SUCCESSOR_ACCEPTED":
       // Written on both ends: the successor's names the predecessor it will replace, the predecessor's (`successorId`) names the successor.
       return t(p.successorId === undefined ? "adrs.history.event.SUCCESSOR_ACCEPTED" : "adrs.history.event.SUCCESSOR_ACCEPTED_FOR", { key: p.key ?? DASH });
+    case "PREDECESSOR_ENDED":
+      // Written on the successor when the ADR it was set to replace was cancelled, withdrawn or expired (`status` is the new one).
+      return t("adrs.history.event.PREDECESSOR_ENDED", { key: p.key ?? DASH, status: statusName(p.status, t) });
     case "COMMENTED":
     case "QUESTION_ASKED":
     case "QUESTION_ANSWERED":
@@ -102,6 +105,7 @@ export function adrEventLines(event: AdrEventResponse, t: TFunction): string[] {
     case "SUCCESSOR_UNLINKED":
     case "SUCCESSOR_ACTIVATED":
     case "SUCCESSOR_ACCEPTED":
+    case "PREDECESSOR_ENDED":
       return [t("adrs.history.line.adrName", { name: p.name ?? DASH })];
     case "UPDATED":
       return changedLines(p, t);

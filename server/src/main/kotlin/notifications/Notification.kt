@@ -54,6 +54,13 @@ enum class NotificationType {
      * date, absent = removed.
      */
     EXPIRY_CHANGED,
+
+    /**
+     * An ADR that a successor the recipient drives or approves was set to replace was cancelled, withdrawn or expired (1.2.0); the
+     * notice is about the SUCCESSOR (`adr`), `otherAdr` is the predecessor that ended and `detail` its new status (`CANCELLED`,
+     * `WITHDRAWN` or `EXPIRED`). The link stays; the successor cannot be activated until its Driver removes it.
+     */
+    PREDECESSOR_ENDED,
 }
 
 /**

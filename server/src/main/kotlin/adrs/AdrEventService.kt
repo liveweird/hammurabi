@@ -93,6 +93,13 @@ enum class AdrEventType {
     ESCALATED,
     ISSUE_RESOLVED,
     ISSUE_REOPENED,
+
+    /**
+     * `{predecessorId, key, name, status}`: written on the SUCCESSOR, in the transaction that cancelled, withdrew or expired the ADR it was
+     * set to replace (1.2.0); `status` is the predecessor's new status. The actor is who ended it, or null for the expiry sweep. The link
+     * stays (the successor's Driver removes it); `adr-model.md` "Successors".
+     */
+    PREDECESSOR_ENDED,
 }
 
 /** One event to append: the [type] and its string-map [params]. Built by the pure `adr*Event` functions below. */
@@ -158,6 +165,17 @@ fun adrSuccessorAcceptedEvent(predecessor: AdrRef) = successorEvent(AdrEventType
 /** The event on the PREDECESSOR when its Approver accepted [successor], the pending ADR that was set to replace it. */
 fun adrSuccessorAcceptedOnPredecessorEvent(successor: AdrRef) =
     successorEvent(AdrEventType.SUCCESSOR_ACCEPTED, successor, otherIsSuccessor = true)
+
+/** The event on the SUCCESSOR when the [predecessor] it was set to replace reached [AdrRef.status], an ending that replaces nothing. */
+fun adrPredecessorEndedEvent(predecessor: AdrRef) = AdrEventDescriptor(
+    AdrEventType.PREDECESSOR_ENDED,
+    mapOf(
+        "predecessorId" to predecessor.id.toString(),
+        "key" to predecessor.key,
+        "name" to predecessor.name,
+        "status" to predecessor.status.name,
+    ),
+)
 
 fun adrSuccessorActivatedEvent(predecessor: AdrRef) = successorEvent(AdrEventType.SUCCESSOR_ACTIVATED, predecessor)
 

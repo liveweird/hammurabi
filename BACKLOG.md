@@ -17,10 +17,6 @@ Entries are proposals, not delivery commitments.
 
 The `backlog` mod (`liveweird/claude-mods`) summarises the tags on the status line and in `/backlog`.
 
-## ADR MVP (0.2–0.6)
-
-- [next] **Tell a pending successor's people when its predecessor stops being ACTIVE.** Notify the successor's Driver and Approver when its predecessor is withdrawn, expires or is cancelled, and stop listing it as pending on the terminal predecessor.
-
 ## Foundation follow-ups
 
 - [new] **External systems writing ADRs.** Port Flow's `integration/` service tokens when an external system should create or update ADRs.

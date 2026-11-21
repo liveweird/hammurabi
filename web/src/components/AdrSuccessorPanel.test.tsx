@@ -62,6 +62,18 @@ describe("AdrSuccessorPanel", () => {
     expect(screen.getByText(/ADR-0003 is not in force yet/)).toBeInTheDocument();
   });
 
+  test("a predecessor that ended says nothing about acceptance, even one it gave while in force", () => {
+    for (const status of ["WITHDRAWN", "CANCELLED", "EXPIRED"] as const) {
+      const { unmount } = renderWithProviders(
+        <AdrSuccessorPanel adr={adrFixture({ status: "IN_REVIEW", supersedes: { ...OLD, status }, supersedesAccepted: true })} />,
+      );
+      expect(screen.queryByText(/Accepted by the Approver/)).not.toBeInTheDocument();
+      expect(screen.queryByText(/Waiting for the Approver/)).not.toBeInTheDocument();
+      expect(screen.getByText(/is no longer in force/)).toBeInTheDocument();
+      unmount();
+    }
+  });
+
   test("a predecessor that ended is never described as not in force yet", () => {
     renderWithProviders(<AdrSuccessorPanel adr={adrFixture({ status: "IN_REVIEW", supersedes: { ...OLD, status: "EXPIRED" } })} />);
     expect(screen.queryByText(/not in force yet/)).not.toBeInTheDocument();

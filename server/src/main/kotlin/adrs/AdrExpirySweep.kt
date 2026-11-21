@@ -47,6 +47,8 @@ class AdrExpirySweep(
     private val database: R2dbcDatabase,
     private val events: AdrEventService,
     private val clock: Clock = Clock.systemUTC(),
+    /** The link locks and the successor's event; the composition passes the [AdrService]'s own, a test may rely on the default. */
+    private val successors: AdrSuccessorService = AdrSuccessorService(events),
 ) {
     private val adrs = AdrService.Adrs
 
@@ -84,9 +86,11 @@ class AdrExpirySweep(
 
     private suspend fun expire(id: UInt, today: String): Boolean {
         val expired = suspendTransaction(database) {
-            // The notices of the expiry are charged to the ADR's Approver (null actor): their budget row is the first lock, as in a
-            // user write.
+            // The notices of the expiry (and the pending successor's, which an expiry also tells) are charged to the ADR's Approver (null
+            // actor): their budget row is the first lock, as in a user write; then the link lock and both rows (`persistence.md`).
             events.reserveNotices(null, id)
+            successors.lockLinkWrites(this)
+            successors.lockWithPendingSuccessor(id)
             val row = adrs.selectAll().where { (adrs.id eq id) and adrs.active() }
                 .forUpdate(ForUpdateOption.PostgreSQL.ForNoKeyUpdate).toList().singleOrNull()
                 ?: return@suspendTransaction null
@@ -100,6 +104,7 @@ class AdrExpirySweep(
                 it[updatedAt] = stamp
             }
             events.record(id, null, adrExpiredEvent(expiresOn), stamp)
+            successors.recordPredecessorEnded(AdrRef(id, adrKey(row[adrs.number]), row[adrs.name], AdrStatus.EXPIRED), null, stamp)
             row[adrs.number] to expiresOn
         } ?: return false
         audit("adr.expired", "adrId" to id.toLong(), "number" to expired.first, "expiresOn" to expired.second)
@@ -130,7 +135,9 @@ fun Application.configureAdrExpirySweep() {
     val config = readAdrExpiryConfig(environment.config)
     if (!config.enabled) return
     monitor.subscribe(ApplicationStarted) { app ->
-        val sweep = AdrExpirySweep(app.attributes[R2dbcDatabaseKey], app.attributes[AdrEventServiceKey])
+        val sweep = AdrExpirySweep(
+            app.attributes[R2dbcDatabaseKey], app.attributes[AdrEventServiceKey], successors = app.attributes[AdrServiceKey].successors,
+        )
         app.attributes.put(AdrExpirySweepKey, sweep)
         app.backgroundScope("hammurabi-adr-expiry").launch {
             while (isActive) {

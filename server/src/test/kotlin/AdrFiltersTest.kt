@@ -169,6 +169,11 @@ class AdrFiltersTest {
         assertEquals(setOf(old.id), reader.ids(m, "hasSuccessor=true"), "a cancelled successor does not count")
         assertEquals(setOf(next.id, alone.id, dropped.id), reader.ids(m, "hasSuccessor=false"))
         assertEquals(setOf(next.id), reader.ids(m, "hasPredecessor=true&hasSuccessor=false&status=PROBLEM_RAISED"))
+        // 1.2.0: a predecessor that ended unreplaced (here cancelled) no longer has its pending successor; the successor keeps its link.
+        cast.driver.client.moveAdrNow(old.id, AdrStatus.CANCELLED)
+        assertEquals(emptySet(), reader.ids(m, "hasSuccessor=true"), "a pending successor of an ended predecessor does not count")
+        assertEquals(setOf(old.id, next.id, alone.id, dropped.id), reader.ids(m, "hasSuccessor=false"))
+        assertEquals(setOf(next.id, dropped.id), reader.ids(m, "hasPredecessor=true"), "the successor still has its predecessor")
     }
 
     @Test

@@ -37,6 +37,14 @@ describe("describeNotification", () => {
     [{ type: "SUCCESSOR_LINKED", otherAdrId: 43, otherAdrKey: "ADR-0043" }, "Ada proposed ADR-0043 to replace ADR-0042"],
     [{ type: "SUCCESSOR_ACCEPTED", otherAdrId: 42, otherAdrKey: "ADR-0042", adrKey: "ADR-0043" }, "Ada accepted ADR-0043 to replace ADR-0042"],
     [{ type: "SUCCESSOR_UNLINKED", otherAdrId: 43, otherAdrKey: "ADR-0043" }, "Ada detached ADR-0043: it no longer replaces ADR-0042"],
+    [
+      { type: "PREDECESSOR_ENDED", otherAdrId: 42, otherAdrKey: "ADR-0042", adrKey: "ADR-0043", detail: "WITHDRAWN" },
+      "ADR-0042, which ADR-0043 was set to replace, is now Withdrawn",
+    ],
+    [
+      { type: "PREDECESSOR_ENDED", otherAdrId: 42, otherAdrKey: "ADR-0042", adrKey: "ADR-0043", detail: "EXPIRED", actorId: null, actorName: null },
+      "ADR-0042, which ADR-0043 was set to replace, is now Expired",
+    ],
     [{ type: "EXPIRY_REMINDER", detail: "2026-12-01", actorId: null, actorName: null }, "ADR-0042 expires on 2026-12-01"],
     [{ type: "EXPIRY_CHANGED", detail: "2027-03-31" }, "Ada changed the expiry date of ADR-0042 to 2027-03-31"],
     [{ type: "EXPIRY_CHANGED", detail: null }, "Ada removed the expiry date of ADR-0042"],
@@ -55,6 +63,8 @@ describe("describeNotification", () => {
     expect(describeNotification(notice({ type: "DISCUSSION_SETTLED", detail: null }), t)).toBe("Ada resolved your entry on ADR-0042: —");
     expect(describeNotification(notice({ type: "STATUS_CHANGED", detail: null }), t)).toContain("to —");
     expect(describeNotification(notice({ type: "SUCCESSOR_LINKED", otherAdrKey: null }), t)).toBe("Ada proposed — to replace ADR-0042");
+    expect(describeNotification(notice({ type: "PREDECESSOR_ENDED", detail: "PARKED" }), t)).toContain("is now PARKED");
+    expect(describeNotification(notice({ type: "PREDECESSOR_ENDED", detail: null }), t)).toContain("is now —");
   });
 
   test("a type this build does not know shows its raw name", () => {
@@ -67,6 +77,9 @@ describe("describeNotification", () => {
       expect(describeNotification(notice({ type: "ROLE_ASSIGNED", detail: "DRIVER" }), i18n.t.bind(i18n))).toBe("Ada przypisał/a Ci rolę w ADR-0042: Prowadzący/a");
       expect(describeNotification(notice({ type: "STATUS_CHANGED", detail: "ACTIVE" }), i18n.t.bind(i18n))).toBe("Ada zmienił/a status ADR-0042 na „Obowiązujący”");
       expect(describeNotification(notice({ type: "STATUS_CHANGED", detail: "SENT_BACK" }), i18n.t.bind(i18n))).toBe("Ada odesłał/a ADR-0042 do szkicu");
+      expect(describeNotification(notice({ type: "PREDECESSOR_ENDED", adrKey: "ADR-0043", otherAdrKey: "ADR-0042", detail: "CANCELLED" }), i18n.t.bind(i18n))).toBe(
+        "ADR-0042, który miał zostać zastąpiony przez ADR-0043, ma teraz status „Anulowany”",
+      );
     } finally {
       await i18n.changeLanguage("en");
     }

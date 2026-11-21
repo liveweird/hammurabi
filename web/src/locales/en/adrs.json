@@ -209,7 +209,8 @@
       "SUCCESSOR_DETACHED": "Pending successor {{key}} detached",
       "SUCCESSOR_ACTIVATED": "Activated and superseded {{key}}",
       "SUCCESSOR_ACCEPTED": "Accepted to replace {{key}}",
-      "SUCCESSOR_ACCEPTED_FOR": "Accepted {{key}} as its successor"
+      "SUCCESSOR_ACCEPTED_FOR": "Accepted {{key}} as its successor",
+      "PREDECESSOR_ENDED": "{{key}}, which this ADR was set to replace, is now {{status}}"
     },
     "line": {
       "created": "{{key}} \"{{name}}\"",

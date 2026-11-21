@@ -148,6 +148,52 @@ test.describe("ADR successors", () => {
     await expect(page.getByRole("region", { name: "History" }).getByText(`No longer replaces ${old.key}`)).toBeVisible();
   });
 
+  test("withdrawing the decision a draft was set to replace tells the draft's Driver and the withdrawn ADR stops listing it", async ({ page }) => {
+    const oldName = uniqueText("e2e-adr-old");
+    const old = await raise(oldName);
+    await transitionViaApi(driverApi, old.id, "IN_REVIEW");
+    await transitionViaApi(approverApi, old.id, "ACTIVE");
+    // Another team's Driver sets a draft of their own to replace it (linking is the successor's write).
+    const otherDriver = await createUserViaApi(admin, "E2E Other Driver");
+    cleanup.push(`/api/v1/users/${otherDriver.id}`);
+    const { api: otherDriverApi } = await apiAs(otherDriver.email, otherDriver.password);
+    const nextName = uniqueText("e2e-adr-next");
+    let next: { id: number; key: string };
+    try {
+      next = await createAdrViaApi(otherDriverApi, { name: nextName, problem: "Which queue do we run?" });
+      cleanup.unshift(`/api/v1/adrs/${next.id}`);
+      const linked = await otherDriverApi.put(`/api/v1/adrs/${next.id}/supersedes`, {
+        data: { supersedesId: old.id },
+        headers: { "X-Expected-Revision": String(await adrRevision(otherDriverApi, next.id)) },
+      });
+      expect(linked.status()).toBe(204);
+    } finally {
+      await otherDriverApi.dispose();
+    }
+    // The decision's Approver withdraws it.
+    await transitionViaApi(approverApi, old.id, "WITHDRAWN");
+
+    // The draft's Driver finds it in the bell and in the draft's history.
+    await login(page, otherDriver.email, otherDriver.password);
+    const bell = page.getByRole("button", { name: "Notifications (1 unseen)" });
+    await expect(bell).toBeVisible();
+    await bell.click();
+    const sentence = `${old.key}, which ${next.key} was set to replace, is now Withdrawn`;
+    await expect(page.getByRole("dialog", { name: "Notifications" }).getByRole("link", { name: new RegExp(sentence) })).toBeVisible();
+    await page.goto(`/adrs/${next.id}`);
+    await expect(page.getByRole("region", { name: "History" }).getByText(`${old.key}, which this ADR was set to replace, is now Withdrawn`)).toBeVisible();
+    await expect(page.getByRole("region", { name: "Successor" }).getByText(/is no longer in force \(Withdrawn\)/)).toBeVisible();
+
+    // The withdrawn ADR no longer names the draft as its pending successor.
+    await page.goto(`/adrs/${old.id}`);
+    await expect(page.getByRole("heading", { level: 2, name: oldName })).toBeVisible();
+    await expect(page.getByRole("region", { name: "Status" }).getByText("Withdrawn")).toBeVisible();
+    await expect(page.getByText("A successor is proposed")).toHaveCount(0);
+    const successor = page.getByRole("region", { name: "Successor" });
+    await expect(successor.getByText("Set to replace this ADR")).toHaveCount(0);
+    await expect(successor.getByRole("link", { name: `${next.key} ${nextName}` })).toHaveCount(0);
+  });
+
   test("the successor's Approver cannot activate over a decision in force until its Approver accepts the link", async ({ page }) => {
     const old = await raise(uniqueText("e2e-adr-old"));
     await transitionViaApi(driverApi, old.id, "IN_REVIEW");

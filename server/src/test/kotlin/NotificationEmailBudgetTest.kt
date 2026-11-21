@@ -3,7 +3,9 @@ package ch.nokillswit
 import ch.nokillswit.adrs.AdrEventService
 import ch.nokillswit.adrs.AdrExpirySweep
 import ch.nokillswit.adrs.AdrParticipantRequest
+import ch.nokillswit.adrs.AdrResponse
 import ch.nokillswit.adrs.AdrRole
+import ch.nokillswit.adrs.AdrStatus
 import ch.nokillswit.adrs.DiscussionKind
 import ch.nokillswit.adrs.DiscussionState
 import ch.nokillswit.notifications.Audience
@@ -414,14 +416,46 @@ class NotificationEmailBudgetTest {
             assertEquals(HttpStatusCode.NoContent, cast.driver.client.setSupersedes(successor.id, adr.id).status) // the three link writes
             cast.approver.client.acceptSuccessorOk(adr.id, successor.id)
             assertEquals(HttpStatusCode.NoContent, cast.driver.client.detachSuccessor(adr.id).status)
+            // 1.2.0: an ending that tells a pending successor's leads writes notices for TWO ADRs in one transaction (the predecessor's own
+            // and the successor's PREDECESSOR_ENDED), and an activation that supersedes writes the successor's and the predecessor's.
+            val next = adrCast()
+            suspend fun pendingOn(old: AdrResponse): AdrResponse {
+                val pending = next.raise()
+                assertEquals(HttpStatusCode.NoContent, next.driver.client.setSupersedes(pending.id, old.id).status)
+                return pending
+            }
+            val withdrawn = cast.raise().also { cast.activate(it) }
+            val afterWithdrawal = pendingOn(withdrawn)
+            cast.approver.client.moveAdrNow(withdrawn.id, AdrStatus.WITHDRAWN)
+            val toldByWithdrawal = next.driver.client.noticesOf(NotificationType.PREDECESSOR_ENDED, afterWithdrawal.id)
+            assertEquals(1, toldByWithdrawal.size, "the withdrawal told the successor")
+            val cancelled = cast.raise()
+            val afterCancel = pendingOn(cancelled)
+            cast.driver.client.moveAdrNow(cancelled.id, AdrStatus.CANCELLED)
+            val toldByCancel = next.approver.client.noticesOf(NotificationType.PREDECESSOR_ENDED, afterCancel.id)
+            assertEquals(1, toldByCancel.size, "the cancellation told it")
+            val replaced = cast.raise().also { cast.activate(it) }
+            val replacing = pendingOn(replaced)
+            cast.approver.client.acceptSuccessorOk(replaced.id, replacing.id)
+            next.driver.client.moveAdrNow(replacing.id, AdrStatus.IN_REVIEW)
+            next.approver.client.moveAdrNow(replacing.id, AdrStatus.ACTIVE) // the supersede: two ADRs' notices in one transaction
+            val toldBySupersede = cast.driver.client.noticesOf(NotificationType.ADR_SUPERSEDED, replaced.id)
+            assertEquals(1, toldBySupersede.size, "the predecessor's people were told")
+            // The sweep expires a predecessor with a pending successor: the successor's notices are charged to the ENDED ADR's Approver.
+            val expiring = cast.raise().also { cast.activate(it) }
+            val afterExpiry = pendingOn(expiring)
             // The two system passes.
             val window = LocalDate.of(2100, 9, 1)
+            forceAdrExpiry(expiring.id, window.plusDays(2).toString())
             forceAdrExpiry(adr.id, window.plusDays(2).toString())
             val clock = Clock.fixed(window.atTime(9, 0).toInstant(ZoneOffset.UTC), ZoneOffset.UTC)
             ExpiryReminders(sharedDatabaseForTests(), newNotificationService(), 14, clock).run()
             val later = Clock.fixed(window.plusDays(5).atTime(9, 0).toInstant(ZoneOffset.UTC), ZoneOffset.UTC)
             AdrExpirySweep(sharedDatabaseForTests(), AdrEventService(sharedDatabaseForTests(), newNotificationService()), later).sweep()
             assertEquals("EXPIRED", rawAdrStatus(adr.id), "the sweep reached the ADR")
+            assertEquals("EXPIRED", rawAdrStatus(expiring.id), "and the predecessor of a pending successor")
+            val toldBySweep = next.driver.client.noticesOf(NotificationType.PREDECESSOR_ENDED, afterExpiry.id)
+            assertEquals(1, toldBySweep.size, "the sweep told its successor")
 
             assertEquals(emptyList(), capture.events.map { it.formattedMessage }, "no path charged the budget without reserving first")
         } finally {

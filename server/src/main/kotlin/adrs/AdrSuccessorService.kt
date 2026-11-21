@@ -6,20 +6,24 @@ import io.ktor.server.plugins.BadRequestException
 import kotlinx.coroutines.flow.toList
 import org.jetbrains.exposed.v1.core.Op
 import org.jetbrains.exposed.v1.core.ResultRow
+import org.jetbrains.exposed.v1.core.alias
 import org.jetbrains.exposed.v1.core.and
 import org.jetbrains.exposed.v1.core.eq
 import org.jetbrains.exposed.v1.core.exists
 import org.jetbrains.exposed.v1.core.inList
 import org.jetbrains.exposed.v1.core.neq
+import org.jetbrains.exposed.v1.core.notExists
 import org.jetbrains.exposed.v1.core.notInList
 import org.jetbrains.exposed.v1.core.or
 import org.jetbrains.exposed.v1.core.statements.StatementType
+import org.jetbrains.exposed.v1.core.vendors.ForUpdateOption
 import org.jetbrains.exposed.v1.r2dbc.R2dbcTransaction
 import org.jetbrains.exposed.v1.r2dbc.select
 import org.jetbrains.exposed.v1.r2dbc.selectAll
 
 /**
- * The advisory lock every successor-link write takes first (`pg_advisory_xact_lock`, the single-`bigint` form): the ASCII bytes of
+ * The advisory lock every successor-link write (set, detach, accept) and every ending that replaces nothing (cancel, withdraw, the sweep's
+ * expiry) takes right after the budget reservation (`pg_advisory_xact_lock`, the single-`bigint` form): the ASCII bytes of
  * "ADRLINKS". A cycle spans several ADRs, none of which one row lock can cover, so two concurrent links (A replaces B, B replaces A) would
  * both pass the cycle check; this lock serialises them. Taken BEFORE the ADR row lock, and by nothing that holds a row lock already, so it
  * cannot deadlock with the activation path (which takes row locks only). Transaction-scoped. `persistence.md` "ADRs (V10...)".
@@ -38,19 +42,29 @@ private val LINKABLE_PREDECESSORS: Set<AdrStatus> = AdrStatus.entries.filter { !
 /** The statuses a successor may end in WITHOUT having superseded anything: it was cancelled or withdrawn before it became `ACTIVE`. */
 private val NEVER_ACTIVE: List<String> = listOf(AdrStatus.CANCELLED.name, AdrStatus.WITHDRAWN.name)
 
+/** The statuses that end an ADR without a successor having replaced it ([endedUnreplaced]), as the stored names. */
+private val ENDED_UNREPLACED: List<String> = AdrStatus.entries.filter { it.endedUnreplaced }.map { it.name }
+
 /**
  * A successor "in play or in effect": any status but cancelled or withdrawn, OR a withdrawn one that DID activate first (0.7.0: an
  * `ACTIVE` decision can be withdrawn, after which its predecessor stays `SUPERSEDED` and must keep pointing at it). The activation
  * is told apart by its `SUCCESSOR_ACTIVATED` event on the successor, written in the same transaction as the supersede; a withdrawn
- * successor without it never superseded anything. Correlated to the `adrs` row of the query it is added to.
+ * successor without it never superseded anything. **And its predecessor has not ended unreplaced** (1.2.0): a successor set to replace
+ * an ADR that was since cancelled, withdrawn or expired will replace nothing, so neither end lists it (the link stays on the
+ * successor until its Driver removes it, `adr-model.md` "Successors"). Correlated to the `adrs` row of the query it is added to.
  */
 internal fun successorInPlayOrInEffect(): Op<Boolean> {
     val adrs = AdrService.Adrs
     val events = AdrEventService.AdrEvents
+    val predecessor = adrs.alias("predecessor")
     val activated = exists(
         events.select(events.id).where { (events.ownerId eq adrs.id) and (events.eventType eq AdrEventType.SUCCESSOR_ACTIVATED.name) },
     )
-    return (adrs.status notInList NEVER_ACTIVE) or ((adrs.status eq AdrStatus.WITHDRAWN.name) and activated)
+    val predecessorEnded = predecessor.select(predecessor[adrs.id]).where {
+        (predecessor[adrs.id] eq adrs.supersedesId) and (predecessor[adrs.status] inList ENDED_UNREPLACED)
+    }
+    return ((adrs.status notInList NEVER_ACTIVE) or ((adrs.status eq AdrStatus.WITHDRAWN.name) and activated)) and
+        notExists(predecessorEnded)
 }
 
 /** The statuses in which a successor link is pending: not in effect yet (it takes effect at activation) and still removable. */
@@ -127,6 +141,30 @@ class AdrSuccessorService(private val events: AdrEventService) {
     suspend fun lockLinkWrites(transaction: R2dbcTransaction) {
         val lock = "SELECT pg_advisory_xact_lock($ADR_LINK_LOCK_KEY)"
         transaction.exec(lock, explicitStatementType = StatementType.SELECT) { true }?.toList()
+    }
+
+    /**
+     * Locks the ADR [id] and its pending successor TOGETHER, `FOR NO KEY UPDATE` in one statement ordered by id (the pair order of the
+     * activation, the detach and the acceptance, so two writers of the same pair cannot deadlock). Called by a move that ends [id]
+     * unreplaced, right after [lockLinkWrites]: a link written meanwhile either was seen here or finds the ADR terminal (`400`). The
+     * successor is a plain read of the link; the lock holds it, and [recordPredecessorEnded] re-reads under it.
+     */
+    suspend fun lockWithPendingSuccessor(id: UInt) {
+        val pending = pendingSuccessorIdOf(id)
+        adrs.select(adrs.id).where { adrs.id inList listOfNotNull(id, pending) }.orderBy(adrs.id)
+            .forUpdate(ForUpdateOption.PostgreSQL.ForNoKeyUpdate).toList()
+    }
+
+    /**
+     * Records `PREDECESSOR_ENDED` on the pending successor of [predecessor], an ADR that has just reached an ending that replaces nothing
+     * (its new status is [AdrRef.status]): the successor's Driver and Approver are told through that event's notice, the actor
+     * ([byUserId], null for the expiry sweep) excepted. No pending successor = nothing is written (a cancelled, withdrawn or activated
+     * one is none). The caller holds the locks of [lockWithPendingSuccessor]; the successor's revision does not move: its document is
+     * untouched and the link stays, for its Driver to remove.
+     */
+    suspend fun recordPredecessorEnded(predecessor: AdrRef, byUserId: UInt?, stamp: Long) {
+        val successorId = pendingSuccessorIdOf(predecessor.id) ?: return
+        events.record(successorId, byUserId, adrPredecessorEndedEvent(predecessor), stamp)
     }
 
     /**

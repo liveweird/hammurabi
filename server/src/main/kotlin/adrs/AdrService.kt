@@ -278,7 +278,7 @@ class AdrService(
      * `illegal-transition`, including a target only the system moves into), the stale revision (409), a successor over a decision in
      * force that was not accepted (409 `successor-not-accepted`), the optional [reason] (400: control characters, over 1000 code points)
      * and the target's requirements (400 naming the missing fields); then the status, its stamp and the revision are written and one
-     * `TRANSITIONED` event recorded (carrying the reason).
+     * `TRANSITIONED` event recorded (carrying the reason); an ending that replaces nothing also tells the pending successor.
      */
     suspend fun transition(
         id: UInt,
@@ -292,6 +292,10 @@ class AdrService(
             // check below catches a link changed in between, since every link change bumps the revision).
             events.reserveNotices(caller.userId, id)
             val peeked = if (to == AdrStatus.ACTIVE) successors.predecessorIdOf(id) else null
+            if (to.endedUnreplaced) { // an ending tells the pending successor: the link lock, then both rows in id order
+                successors.lockLinkWrites(this)
+                successors.lockWithPendingSuccessor(id)
+            }
             val (before, standing) = lockedActive(id, caller, alsoLock = peeked)
             requireMayTransition(standing)
             requireMayRequest(standing, before.status, to)
@@ -305,6 +309,7 @@ class AdrService(
             val stamp = nowMillis()
             val revision = bumpRevision(id, before.revision, stamp, moveTo = to)
             events.record(id, caller.userId, adrTransitionedEvent(before.status, to, note), stamp)
+            if (to.endedUnreplaced) successors.recordPredecessorEnded(before.refAs(to), caller.userId, stamp)
             val superseded = predecessor?.let { supersede(it, AdrRef(id, adrKey(before.number), before.name, to), caller.userId, stamp) }
             AdrTransitionOutcome(id, before.number, revision, before.status, to, superseded, note != null)
         }

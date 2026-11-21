@@ -93,6 +93,10 @@ private val ACCEPTED = LocalizedText(
     "%s accepted %s to replace %s",
     "%s akceptuje %s jako nast\u0119pc\u0119 %s",
 )
+private val PREDECESSOR_ENDED = LocalizedText(
+    "%s, which %s was set to replace, is now \"%s\"",
+    "%s, kt\u00f3ry mia\u0142 zosta\u0107 zast\u0105piony przez %s, ma teraz status \u201e%s\u201d",
+)
 private val REMINDER = LocalizedText("%s expires on %s (the last day in force)", "%s wygasa %s (ostatni dzie\u0144 obowi\u0105zywania)")
 
 /** `String.format` in the root locale: a digit is always an ASCII digit, whatever the server's default locale. */
@@ -122,6 +126,7 @@ private fun entryText(entry: DigestEntry, language: String): String {
         NotificationType.SUCCESSOR_LINKED -> fmt(LINKED.of(language), actor, other, adr)
         NotificationType.SUCCESSOR_UNLINKED -> fmt(UNLINKED.of(language), actor, other, adr)
         NotificationType.SUCCESSOR_ACCEPTED -> fmt(ACCEPTED.of(language), actor, adr, other)
+        NotificationType.PREDECESSOR_ENDED -> fmt(PREDECESSOR_ENDED.of(language), other, adr, statusWord(detail, language))
         NotificationType.EXPIRY_CHANGED ->
             if (detail.isNullOrEmpty()) fmt(EXPIRY_REMOVED.of(language), actor, adr)
             else fmt(EXPIRY_CHANGED.of(language), actor, adr, mailSafe(detail))

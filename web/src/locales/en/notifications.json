@@ -26,7 +26,8 @@
     "EXPIRY_REMINDER": "{{key}} expires on {{date}}",
     "EXPIRY_CHANGED": "{{actor}} changed the expiry date of {{key}} to {{date}}",
     "EXPIRY_REMOVED": "{{actor}} removed the expiry date of {{key}}",
-    "SUCCESSOR_ACCEPTED": "{{actor}} accepted {{key}} to replace {{other}}"
+    "SUCCESSOR_ACCEPTED": "{{actor}} accepted {{key}} to replace {{other}}",
+    "PREDECESSOR_ENDED": "{{other}}, which {{key}} was set to replace, is now {{status}}"
   },
   "toast": {
     "preferencesSaved": "Notification preferences saved"
@@ -94,6 +95,10 @@
       "SUCCESSOR_ACCEPTED": {
         "label": "A successor is accepted",
         "description": "The Approver of a decision in force accepts the successor you drive or approve, which it needs to take that decision's place."
+      },
+      "PREDECESSOR_ENDED": {
+        "label": "The ADR your successor was to replace has ended",
+        "description": "An ADR that a successor you drive or approve was set to replace is cancelled, withdrawn or expires. Remove the link before your ADR is activated."
       }
     }
   }

@@ -74,9 +74,10 @@ internal fun noticeFor(adrId: UInt, event: AdrEventDescriptor): NoticePlan? {
         AdrEventType.SUCCESSOR_UNLINKED -> successorNotice(NotificationType.SUCCESSOR_UNLINKED, adrId, id("predecessorId"))
         // Written on the SUCCESSOR (`adrId`): its Driver and Approver learn that the decision it replaces is theirs to replace. The
         // predecessor-side mirror event carries `successorId` instead and makes no notice (the actor is the predecessor's Approver).
-        AdrEventType.SUCCESSOR_ACCEPTED -> id("predecessorId")?.let {
-            NoticePlan(NotificationType.SUCCESSOR_ACCEPTED, adrId, Audience.Roles(adrId, LEADS), otherAdrId = it)
-        }
+        AdrEventType.SUCCESSOR_ACCEPTED -> leadsNotice(NotificationType.SUCCESSOR_ACCEPTED, adrId, id("predecessorId"))
+        // Written on the SUCCESSOR (`adrId`) when the ADR it was set to replace was cancelled, withdrawn or expired: its Driver and
+        // Approver learn that the link is now dead. `detail` is the predecessor's new status.
+        AdrEventType.PREDECESSOR_ENDED -> leadsNotice(NotificationType.PREDECESSOR_ENDED, adrId, id("predecessorId"), params["status"])
         AdrEventType.COMMENTED, AdrEventType.QUESTION_ASKED, AdrEventType.ISSUE_RAISED, AdrEventType.ESCALATED -> {
             val kind = params["kind"]
             val reach = if (kind == "COMMENT" || kind == "QUESTION") LEADS_AND_CONTRIBUTORS else LEADS
@@ -88,6 +89,10 @@ internal fun noticeFor(adrId: UInt, event: AdrEventDescriptor): NoticePlan? {
         else -> null
     }
 }
+
+/** A notice about the SUCCESSOR [adrId] for its Driver and Approver, naming the other ADR of the link; none without that ADR. */
+private fun leadsNotice(type: NotificationType, adrId: UInt, otherAdrId: UInt?, detail: String? = null): NoticePlan? =
+    otherAdrId?.let { NoticePlan(type, adrId, Audience.Roles(adrId, LEADS), otherAdrId = it, detail = detail) }
 
 private fun successorNotice(type: NotificationType, successorId: UInt, predecessorId: UInt?): NoticePlan? =
     predecessorId?.let { NoticePlan(type, it, Audience.Roles(it, LEADS), otherAdrId = successorId) }

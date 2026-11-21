@@ -99,6 +99,9 @@ data class AdrSuccessorAcceptRequest(val successorId: UInt)
 @Serializable
 data class AdrRef(val id: UInt, val key: String, val name: String, val status: AdrStatus)
 
+/** This record as the other end of a link, in [status] (the one it has just moved to, not necessarily its stored one). */
+internal fun AdrRecord.refAs(status: AdrStatus) = AdrRef(id, adrKey(number), name, status)
+
 @Serializable
 data class AdrResponse(
     val id: UInt,

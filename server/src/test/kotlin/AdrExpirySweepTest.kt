@@ -7,6 +7,7 @@ import ch.nokillswit.adrs.AdrExpirySweep
 import ch.nokillswit.adrs.AdrExpirySweepKey
 import ch.nokillswit.adrs.AdrStatus
 import ch.nokillswit.adrs.readAdrExpiryConfig
+import ch.nokillswit.notifications.NotificationType
 import io.ktor.client.request.delete
 import io.ktor.http.HttpStatusCode
 import io.ktor.server.application.Application
@@ -120,11 +121,19 @@ class AdrExpirySweepTest {
         val cast = adrCast()
         val adr = cast.raise(complete = true)
         forceAdrStatus(adr.id, AdrStatus.ACTIVE)
+        // A pending successor set to replace it (1.2.0): the loop's sweep, wired by the module, tells it and its leads.
+        val successor = cast.raise(complete = true)
+        assertEquals(HttpStatusCode.NoContent, cast.driver.client.setSupersedes(successor.id, adr.id).status)
         forceAdrExpiry(adr.id, "2001-01-01")
         withTimeout(30_000) {
             while (cast.admin.client.getAdr(adr.id).status != AdrStatus.EXPIRED) delay(200)
         }
         assertEquals(1, cast.admin.client.adrEvents(adr.id).items.count { it.type == AdrEventType.EXPIRED })
+        val ended = cast.admin.client.adrEvents(successor.id).items.single { it.type == AdrEventType.PREDECESSOR_ENDED }
+        assertNull(ended.actorId, "the system is the actor")
+        assertEquals(AdrStatus.EXPIRED.name, ended.params["status"])
+        assertEquals(1, cast.driver.client.noticesOf(NotificationType.PREDECESSOR_ENDED, successor.id).size)
+        assertNull(cast.admin.client.getAdr(adr.id).supersededBy, "an expired ADR no longer lists its pending successor")
     }
 
     @Test

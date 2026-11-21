@@ -22,6 +22,7 @@ const TYPES = [
   "EXPIRY_REMINDER",
   "EXPIRY_CHANGED",
   "SUCCESSOR_ACCEPTED",
+  "PREDECESSOR_ENDED",
 ] as const;
 
 /** Every kind on the bell and the email unless `off` names it: `"ROLE_REMOVED:email"` or `"ROLE_REMOVED:inApp"`. */
@@ -104,7 +105,7 @@ describe("NotificationPreferences page", () => {
     await user.click(bell("An ADR is superseded"));
     await user.click(save());
     await waitFor(() => expect(toast).toHaveBeenCalledWith(expect.objectContaining({ message: "Notification preferences saved", color: "teal" })));
-    // What the GET answered, edited: the same twelve kinds, three of them switched off.
+    // What the GET answered, edited: the same thirteen kinds, three of them switched off.
     expect(putBodies(fetchMock)).toEqual([{ kinds: prefs(["ROLE_REMOVED:email", "ADR_EXPIRED:email", "ADR_SUPERSEDED:inApp"]).kinds }]);
     await waitFor(() => expect(email(REMOVED)).not.toBeChecked());
     expect(bell("An ADR is superseded")).not.toBeChecked();

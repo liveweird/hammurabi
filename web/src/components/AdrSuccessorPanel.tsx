@@ -30,10 +30,12 @@ function Ref({ adr }: { adr: AdrRef }) {
   );
 }
 
-/** Whether the predecessor's Approver accepted this ADR as its successor: teal when it did, grape while it is awaited, gray before the predecessor is in force. */
+/** Whether the predecessor's Approver accepted this ADR as its successor: teal when it did, grape while it is awaited, gray before the predecessor is in force, nothing once it ended. */
 function AcceptanceLine({ adr }: { adr: AdrResponse }) {
   const { t } = useTranslation();
   const key = adr.supersedes?.key ?? "";
+  // A predecessor that ended has its own orange notice below, and an acceptance it gave while in force no longer means anything.
+  if (adr.supersedes && isTerminal(adr.supersedes.status)) return null;
   if (adr.supersedesAccepted) {
     return (
       <Text size="xs" c="teal" role="status">
@@ -48,8 +50,6 @@ function AcceptanceLine({ adr }: { adr: AdrResponse }) {
       </Text>
     );
   }
-  // A predecessor that ended has its own orange notice below; "not in force yet" would be false of it.
-  if (adr.supersedes && isTerminal(adr.supersedes.status)) return null;
   return (
     <Text size="xs" c="dimmed">
       {t("adrs.successor.notYet", { key })}

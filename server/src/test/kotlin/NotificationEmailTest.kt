@@ -35,6 +35,7 @@ class NotificationEmailTest {
             entry(NotificationType.SUCCESSOR_UNLINKED, other = "ADR-0050"),
             entry(NotificationType.SUCCESSOR_ACCEPTED, other = "ADR-0050"),
             entry(NotificationType.EXPIRY_REMINDER, "2026-12-01", actor = null),
+            entry(NotificationType.PREDECESSOR_ENDED, "WITHDRAWN", other = "ADR-0050", actor = null),
         )
         for (language in listOf("en", "pl")) {
             val lines = body(language, *kinds.toTypedArray()).lines().filter { it.startsWith("- ") }
@@ -52,6 +53,10 @@ class NotificationEmailTest {
         assertTrue("Ala proposed ADR-0050 to replace ADR-0042" in body("en", linked), "a link is only a proposal")
         assertTrue("Ala accepted ADR-0042 to replace ADR-0050" in body("en", accepted))
         assertTrue("Ala akceptuje ADR-0042 jako następcę ADR-0050" in body("pl", accepted))
+        val ended = entry(NotificationType.PREDECESSOR_ENDED, "WITHDRAWN", other = "ADR-0050", actor = null)
+        assertTrue("ADR-0050, which ADR-0042 was set to replace, is now \"Withdrawn\"" in body("en", ended), body("en", ended))
+        val plEnded = body("pl", ended)
+        assertTrue("ADR-0050, który miał zostać zastąpiony przez ADR-0042, ma teraz status „Wycofany”" in plEnded, plEnded)
         val sentBack = entry(NotificationType.STATUS_CHANGED, "SENT_BACK")
         assertTrue("Ala sent ADR-0042 back to draft" in body("en", sentBack))
         assertTrue("Ala odsyła ADR-0042 do szkicu" in body("pl", sentBack))

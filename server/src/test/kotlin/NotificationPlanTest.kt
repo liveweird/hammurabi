@@ -93,6 +93,20 @@ class NotificationPlanTest {
     }
 
     @Test
+    fun `an ended predecessor is the SUCCESSOR's notice for its leads, carrying the predecessor's new status`() {
+        val ended = plan(
+            AdrEventType.PREDECESSOR_ENDED, "predecessorId" to "3", "key" to "ADR-0003", "name" to "n", "status" to "WITHDRAWN", adr = 8u,
+        )!!
+        assertEquals(NotificationType.PREDECESSOR_ENDED, ended.type)
+        assertEquals(8u, ended.adrId, "about the successor, where the recipients take part")
+        assertEquals(3u, ended.otherAdrId, "the predecessor that ended")
+        assertEquals("WITHDRAWN", ended.detail)
+        assertEquals(Audience.Roles(8u, setOf(AdrRole.DRIVER, AdrRole.APPROVER)), ended.audience)
+        assertNull(plan(AdrEventType.PREDECESSOR_ENDED, "predecessorId" to "junk", "status" to "EXPIRED", adr = 8u), "a malformed id")
+        assertNull(plan(AdrEventType.PREDECESSOR_ENDED, "status" to "EXPIRED", adr = 8u), "the predecessor is needed")
+    }
+
+    @Test
     fun `a changed expiry date is told to every role, only while the ADR is in force, and a removed one carries no detail`() {
         val all = AdrRole.entries.toSet()
         val changed = plan(

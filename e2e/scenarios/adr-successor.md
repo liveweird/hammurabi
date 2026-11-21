@@ -3,7 +3,7 @@
 - **Spec**: [tests/adr-successor.spec.ts](../tests/adr-successor.spec.ts)
 - **Actors**: the seed administrator, only through the API to create and delete the cast; two throwaway regular users — a Driver (raises the
   ADRs through the API and links in the browser) and an Approver (accepts and activates)
-- **Owns** (exclusive server-side state): its two throwaway users (unique `E2E Driver-*` / `E2E Approver-*` names), plus a third (`E2E Squatter-*`) in the detach scenario, two more (`E2E Other Driver-*` / `E2E Other Approver-*`) in the acceptance scenario, and the ADRs (unique
+- **Owns** (exclusive server-side state): its two throwaway users (unique `E2E Driver-*` / `E2E Approver-*` names), plus a third (`E2E Squatter-*`) in the detach scenario, two more (`E2E Other Driver-*` / `E2E Other Approver-*`) in the acceptance scenario (the withdrawal scenario creates an `E2E Other Driver-*` too), and the ADRs (unique
   `e2e-adr-*` names) the Driver raises with the Approver named — all deleted through the API after each test, the ADRs first
 
 ## Scenario: a draft successor is linked to an ACTIVE ADR and activated, and the predecessor shows SUPERSEDED with the banner
@@ -44,6 +44,20 @@
 2. The Driver signs in and opens the FIRST. Its **Successor** section reads "Set to replace this ADR" (the second). They pick the second in the
    picker and press **Link**.
    - *Expected*: an alert in the section says the link would close a loop of successors; the section still reads "Replaces no ADR.".
+
+## Scenario: withdrawing the decision a draft was set to replace tells the draft's Driver and the withdrawn ADR stops listing it
+
+1. The Driver raises a complete ADR with the Approver through the API and it goes active. A second, throwaway Driver (who holds no role on
+   it) raises a draft of their own and, through the API, links it to the active ADR. The Approver then withdraws the active ADR (API).
+2. The second Driver signs in.
+   - *Expected*: the bell reads "Notifications (1 unseen)"; opening it shows "<old key>, which <draft key> was set to replace, is now
+     Withdrawn".
+3. They open the draft.
+   - *Expected*: its History reads "<old key>, which this ADR was set to replace, is now Withdrawn"; its **Successor** section says the
+     predecessor is no longer in force (Withdrawn) and the link is still there.
+4. They open the withdrawn ADR.
+   - *Expected*: its status is **Withdrawn**, there is no "A successor is proposed" banner, and its **Successor** section no longer reads
+     "Set to replace this ADR" nor links to the draft.
 
 ## Scenario: the successor's Approver cannot activate over a decision in force until its Approver accepts the link
 

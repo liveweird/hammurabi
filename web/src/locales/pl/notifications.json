@@ -28,7 +28,8 @@
     "EXPIRY_REMINDER": "{{key}} wygasa {{date}}",
     "EXPIRY_CHANGED": "{{actor}} zmienił/a datę wygaśnięcia {{key}} na {{date}}",
     "EXPIRY_REMOVED": "{{actor}} usunął/usunęła datę wygaśnięcia {{key}}",
-    "SUCCESSOR_ACCEPTED": "{{actor}} zaakceptował/a {{key}} jako zastępujący {{other}}"
+    "SUCCESSOR_ACCEPTED": "{{actor}} zaakceptował/a {{key}} jako zastępujący {{other}}",
+    "PREDECESSOR_ENDED": "{{other}}, który miał zostać zastąpiony przez {{key}}, ma teraz status „{{status}}”"
   },
   "toast": {
     "preferencesSaved": "Zapisano preferencje powiadomień"
@@ -96,6 +97,10 @@
       "SUCCESSOR_ACCEPTED": {
         "label": "Następca zostaje zaakceptowany",
         "description": "Zatwierdzający obowiązującej decyzji akceptuje następcę, którego prowadzisz lub zatwierdzasz; bez tego nie zajmie on jej miejsca."
+      },
+      "PREDECESSOR_ENDED": {
+        "label": "Kończy się poprzednik Twojego ADR-a",
+        "description": "ADR, który następca prowadzony lub zatwierdzany przez Ciebie miał zastąpić, zostaje anulowany, wycofany albo wygasa. Usuń powiązanie, zanim Twój ADR zostanie aktywowany."
       }
     }
   }

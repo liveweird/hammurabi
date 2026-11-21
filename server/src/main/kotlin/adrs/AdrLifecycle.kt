@@ -36,6 +36,14 @@ val SYSTEM_STATUSES: Set<AdrStatus> = setOf(AdrStatus.EXPIRED, AdrStatus.SUPERSE
 val AdrStatus.terminal: Boolean
     get() = ALLOWED_TRANSITIONS.getValue(this).isEmpty()
 
+/**
+ * An ending that replaces nothing: terminal, but not `SUPERSEDED` (`CANCELLED`, `WITHDRAWN`, `EXPIRED`). The ONE rule behind "the successor
+ * set to replace this ADR will never do it": the successor is told when its predecessor reaches such a status, and the predecessor stops
+ * listing it (`adr-model.md` "Successors").
+ */
+val AdrStatus.endedUnreplaced: Boolean
+    get() = terminal && this != AdrStatus.SUPERSEDED
+
 /** The Markdown content and the name are editable only before the decision is in force (the three pre-decision states). */
 val AdrStatus.contentEditable: Boolean
     get() = this == AdrStatus.PROBLEM_RAISED || this == AdrStatus.SOLUTION_DRAFT || this == AdrStatus.IN_REVIEW

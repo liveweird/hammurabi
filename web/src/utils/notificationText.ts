@@ -48,6 +48,9 @@ export function describeNotification(n: NotificationItem, t: TFunction): string 
     case "SUCCESSOR_ACCEPTED":
     case "EXPIRY_REMINDER":
       return t(`notifications.event.${n.type}`, params);
+    case "PREDECESSOR_ENDED":
+      // The notice is about the successor (`key`); `other` is the predecessor that ended and the detail its new status.
+      return t("notifications.event.PREDECESSOR_ENDED", { ...params, status: statusWord(n.detail, t) });
     case "EXPIRY_CHANGED":
       // The server's detail is the new date; absent means the date was removed (its own sentence).
       return n.detail === null

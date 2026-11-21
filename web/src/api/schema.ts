@@ -618,7 +618,7 @@ export interface paths {
          *       - `expiresBefore` - a day (`YYYY-MM-DD`): the ADRs with an expiry date strictly before it (any status; an ADR with no expiry date never matches).
          *       - `hasOpenIssues` - `true` keeps the ADRs with an open issue or escalation (`openIssueCount > 0`), `false` the others.
          *       - `hasPredecessor` - `true` keeps the ADRs that replace another (a live predecessor), `false` the others.
-         *       - `hasSuccessor` - `true` keeps the ADRs that have a successor (pending, or the one that replaced them; never one cancelled or withdrawn before it activated), `false` the others.
+         *       - `hasSuccessor` - `true` keeps the ADRs that have a successor (pending, or the one that replaced them; never one cancelled or withdrawn before it activated, and never a pending one whose predecessor was since cancelled, withdrawn or expired), `false` the others.
          *       A saved combination of these is a lens (`/lenses`): the lens's `filters` use exactly these names.
          */
         get: operations["listAdrs"];
@@ -770,6 +770,10 @@ export interface paths {
          *     `SOLUTION_DRAFT`) is the Approver's or the Driver's (or `ADMIN`'s). A sent-back ADR goes back to drafting: it keeps its content, participants and tags, the Approver
          *     must review it again, and the next move to `IN_REVIEW` re-checks the required fields. A withdrawn ADR is terminal; a successor linked to a
          *     withdrawn predecessor cannot be activated until the link is removed.
+         *     Cancelling, withdrawing or expiring (the sweep) an ADR that has a PENDING successor (one still pre-active, set to replace it) ALSO
+         *     records a `PREDECESSOR_ENDED` event on that successor in the same transaction and
+         *     notifies the successor's Driver and Approver (`PREDECESSOR_ENDED`, the actor excepted); the successor keeps its link, its revision does not
+         *     move, and from then on the ended ADR no longer lists it as `supersededBy`.
          *
          *     The optional `reason` (free text, at most 1000 code points) is kept in the `TRANSITIONED` event and shown in the history; it is
          *     accepted on every move, asked for by the send back and the withdrawal, and never reaches a notice or an email.
@@ -1705,7 +1709,7 @@ export interface components {
             supersedes: components["schemas"]["AdrRef"] | null;
             /** @description The predecessor's Approver (or ADMIN) accepted the link in `supersedes` (false when there is none). Activating over an `ACTIVE` predecessor needs it. */
             supersedesAccepted: boolean;
-            /** @description The ADR replacing this one - its pending successor, or once this one is `SUPERSEDED` the one that replaced it, even if that one was withdrawn after it took effect; never one cancelled or withdrawn before it activated. Null for none. */
+            /** @description The ADR replacing this one - its pending successor, or once this one is `SUPERSEDED` the one that replaced it, even if that one was withdrawn after it took effect; never one cancelled or withdrawn before it activated, and never a pending one once this ADR was itself cancelled, withdrawn or expired (the successor keeps the link until its Driver removes it). Null for none. */
             supersededBy: components["schemas"]["AdrRef"] | null;
             /** @description The link to `supersededBy` was accepted by this ADR's Approver (or ADMIN); always true once it took effect, false when there is none. */
             supersededByAccepted: boolean;
@@ -1908,10 +1912,10 @@ export interface components {
             awaitingDecision: components["schemas"]["AdrAwaitingSection"];
         };
         /**
-         * @description The kinds of history, with their `params` (all strings): `CREATED` {key, name}; `UPDATED` {changed: comma-joined field names, `name.from`/`name.to`/`expiresOn.from`/`expiresOn.to` where short}; `TRANSITIONED` {from, to, reason?} (the optional free-text reason of the move, 0.7.0); `PARTICIPANT_ADDED` and `PARTICIPANT_REMOVED` {userId, name, role}; `PARTICIPANT_CHANGED` {userId, name, from, to}; `EXPIRED` {expiresOn}, a system event; `SUPERSEDED` {successorId, key, name}, on the predecessor, when its successor became `ACTIVE` (the actor is the user who activated it); `SUCCESSOR_ACTIVATED` {predecessorId, key, name}, on the successor, in the same transaction; `TAGS_CHANGED` {added, removed}, comma-joined tag names, each key only when non-empty; `SUCCESSOR_LINKED` / `SUCCESSOR_UNLINKED` {predecessorId, key, name}, on the successor (a `SUCCESSOR_UNLINKED` is also written on the predecessor when its owner detaches the pending successor, then {successorId, key, name}); `SUCCESSOR_ACCEPTED` {predecessorId, key, name} on the successor and {successorId, key, name} on the predecessor when the predecessor's Approver (or an administrator) accepted the pending successor. The discussion events (`COMMENTED`, `QUESTION_ASKED`, `QUESTION_ANSWERED`, `QUESTION_REOPENED`, `ISSUE_RAISED`, `ESCALATED`, `ISSUE_RESOLVED`, `ISSUE_REOPENED`) carry {entryId, kind} - never the text; an edit or a delete of an entry is not an event.
+         * @description The kinds of history, with their `params` (all strings): `CREATED` {key, name}; `UPDATED` {changed: comma-joined field names, `name.from`/`name.to`/`expiresOn.from`/`expiresOn.to` where short}; `TRANSITIONED` {from, to, reason?} (the optional free-text reason of the move, 0.7.0); `PARTICIPANT_ADDED` and `PARTICIPANT_REMOVED` {userId, name, role}; `PARTICIPANT_CHANGED` {userId, name, from, to}; `EXPIRED` {expiresOn}, a system event; `SUPERSEDED` {successorId, key, name}, on the predecessor, when its successor became `ACTIVE` (the actor is the user who activated it); `SUCCESSOR_ACTIVATED` {predecessorId, key, name}, on the successor, in the same transaction; `TAGS_CHANGED` {added, removed}, comma-joined tag names, each key only when non-empty; `SUCCESSOR_LINKED` / `SUCCESSOR_UNLINKED` {predecessorId, key, name}, on the successor (a `SUCCESSOR_UNLINKED` is also written on the predecessor when its owner detaches the pending successor, then {successorId, key, name}); `SUCCESSOR_ACCEPTED` {predecessorId, key, name} on the successor and {successorId, key, name} on the predecessor when the predecessor's Approver (or an administrator) accepted the pending successor; `PREDECESSOR_ENDED` {predecessorId, key, name, status}, on the pending successor, when the ADR it was set to replace was cancelled, withdrawn or expired (`status` is the new one; the actor is who ended it, none for the expiry sweep). The discussion events (`COMMENTED`, `QUESTION_ASKED`, `QUESTION_ANSWERED`, `QUESTION_REOPENED`, `ISSUE_RAISED`, `ESCALATED`, `ISSUE_RESOLVED`, `ISSUE_REOPENED`) carry {entryId, kind} - never the text; an edit or a delete of an entry is not an event.
          * @enum {string}
          */
-        AdrEventType: "CREATED" | "UPDATED" | "TRANSITIONED" | "PARTICIPANT_ADDED" | "PARTICIPANT_REMOVED" | "PARTICIPANT_CHANGED" | "EXPIRED" | "SUPERSEDED" | "TAGS_CHANGED" | "SUCCESSOR_LINKED" | "SUCCESSOR_UNLINKED" | "SUCCESSOR_ACTIVATED" | "SUCCESSOR_ACCEPTED" | "COMMENTED" | "QUESTION_ASKED" | "QUESTION_ANSWERED" | "QUESTION_REOPENED" | "ISSUE_RAISED" | "ESCALATED" | "ISSUE_RESOLVED" | "ISSUE_REOPENED";
+        AdrEventType: "CREATED" | "UPDATED" | "TRANSITIONED" | "PARTICIPANT_ADDED" | "PARTICIPANT_REMOVED" | "PARTICIPANT_CHANGED" | "EXPIRED" | "SUPERSEDED" | "TAGS_CHANGED" | "SUCCESSOR_LINKED" | "SUCCESSOR_UNLINKED" | "SUCCESSOR_ACTIVATED" | "SUCCESSOR_ACCEPTED" | "COMMENTED" | "QUESTION_ASKED" | "QUESTION_ANSWERED" | "QUESTION_REOPENED" | "ISSUE_RAISED" | "ESCALATED" | "ISSUE_RESOLVED" | "ISSUE_REOPENED" | "PREDECESSOR_ENDED";
         AdrEventResponse: {
             /** Format: int32 */
             id: number;
@@ -2013,10 +2017,10 @@ export interface components {
             canDelete: boolean;
         };
         /**
-         * @description What happened. `ROLE_ASSIGNED` / `ROLE_REMOVED` (`detail` = the DACI role), `STATUS_CHANGED` (`detail` = the new status, or `SENT_BACK` for an in-review ADR returned to draft; every participant, Informed included, never the reason), `DISCUSSION_POSTED` (`detail` = the entry kind; the Driver and the Approver, Contributors too for a comment or a question), `DISCUSSION_SETTLED` (`detail` = the kind; the author of the answered question or resolved issue), `ADR_EXPIRED` (`detail` = the expiry date) and `ADR_SUPERSEDED` (`otherAdr` = the successor) for every participant, `SUCCESSOR_LINKED` / `SUCCESSOR_UNLINKED` (the predecessor's Driver and Approver; `adr` is the predecessor, `otherAdr` the successor) and `EXPIRY_REMINDER` (`detail` = the expiry date; the Driver and the Approver; a system notice) and `EXPIRY_CHANGED` (the expiry date of an `ACTIVE` ADR was changed or removed; `detail` = the new date, null = removed; every participant, the actor excepted) and `SUCCESSOR_ACCEPTED` (the predecessor's Approver accepted a successor: `adr` is the successor, `otherAdr` the predecessor it replaces; the successor's Driver and Approver). A client treats an unknown value as plain text.
+         * @description What happened. `ROLE_ASSIGNED` / `ROLE_REMOVED` (`detail` = the DACI role), `STATUS_CHANGED` (`detail` = the new status, or `SENT_BACK` for an in-review ADR returned to draft; every participant, Informed included, never the reason), `DISCUSSION_POSTED` (`detail` = the entry kind; the Driver and the Approver, Contributors too for a comment or a question), `DISCUSSION_SETTLED` (`detail` = the kind; the author of the answered question or resolved issue), `ADR_EXPIRED` (`detail` = the expiry date) and `ADR_SUPERSEDED` (`otherAdr` = the successor) for every participant, `SUCCESSOR_LINKED` / `SUCCESSOR_UNLINKED` (the predecessor's Driver and Approver; `adr` is the predecessor, `otherAdr` the successor) and `EXPIRY_REMINDER` (`detail` = the expiry date; the Driver and the Approver; a system notice) and `EXPIRY_CHANGED` (the expiry date of an `ACTIVE` ADR was changed or removed; `detail` = the new date, null = removed; every participant, the actor excepted) and `SUCCESSOR_ACCEPTED` (the predecessor's Approver accepted a successor: `adr` is the successor, `otherAdr` the predecessor it replaces; the successor's Driver and Approver) and `PREDECESSOR_ENDED` (the ADR a successor was set to replace was cancelled, withdrawn or expired: `adr` is the successor, `otherAdr` the predecessor that ended and `detail` its new status; the successor's Driver and Approver, the actor excepted). A client treats an unknown value as plain text.
          * @enum {string}
          */
-        NotificationType: "ROLE_ASSIGNED" | "ROLE_REMOVED" | "STATUS_CHANGED" | "DISCUSSION_POSTED" | "DISCUSSION_SETTLED" | "ADR_EXPIRED" | "ADR_SUPERSEDED" | "SUCCESSOR_LINKED" | "SUCCESSOR_UNLINKED" | "EXPIRY_REMINDER" | "EXPIRY_CHANGED" | "SUCCESSOR_ACCEPTED";
+        NotificationType: "ROLE_ASSIGNED" | "ROLE_REMOVED" | "STATUS_CHANGED" | "DISCUSSION_POSTED" | "DISCUSSION_SETTLED" | "ADR_EXPIRED" | "ADR_SUPERSEDED" | "SUCCESSOR_LINKED" | "SUCCESSOR_UNLINKED" | "EXPIRY_REMINDER" | "EXPIRY_CHANGED" | "SUCCESSOR_ACCEPTED" | "PREDECESSOR_ENDED";
         Notification: {
             /** Format: int32 */
             id: number;
@@ -2561,7 +2565,7 @@ export interface components {
         AdrFilterHasOpenIssues: boolean;
         /** @description Replaces (`true`) or does not replace (`false`) another ADR. */
         AdrFilterHasPredecessor: boolean;
-        /** @description Has (`true`) or has no (`false`) successor. */
+        /** @description Has (`true`) or has no (`false`) successor in play or in effect (never one whose predecessor was cancelled, withdrawn or expired). */
         AdrFilterHasSuccessor: boolean;
         /** @description A discussion entry of the ADR in the path; one of another ADR is `404`. */
         DiscussionEntryId: number;
@@ -3474,7 +3478,7 @@ export interface operations {
                 hasOpenIssues?: components["parameters"]["AdrFilterHasOpenIssues"];
                 /** @description Replaces (`true`) or does not replace (`false`) another ADR. */
                 hasPredecessor?: components["parameters"]["AdrFilterHasPredecessor"];
-                /** @description Has (`true`) or has no (`false`) successor. */
+                /** @description Has (`true`) or has no (`false`) successor in play or in effect (never one whose predecessor was cancelled, withdrawn or expired). */
                 hasSuccessor?: components["parameters"]["AdrFilterHasSuccessor"];
             };
             header?: never;
@@ -3568,7 +3572,7 @@ export interface operations {
                 hasOpenIssues?: components["parameters"]["AdrFilterHasOpenIssues"];
                 /** @description Replaces (`true`) or does not replace (`false`) another ADR. */
                 hasPredecessor?: components["parameters"]["AdrFilterHasPredecessor"];
-                /** @description Has (`true`) or has no (`false`) successor. */
+                /** @description Has (`true`) or has no (`false`) successor in play or in effect (never one whose predecessor was cancelled, withdrawn or expired). */
                 hasSuccessor?: components["parameters"]["AdrFilterHasSuccessor"];
             };
             header?: never;

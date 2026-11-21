@@ -28,6 +28,9 @@ describe("describeAdrEvent", () => {
     [{ type: "SUCCESSOR_ACTIVATED" as const, params: {} }, "Activated and superseded —"],
     [{ type: "SUCCESSOR_ACCEPTED" as const, params: { predecessorId: "3", key: "ADR-0003", name: "Old" } }, "Accepted to replace ADR-0003"],
     [{ type: "SUCCESSOR_ACCEPTED" as const, params: { successorId: "9", key: "ADR-0009", name: "New" } }, "Accepted ADR-0009 as its successor"],
+    [{ type: "PREDECESSOR_ENDED" as const, params: { predecessorId: "3", key: "ADR-0003", name: "Old", status: "WITHDRAWN" } }, "ADR-0003, which this ADR was set to replace, is now Withdrawn"],
+    [{ type: "PREDECESSOR_ENDED" as const, params: { predecessorId: "3", key: "ADR-0003", name: "Old", status: "FUTURE" } }, "ADR-0003, which this ADR was set to replace, is now FUTURE"],
+    [{ type: "PREDECESSOR_ENDED" as const, params: {} }, "—, which this ADR was set to replace, is now —"],
     [{ type: "COMMENTED" as const, params: { entryId: "3", kind: "COMMENT" } }, "Comment added"],
     [{ type: "QUESTION_ASKED" as const, params: { entryId: "3", kind: "QUESTION" } }, "Question asked"],
     [{ type: "QUESTION_ANSWERED" as const, params: { entryId: "3", kind: "QUESTION" } }, "Question answered"],
@@ -85,7 +88,7 @@ describe("adrEventLines", () => {
     expect(adrEventLines(eventFixture({ type: "TAGS_CHANGED", params: { added: "data,team", removed: "old tag" } }), t)).toEqual(["Added: data, team", "Removed: old tag"]);
     expect(adrEventLines(eventFixture({ type: "TAGS_CHANGED", params: { removed: "x" } }), t)).toEqual(["Removed: x"]);
     expect(adrEventLines(eventFixture({ type: "TAGS_CHANGED", params: {} }), t)).toEqual([]);
-    for (const type of ["SUPERSEDED", "SUCCESSOR_LINKED", "SUCCESSOR_UNLINKED", "SUCCESSOR_ACTIVATED", "SUCCESSOR_ACCEPTED"] as const) {
+    for (const type of ["SUPERSEDED", "SUCCESSOR_LINKED", "SUCCESSOR_UNLINKED", "SUCCESSOR_ACTIVATED", "SUCCESSOR_ACCEPTED", "PREDECESSOR_ENDED"] as const) {
       expect(adrEventLines(eventFixture({ type, params: { key: "ADR-0003", name: "Old" } }), t)).toEqual(['"Old"']);
     }
     expect(adrEventLines(eventFixture({ type: "SUCCESSOR_LINKED", params: {} }), t)).toEqual(['"—"']);

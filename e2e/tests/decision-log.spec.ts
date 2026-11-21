@@ -1,13 +1,14 @@
 // The decision log in the browser (0.9.0): the read-only overview page. A decision that became active shows under its tag and in "Recently
 // decided", one that expires in five days in "Expiring soon", and an ADR in review shows as the Approver's own (highlighted, counted and
 // linked to their review queue) while the Driver sees it plain. The caps, the horizon, the grouping rules and the ordering are the server's
-// (`AdrOverviewTest`, `AdrOverviewCapsTest`) and the page's (`DecisionLog.test.tsx`); this asserts what a person SEES. Owns: its two
+// (`AdrOverviewTest`, `AdrOverviewCapsTest`) and the page's (`DecisionLog.test.tsx`); this asserts what a person SEES, including the
+// Approver's validity-extension path out of the expiring queue. Owns: its two
 // throwaway users (a Driver and an Approver), its ADRs (unique `e2e-adr-*` names) and its throwaway tag category (a unique `E2E Log
 // Category` with an `e2e-tag-log-*` tag; the registry is shared, append-only state and the seeded categories are never touched) - all
 // deleted through the API in afterEach (the ADRs, then the category, then the users). The page's sections are GLOBAL and capped (the newest few ADRs of every
 // user), so this spec runs in the config's second phase (`global-readers`, after the parallel pool) where no other spec activates or reviews at the same time.
 import type { APIRequestContext } from "@playwright/test";
-import { apiAs, apiAsAdmin, completeAdrBody, createAdrViaApi, createUserViaApi, deleteViaApi, expect, login, test, transitionViaApi, uniqueText, utcDayFromNow } from "./helpers";
+import { apiAs, apiAsAdmin, completeAdrBody, createAdrViaApi, createUserViaApi, deleteViaApi, expect, login, signOut, test, transitionViaApi, uniqueText, utcDayFromNow } from "./helpers";
 
 type Person = Awaited<ReturnType<typeof createUserViaApi>>;
 
@@ -115,5 +116,71 @@ test.describe("the decision log", () => {
     await expect(driversRow).toBeVisible();
     await expect(driversRow.getByText("Needs your decision")).toHaveCount(0);
     await expect(page.getByRole("link", { name: /waiting for your decision/ })).toHaveCount(0);
+  });
+
+  test("an Approver extends an active ADR out of the expiring queue and the Driver is told", async ({ page }) => {
+    const overviewResponse = await approverApi.get("/api/v1/adrs/overview");
+    expect(overviewResponse.status(), await overviewResponse.text()).toBe(200);
+    const overview = (await overviewResponse.json()) as { generatedAt: number; expiringSoon: { days: number } };
+    const day = (offset: number) => new Date(overview.generatedAt + offset * 86_400_000).toISOString().slice(0, 10);
+    const originalLastDay = day(Math.min(5, overview.expiringSoon.days - 1));
+    const withinHorizon = day(Math.min(10, overview.expiringSoon.days));
+    const beyondHorizon = day(overview.expiringSoon.days + 5);
+    // `expiresBefore` is strict, so the day after the configured horizon covers the same dates as Expiring soon.
+    const cutoff = day(overview.expiringSoon.days + 1);
+    const expiring = await raise({ expiresOn: originalLastDay });
+    await transitionViaApi(driverApi, expiring.id, "IN_REVIEW");
+    await transitionViaApi(approverApi, expiring.id, "ACTIVE");
+
+    await login(page, approver.email, approver.password);
+    await page.goto("/decision-log");
+    const soon = page.getByRole("region", { name: "Expiring soon" });
+    await soon.getByRole("link", { name: new RegExp(expiring.name) }).click();
+    await expect(page).toHaveURL(new RegExp(`/adrs/${expiring.id}#validity$`));
+
+    // A short extension remains in both the overview's horizon and an equivalent fixed list filter.
+    const validity = page.getByRole("region", { name: "Validity" });
+    await expect(validity).toBeFocused();
+    await validity.getByRole("button", { name: "Extend validity", exact: true }).click();
+    await validity.getByLabel("New last day").fill(withinHorizon);
+    await validity.getByRole("button", { name: "Extend validity", exact: true }).click();
+    await expect(validity.getByText(withinHorizon)).toBeVisible();
+    await page.goto("/decision-log");
+    await expect(soon.getByRole("link", { name: new RegExp(expiring.name) })).toBeVisible();
+    await page.goto(`/adrs?status=ACTIVE&expiresBefore=${cutoff}`);
+    await expect(page.getByRole("link", { name: `Open ${expiring.key}: ${expiring.name}` })).toBeVisible();
+
+    // A longer extension leaves both views while keeping the decision active and updating its lifecycle.
+    await page.goto("/decision-log");
+    await soon.getByRole("link", { name: new RegExp(expiring.name) }).click();
+    await validity.getByRole("button", { name: "Extend validity", exact: true }).click();
+    await validity.getByLabel("New last day").fill(beyondHorizon);
+    await validity.getByRole("button", { name: "Extend validity", exact: true }).click();
+    await expect(validity.getByText(beyondHorizon)).toBeVisible();
+    await expect(page.getByRole("region", { name: "Status" }).getByText("Active", { exact: true })).toBeVisible();
+    await expect(page.getByText(`Expiry date: ${withinHorizon} → ${beyondHorizon}`)).toBeVisible();
+    await page.getByRole("tab", { name: "Lifecycle", exact: true }).click();
+    await expect(page.getByRole("tabpanel", { name: "Lifecycle" }).getByText(new RegExp(beyondHorizon))).toBeVisible();
+    await page.goto("/decision-log");
+    await expect(soon).toBeVisible();
+    await expect(soon.getByRole("link", { name: new RegExp(expiring.name) })).toHaveCount(0);
+    const response = page.waitForResponse((r) => {
+      const url = new URL(r.url());
+      return url.pathname === "/api/v1/adrs" && url.searchParams.get("expiresBefore") === cutoff && r.ok();
+    });
+    await page.goto(`/adrs?status=ACTIVE&expiresBefore=${cutoff}`);
+    const filtered = await response;
+    const list = (await filtered.json()) as { items: { id: number }[] };
+    expect(list.items.some(({ id }) => id === expiring.id)).toBe(false);
+    await expect(page.getByRole("link", { name: `Open ${expiring.key}: ${expiring.name}` })).toHaveCount(0);
+
+    // The existing expiry-change notice tells the Driver who moved the last day and where it moved to.
+    await signOut(page);
+    await login(page, driver.email, driver.password);
+    await page.getByRole("button", { name: /^Notifications \(\d+ unseen\)$/ }).click();
+    const drawer = page.getByRole("dialog", { name: "Notifications" });
+    await expect(
+      drawer.getByRole("link", { name: new RegExp(`${approver.name} changed the expiry date of ${expiring.key} to ${beyondHorizon}`) }),
+    ).toBeVisible();
   });
 });

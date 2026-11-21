@@ -179,6 +179,15 @@
     "expiryHint": "The last day the decision is in force. Empty clears it.",
     "editExpiryAria": "Edit the expiry date"
   },
+  "validity": {
+    "title": "Validity",
+    "lastDay": "Last day in force",
+    "extend": "Extend validity",
+    "newLastDay": "New last day",
+    "laterDate": "Choose a date after {{date}}.",
+    "extended": "Validity extended to {{date}}",
+    "unavailable": "The expiry date can no longer be changed for this ADR."
+  },
   "history": {
     "empty": "No history yet.",
     "system": "System",
@@ -296,6 +305,7 @@
     },
     "auto": {
       "EXPIRED": "automatic, when the expiry date passes",
+      "EXPIRED_ON": "automatic after {{date}}, the last day in force",
       "SUPERSEDED": "automatic, when its successor is activated"
     }
   },

@@ -179,6 +179,15 @@
     "expiryHint": "Ostatni dzień obowiązywania decyzji. Puste pole usuwa datę.",
     "editExpiryAria": "Edytuj datę wygaśnięcia"
   },
+  "validity": {
+    "title": "Ważność",
+    "lastDay": "Ostatni dzień obowiązywania",
+    "extend": "Przedłuż ważność",
+    "newLastDay": "Nowy ostatni dzień obowiązywania",
+    "laterDate": "Wybierz datę późniejszą niż {{date}}.",
+    "extended": "Przedłużono ważność do {{date}}",
+    "unavailable": "Nie można już zmienić daty wygaśnięcia tego ADR-u."
+  },
   "history": {
     "empty": "Brak historii.",
     "system": "System",
@@ -296,6 +305,7 @@
     },
     "auto": {
       "EXPIRED": "automatycznie, gdy minie data wygaśnięcia",
+      "EXPIRED_ON": "automatycznie po {{date}}, ostatnim dniu obowiązywania",
       "SUPERSEDED": "automatycznie, gdy aktywowany zostanie jego następca"
     }
   },

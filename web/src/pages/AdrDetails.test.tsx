@@ -1,6 +1,7 @@
 import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
 import userEvent from "@testing-library/user-event";
-import { Route, Routes, useLocation } from "react-router-dom";
+import { Route, Routes, useLocation, useNavigate } from "react-router-dom";
+import { QueryClient } from "@tanstack/react-query";
 import type { AdrResponse } from "../api/adrs";
 import { adrFixture, discussionPageFixture, entryFixture, eventFixture } from "../test/adrFixtures";
 import { noContent, problem, stubFetch } from "../test/fetchStub";
@@ -14,6 +15,7 @@ vi.mock("../components/MarkdownRichEditor", () => import("../test/markdownRichEd
 
 const saveFile = vi.fn();
 vi.mock("../utils/saveFile", () => ({ saveFile: (download: unknown) => saveFile(download) }));
+const originalScrollIntoView = HTMLElement.prototype.scrollIntoView;
 
 const PEOPLE = [
   { userId: 5, name: "Dana Driver", role: "DRIVER" as const },
@@ -24,6 +26,17 @@ const PEOPLE = [
 function Probe() {
   const { pathname } = useLocation();
   return <p>at {pathname}</p>;
+}
+
+function ValidityNavigation() {
+  const navigate = useNavigate();
+  return (
+    <>
+      <button onClick={() => navigate("/adrs/1#validity")}>Open validity</button>
+      <button onClick={() => navigate("/adrs/1")}>Open ADR</button>
+      <button onClick={() => navigate(-1)}>Back</button>
+    </>
+  );
 }
 
 function renderDetails(route = "/adrs/1") {
@@ -56,11 +69,13 @@ describe("AdrDetails page", () => {
   });
   afterEach(() => {
     saveFile.mockReset();
+    if (originalScrollIntoView) HTMLElement.prototype.scrollIntoView = originalScrollIntoView;
+    else Reflect.deleteProperty(HTMLElement.prototype, "scrollIntoView");
     vi.unstubAllGlobals();
     localStorage.clear();
   });
 
-  test("the main pane holds the sections, the side panel Status, DACI, Tags, Successor, Details and History — one heading outline", async () => {
+  test("the main pane and side panel share one heading outline", async () => {
     serve({ adr: adrFixture({ participants: PEOPLE, context: "Because." }) });
     renderDetails();
     expect(await screen.findByRole("heading", { level: 2, name: "Use PostgreSQL" })).toBeInTheDocument();
@@ -74,6 +89,7 @@ describe("AdrDetails page", () => {
       [3, "Alternatives considered"],
       [3, "Consequences / side effects"],
       [3, "Status"],
+      [3, "Validity"],
       [3, "DACI"],
       [3, "Tags"],
       [3, "Successor"],
@@ -83,6 +99,55 @@ describe("AdrDetails page", () => {
     expect(screen.getByText("We need a database.")).toBeInTheDocument();
     expect(screen.getByText("Because.")).toBeInTheDocument();
     expect(screen.getByRole("link", { name: "Back to the ADRs" })).toHaveAttribute("href", "/adrs");
+  });
+
+  test("a validity deep link focuses and scrolls its section after the ADR loads, once for that navigation", async () => {
+    const scrollIntoView = vi.fn();
+    HTMLElement.prototype.scrollIntoView = scrollIntoView;
+    const state = { adr: adrFixture({ participants: PEOPLE }) };
+    const stub = serve(state);
+    const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    renderWithProviders(
+      <Routes>
+        <Route path="/adrs/:id" element={<AdrDetails />} />
+      </Routes>,
+      { route: "/adrs/1#validity", queryClient },
+    );
+    await screen.findByRole("heading", { level: 2, name: "Use PostgreSQL" });
+    const target = screen.getByRole("region", { name: "Validity" });
+    await waitFor(() => expect(target).toHaveFocus());
+    expect(scrollIntoView).toHaveBeenCalledTimes(1);
+    const readsBeforeRefresh = stub.count("GET", "/api/v1/adrs/1");
+    state.adr = { ...state.adr, revision: state.adr.revision + 1 };
+    await queryClient.invalidateQueries({ queryKey: ["adrs", "detail", 1] });
+    await waitFor(() => expect(stub.count("GET", "/api/v1/adrs/1")).toBeGreaterThan(readsBeforeRefresh));
+    expect(scrollIntoView).toHaveBeenCalledTimes(1);
+  });
+
+  test("same-ADR navigation to the validity hash focuses and scrolls the section", async () => {
+    const scrollIntoView = vi.fn();
+    HTMLElement.prototype.scrollIntoView = scrollIntoView;
+    serve({ adr: adrFixture({ participants: PEOPLE }) });
+    const user = userEvent.setup();
+    renderWithProviders(
+      <>
+        <ValidityNavigation />
+        <Routes>
+          <Route path="/adrs/:id" element={<AdrDetails />} />
+        </Routes>
+      </>,
+      { route: "/adrs/1" },
+    );
+    await screen.findByRole("heading", { level: 2, name: "Use PostgreSQL" });
+    const target = screen.getByRole("region", { name: "Validity" });
+    expect(target).not.toHaveFocus();
+    await user.click(screen.getByRole("button", { name: "Open validity" }));
+    await waitFor(() => expect(target).toHaveFocus());
+    expect(scrollIntoView).toHaveBeenCalledTimes(1);
+    await user.click(screen.getByRole("button", { name: "Open ADR" }));
+    await user.click(screen.getByRole("button", { name: "Back" }));
+    await waitFor(() => expect(target).toHaveFocus());
+    expect(scrollIntoView).toHaveBeenCalledTimes(2);
   });
 
   test("Export Markdown downloads this ADR's file - for a reader with no role on it too - under the server's name", async () => {

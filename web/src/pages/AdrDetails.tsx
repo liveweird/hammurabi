@@ -1,6 +1,6 @@
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { useNavigate, useParams } from "react-router-dom";
+import { useLocation, useNavigate, useParams } from "react-router-dom";
 import { Button, Grid, Paper, Stack } from "@mantine/core";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { IconPencil, IconTrash } from "@tabler/icons-react";
@@ -17,7 +17,7 @@ import ConfirmDeleteModal from "../components/ConfirmDeleteModal";
 import EditPageLoadState from "../components/EditPageLoadState";
 import PageHeader from "../components/PageHeader";
 import { useDeleteConfirm } from "../hooks/useDeleteConfirm";
-import { adrsPath } from "../utils/adrLinks";
+import { ADR_VALIDITY_ID, adrsPath } from "../utils/adrLinks";
 import { refreshQueriesAfterMutation } from "../utils/queryRefresh";
 import { loadErrorMessage, saveErrorMessage } from "../utils/saveError";
 import styles from "./AdrWorkspace.module.css";
@@ -35,6 +35,7 @@ export default function AdrDetails() {
 
 function AdrDetailsPage({ id }: { id: number }) {
   const { t } = useTranslation();
+  const location = useLocation();
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const admin = useAdmin();
@@ -44,6 +45,20 @@ function AdrDetailsPage({ id }: { id: number }) {
   // Set once the ADR is deleted: the page is on its way out and must not fetch the 404 of the ADR it just removed.
   const [deleted, setDeleted] = useState(false);
   const adr = useQuery({ queryKey: ["adrs", "detail", id], queryFn: () => getAdr(id), enabled: Number.isInteger(id) && id > 0 && !deleted });
+  const handledValidityNavigation = useRef<string | null>(null);
+
+  useEffect(() => {
+    if (location.hash !== `#${ADR_VALIDITY_ID}`) {
+      handledValidityNavigation.current = null;
+      return;
+    }
+    if (!adr.data || handledValidityNavigation.current === location.key) return;
+    const target = document.getElementById(ADR_VALIDITY_ID);
+    if (!target) return;
+    handledValidityNavigation.current = location.key;
+    target.focus({ preventScroll: true });
+    target.scrollIntoView({ block: "start" });
+  }, [adr.data, location.hash, location.key]);
 
   const remove = useDeleteConfirm<AdrResponse>({
     mutationFn: (row) => deleteAdr(row.id),

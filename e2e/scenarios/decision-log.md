@@ -36,6 +36,20 @@
 4. The Driver signs in and opens `/decision-log`.
    - *Expected*: the same ADR is listed in **Awaiting decision**, without the badge, and no "waiting for your decision" link is offered.
 
+## Scenario: an Approver extends an active ADR out of the expiring queue and the Driver is told
+
+1. The Driver raises a complete ADR with a last day inside the server's configured expiry window, sends it to review, and the Approver activates it.
+2. The Approver signs in, opens `/decision-log`, and clicks the ADR's title in **Expiring soon**.
+   - *Expected*: the ADR page opens at `/adrs/<id>#validity` and focus moves to **Validity**.
+3. In **Validity**, they choose **Extend validity**, enter a later day that is still inside the server's configured horizon, and submit **Extend validity**.
+   - *Expected*: the new last day is shown; the ADR remains in **Expiring soon** and in the fixed Active ADR list whose `expiresBefore` cutoff is the day after that horizon.
+4. They return through the title link and extend validity again, this time beyond the horizon.
+   - *Expected*: the ADR remains **Active**, **Lifecycle** shows the new last day, and History shows both dates.
+5. They revisit `/decision-log` and the same fixed filtered ADR-list URL.
+   - *Expected*: neither view includes the ADR now that its last day is beyond their cutoff.
+6. The Driver signs in and opens the notifications drawer.
+   - *Expected*: the existing expiry-change notice names the Approver, the ADR, and its new last day.
+
 ## Not covered here (and why)
 
 - **The caps, the "+N more" links, the 30-day horizon, the overdue ordering, untagged ADRs, retired tags and the tag-group cap** — pinned by

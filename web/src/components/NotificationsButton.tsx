@@ -7,7 +7,7 @@ import { keepPreviousData, useMutation, useQuery, useQueryClient } from "@tansta
 import { listNotifications, markAllNotificationsSeen, markNotificationSeen, NOTIFICATION_TOTAL_CAP, type NotificationItem } from "../api/notifications";
 import { getToken } from "../api/session";
 import { useUnseenNotifications } from "../hooks/useUnseenNotifications";
-import { adrPath } from "../utils/adrLinks";
+import { adrPath, adrValidityPath } from "../utils/adrLinks";
 import { browserTimeZone, formatDateTime } from "../utils/formatDate";
 import { badgeText, notificationKeys } from "../utils/notificationKeys";
 import { describeNotification } from "../utils/notificationText";
@@ -22,11 +22,15 @@ import LoadingBlock from "./LoadingBlock";
 
 const PAGE_SIZE = 20;
 
+function noticePath(n: Pick<NotificationItem, "adrId" | "type">): string {
+  return n.type === "EXPIRY_REMINDER" ? adrValidityPath(n.adrId) : adrPath(n.adrId);
+}
+
 function NoticeRow({ n, onOpen }: { n: NotificationItem; onOpen: (n: NotificationItem, event: MouseEvent<HTMLAnchorElement>) => void }) {
   const { t } = useTranslation();
   return (
     <Box component="li" py="sm" px={4} style={{ borderTop: "1px solid var(--mantine-color-default-border)" }}>
-      <Anchor component={RouterLink} to={adrPath(n.adrId)} onClick={(event: MouseEvent<HTMLAnchorElement>) => onOpen(n, event)} display="block" underline="hover" c="inherit">
+      <Anchor component={RouterLink} to={noticePath(n)} onClick={(event: MouseEvent<HTMLAnchorElement>) => onOpen(n, event)} display="block" underline="hover" c="inherit">
         <Group align="flex-start" wrap="nowrap" gap="sm">
           {/* The dot is a shape for sighted users (the brand accent, like the what's-new dot of the account menu: red means blocking, never unread); the hidden word carries "unseen" for the rest. */}
           <Box w={8} pt={6} style={{ flex: "none" }}>
@@ -87,9 +91,11 @@ export default function NotificationsButton() {
     if (!n.seen) markSeen.mutate(n.id);
     // Ctrl/Cmd/Shift/Alt-click opens a new tab or window (the router leaves it to the browser): the drawer and the focus stay where they are.
     if (event.ctrlKey || event.metaKey || event.shiftKey || event.altKey) return;
-    // The destination takes focus itself; returning it to the bell would pull it back. A link to where the person already is moves nothing and
-    // focuses nothing, so there the bell gets the focus back.
-    setReturnFocus(adrPath(n.adrId) === location.pathname);
+    // Keep the destination's focus on a new page or when jumping to Validity on this ADR.
+    const adrDestination = adrPath(n.adrId);
+    const target = noticePath(n);
+    const newSection = target !== adrDestination && target !== location.pathname + location.hash;
+    setReturnFocus(adrDestination === location.pathname && !newSection);
     setOpened(false);
   }
 

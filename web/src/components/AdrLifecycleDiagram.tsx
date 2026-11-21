@@ -73,9 +73,14 @@ const actorLabel = (actor: LifecycleActor, t: TFunction): string => t(ACTOR_KEY[
 const actionLabel = (move: AdrLifecycleMove, t: TFunction): string => t(`adrs.transition.${moveOf(move.from, move.to)}`);
 
 /** One line of the text alternative: what the move is called, where it leads, who takes it and whether the caller may now. */
-function MoveItem({ move, canNow }: { move: AdrLifecycleMove; canNow: boolean }) {
+function MoveItem({ move, canNow, expiresOn }: { move: AdrLifecycleMove; canNow: boolean; expiresOn: string | null }) {
   const { t } = useTranslation();
-  const who = move.actor === "AUTOMATIC" ? t(`adrs.lifecycle.auto.${move.to as "EXPIRED" | "SUPERSEDED"}`) : actorLabel(move.actor, t);
+  const who =
+    move.to === "EXPIRED" && expiresOn !== null
+      ? t("adrs.lifecycle.auto.EXPIRED_ON", { date: expiresOn })
+      : move.actor === "AUTOMATIC"
+        ? t(`adrs.lifecycle.auto.${move.to as "EXPIRED" | "SUPERSEDED"}`)
+        : actorLabel(move.actor, t);
   return (
     <List.Item>
       <Text span fw={600}>
@@ -96,7 +101,15 @@ function MoveItem({ move, canNow }: { move: AdrLifecycleMove; canNow: boolean })
  * right now (`allowedTransitions`, the server's verdict for this caller, drawn in the accent). Below the picture, the same facts for the
  * current status as text (the picture is one image to assistive technology, and a phone scrolls it sideways).
  */
-export default function AdrLifecycleDiagram({ currentStatus, allowedTransitions }: { currentStatus: AdrStatus; allowedTransitions: readonly AdrStatus[] }) {
+export default function AdrLifecycleDiagram({
+  currentStatus,
+  allowedTransitions,
+  expiresOn,
+}: {
+  currentStatus: AdrStatus;
+  allowedTransitions: readonly AdrStatus[];
+  expiresOn: string | null;
+}) {
   const { t } = useTranslation();
   const headingId = useId();
   const statusName = t(`adrs.status.${currentStatus}`);
@@ -148,7 +161,7 @@ export default function AdrLifecycleDiagram({ currentStatus, allowedTransitions 
           <>
             <List size="sm" spacing="xs">
               {moves.map((move) => (
-                <MoveItem key={moveId(move)} move={move} canNow={allowed.has(move.to)} />
+                <MoveItem key={moveId(move)} move={move} canNow={allowed.has(move.to)} expiresOn={expiresOn} />
               ))}
             </List>
             {allowed.size === 0 && (

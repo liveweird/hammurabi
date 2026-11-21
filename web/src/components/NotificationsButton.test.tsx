@@ -34,8 +34,8 @@ const seenNotice = notice({ id: 76, seen: true, type: "ROLE_ASSIGNED", detail: "
 const page = (items: NotificationItem[], total = items.length, pageNo = 1) => ({ items, page: pageNo, pageSize: 20, total });
 
 function Where() {
-  const { pathname, search } = useLocation();
-  return <output aria-label="where">{pathname + search}</output>;
+  const { pathname, search, hash } = useLocation();
+  return <output aria-label="where">{pathname + search + hash}</output>;
 }
 
 let unseenPage = page([], 1);
@@ -215,6 +215,7 @@ describe("NotificationsButton", () => {
     ]) {
       expect(await within(drawer).findByText(sentence)).toBeInTheDocument();
     }
+    expect(within(drawer).getByRole("link", { name: /ADR-0042 expires on 2026-12-01/ })).toHaveAttribute("href", "/adrs/42#validity");
   });
 
   test("a notice of a type this build does not know shows its raw name and still links to its ADR", async () => {
@@ -276,6 +277,18 @@ describe("NotificationsButton", () => {
     await user.click(await screen.findByRole("link", { name: /Ada changed the status of ADR-0042/ }));
     await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
     await waitFor(() => expect(button).toHaveFocus());
+  });
+
+  test("an expiry reminder on the ADR moves to its validity section without returning focus to the bell", async () => {
+    listPage = page([notice({ type: "EXPIRY_REMINDER", detail: "2026-12-01", actorId: null, actorName: null })]);
+    const user = userEvent.setup();
+    renderBell("/adrs/42");
+    const button = await bell();
+    await user.click(button);
+    await user.click(await screen.findByRole("link", { name: /ADR-0042 expires on 2026-12-01/ }));
+    await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
+    expect(screen.getByLabelText("where")).toHaveTextContent(/^\/adrs\/42#validity$/);
+    expect(button).not.toHaveFocus();
   });
 
   test("a notice that leads elsewhere does not pull the focus back to the bell", async () => {

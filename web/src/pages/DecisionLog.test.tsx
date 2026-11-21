@@ -107,9 +107,11 @@ describe("DecisionLog", () => {
     const card = (await screen.findByRole("heading", { name: "Expiring soon" })).closest("section")!;
     expect(within(card).getByText("Overdue or due within 30 days.")).toBeInTheDocument();
     const overdue = within(card).getByRole("link", { name: /Renew the cert/ }).closest("li")!;
+    expect(within(overdue).getByRole("link", { name: /Renew the cert/ })).toHaveAttribute("href", "/adrs/13#validity");
     expect(within(overdue).getByText("Overdue")).toBeInTheDocument();
     expect(within(overdue).getByText("last day 2026-11-20")).toBeInTheDocument();
     const soon = within(card).getByRole("link", { name: /Rotate the keys/ }).closest("li")!;
+    expect(within(soon).getByRole("link", { name: /Rotate the keys/ })).toHaveAttribute("href", "/adrs/12#validity");
     expect(within(soon).queryByText("Overdue")).not.toBeInTheDocument();
     expect(within(soon).getByText("last day 2026-11-25")).toBeInTheDocument();
     // 2026-11-21 + 30 days + 1: the list's expiresBefore is strict.

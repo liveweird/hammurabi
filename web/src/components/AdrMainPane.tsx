@@ -82,7 +82,7 @@ export default function AdrMainPane({
             <Title order={3} size="h4">
               {t("adrs.lifecycle.title")}
             </Title>
-            <AdrLifecycleDiagram currentStatus={adr.status} allowedTransitions={adr.allowedTransitions} />
+            <AdrLifecycleDiagram currentStatus={adr.status} allowedTransitions={adr.allowedTransitions} expiresOn={adr.expiresOn} />
           </Stack>
         )}
       </Tabs.Panel>

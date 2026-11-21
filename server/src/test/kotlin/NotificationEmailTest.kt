@@ -115,6 +115,13 @@ class NotificationEmailTest {
     }
 
     @Test
+    fun `an expiry reminder links directly to the ADR validity section`() {
+        val reminder = entry(NotificationType.EXPIRY_REMINDER, "2026-12-01", actor = null)
+        assertTrue("  https://h.example/adrs/12#validity" in body("en", reminder))
+        assertTrue("  https://h.example/adrs/12\n" in body("en", entry(NotificationType.ADR_EXPIRED, "2026-12-01", actor = null)))
+    }
+
+    @Test
     fun `an actor's name cannot make a link, an address, a new line or reorder the text`() {
         val hostile = "Evil\n- fake entry evil.example.com a@b.c http://x\\\\host‮reversed​z"
         val text = body("en", entry(NotificationType.STATUS_CHANGED, "ACTIVE", actor = hostile))

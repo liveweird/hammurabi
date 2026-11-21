@@ -14,6 +14,7 @@ import ErrorAlert from "../components/ErrorAlert";
 import LoadingBlock from "../components/LoadingBlock";
 import PageHeader from "../components/PageHeader";
 import { adrListPath } from "../utils/adrListParams";
+import { adrValidityPath } from "../utils/adrLinks";
 import { browserTimeZone, formatDate } from "../utils/formatDate";
 import { addDays, epochMillisToIsoDate } from "../utils/isoDate";
 
@@ -94,6 +95,7 @@ function Expiring({ expiring, generatedAt }: { expiring: AdrOverview["expiringSo
             <AdrLogRow
               key={item.id}
               item={item}
+              to={adrValidityPath(item.id)}
               note={
                 <>
                   {item.expiresOn !== null && item.expiresOn < today && (

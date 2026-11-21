@@ -240,7 +240,10 @@ internal fun notificationEmail(
         appendLine()
         for (entry in entries.take(DIGEST_MAX_ENTRIES)) {
             appendLine("- ${entryText(entry, language)}")
-            if (appUrl != null) appendLine("  $appUrl/adrs/${entry.adrId}")
+            if (appUrl != null) {
+                val fragment = if (entry.type == NotificationType.EXPIRY_REMINDER) "#validity" else ""
+                appendLine("  $appUrl/adrs/${entry.adrId}$fragment")
+            }
         }
         val more = maxOf(entries.size - DIGEST_MAX_ENTRIES, 0) + unlisted
         if (more > 0) appendLine(fmt(MORE.of(language), more))

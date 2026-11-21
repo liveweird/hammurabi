@@ -1,7 +1,6 @@
 package ch.nokillswit
 
 import ch.nokillswit.infra.db.StatementProbe
-import ch.nokillswit.infra.db.insertRows
 import ch.nokillswit.infra.db.insertRowsIgnoringConflicts
 import kotlinx.coroutines.flow.toList
 import kotlinx.coroutines.runBlocking
@@ -18,7 +17,8 @@ import kotlin.test.assertFailsWith
 import kotlin.test.assertTrue
 
 /**
- * `infra/db/MultiRowInsert.kt`'s `insertRows` writes exactly what Exposed's `batchInsert` writes, only as multi-row `VALUES`
+ * `infra/db/MultiRowInsert.kt`'s `insertRowsIgnoringConflicts` writes exactly what Exposed's `batchInsert` writes, only as multi-row
+ * `VALUES`
  * statements (`.claude/docs/build-times.md` WHY 3). Every case inserts the SAME rows through both into two owners of the scratch table
  * (`MultiRowScratch`) and compares what the database holds, so a difference in value conversion, null handling, the client-side
  * defaults or the chunking shows up as a row difference, not a guess. The donor project's version ran against its bulk tables, which
@@ -54,7 +54,7 @@ class MultiRowInsertTest {
                         this[t.note] = it.note
                     }
                 }
-                t.insertRows(rows) {
+                t.insertRowsIgnoringConflicts(rows) {
                     this[t.owner] = OWNER_ROWS
                     this[t.id] = it.id
                     this[t.name] = it.name
@@ -64,7 +64,7 @@ class MultiRowInsertTest {
             val expected = read(OWNER_BATCH)
             val actual = read(OWNER_ROWS)
             assertEquals(rows.map { it.asRow(OWNER_BATCH) + false }, expected, "the reference write must round-trip the input")
-            assertEquals(expected.map { it.drop(1) }, actual.map { it.drop(1) }, "insertRows must store the same rows as batchInsert")
+            assertEquals(expected.map { it.drop(1) }, actual.map { it.drop(1) }, "the writer must store the same rows as batchInsert")
             assertTrue(actual.any { it[3] == null } && actual.any { it[3] != null }, "both NULL and non-NULL notes were exercised")
         } finally {
             cleanUp(OWNER_BATCH, OWNER_ROWS)
@@ -81,7 +81,7 @@ class MultiRowInsertTest {
                     this[t.id] = id
                     this[t.name] = "n-$id"
                 }
-                t.insertRows(listOf(1L, 2L, 3L)) { id ->
+                t.insertRowsIgnoringConflicts(listOf(1L, 2L, 3L)) { id ->
                     this[t.owner] = OWNER_ROWS
                     this[t.id] = id
                     this[t.name] = "n-$id"
@@ -102,7 +102,7 @@ class MultiRowInsertTest {
         t.ensureCreated()
         try {
             suspendTransaction(sharedDatabaseForTests()) {
-                t.insertRows(listOf(1L)) {
+                t.insertRowsIgnoringConflicts(listOf(1L)) {
                     this[t.owner] = OWNER_ROWS
                     this[t.id] = it
                     this[t.name] = "present"
@@ -131,12 +131,12 @@ class MultiRowInsertTest {
         t.ensureCreated()
         try {
             suspendTransaction(sharedDatabaseForTests()) {
-                t.insertRows(emptyList<Item>()) { this[t.owner] = OWNER_ROWS }
+                t.insertRowsIgnoringConflicts(emptyList<Item>()) { this[t.owner] = OWNER_ROWS }
                 assertEquals(0L, t.selectAll().where { t.owner eq OWNER_ROWS }.count())
             }
             assertFailsWith<IllegalArgumentException> {
                 suspendTransaction(sharedDatabaseForTests()) {
-                    t.insertRows(listOf(1L, 2L)) {
+                    t.insertRowsIgnoringConflicts(listOf(1L, 2L)) {
                         this[t.owner] = OWNER_ROWS
                         this[t.id] = it
                         this[t.name] = "x"
@@ -145,7 +145,7 @@ class MultiRowInsertTest {
                 }
             }
             assertFailsWith<IllegalArgumentException> {
-                suspendTransaction(sharedDatabaseForTests()) { t.insertRows(listOf(1L)) { } }
+                suspendTransaction(sharedDatabaseForTests()) { t.insertRowsIgnoringConflicts(listOf(1L)) { } }
             }
             Unit // the last expression of a runBlocking test body must be Unit (JUnit4 wants a void method)
         } finally {
@@ -166,20 +166,20 @@ class MultiRowInsertTest {
     fun `a column of another table and a sequence-backed autoIncrement table are refused`() = runBlocking {
         val foreign = assertFailsWith<IllegalArgumentException> {
             suspendTransaction(sharedDatabaseForTests()) {
-                t.insertRows(listOf(1L)) { this[OtherTable.id] = it }
+                t.insertRowsIgnoringConflicts(listOf(1L)) { this[OtherTable.id] = it }
             }
         }
         assertTrue(foreign.message!!.contains("id") && foreign.message!!.contains("multi_row_other"), foreign.message)
         val sequenced = assertFailsWith<IllegalArgumentException> {
             suspendTransaction(sharedDatabaseForTests()) {
-                SequencedRows.insertRows(listOf(1L)) { this[SequencedRows.id] = it }
+                SequencedRows.insertRowsIgnoringConflicts(listOf(1L)) { this[SequencedRows.id] = it }
             }
         }
         assertTrue(sequenced.message!!.contains("sequence-backed"), sequenced.message)
     }
 
     @Test
-    fun `insertRows builds a row only while its statement is assembled - the rows in flight are one statement's`() = runBlocking {
+    fun `rows are built only while their statement is assembled - the rows in flight are one statement's`() = runBlocking {
         t.ensureCreated()
         val rows = (1..15_000).map { Item(it.toLong(), "n$it", null) }
         val built = java.util.concurrent.atomic.AtomicInteger()
@@ -192,7 +192,7 @@ class MultiRowInsertTest {
             }
             withContext(probe) {
                 suspendTransaction(sharedDatabaseForTests()) {
-                    t.insertRows(rows) {
+                    t.insertRowsIgnoringConflicts(rows) {
                         built.incrementAndGet()
                         this[t.owner] = OWNER_ROWS
                         this[t.id] = it.id

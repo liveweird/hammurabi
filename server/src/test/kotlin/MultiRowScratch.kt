@@ -8,7 +8,8 @@ import org.jetbrains.exposed.v1.r2dbc.transactions.suspendTransaction
 /**
  * A private scratch table for the `infra/db/MultiRowInsert.kt` tests: the writers are generic, and Hammurabi's foundation schema has no
  * wide, bulk-written table of its own, so the tests write into this one (created on first use, never part of a migration). Rows are
- * partitioned by [owner] so two writers (the Exposed reference and `insertRows`) can write the SAME rows side by side and be compared.
+ * partitioned by [owner] so two writers (the Exposed reference and `insertRowsIgnoringConflicts`) can write the SAME rows side by side and
+ * be compared.
  */
 internal object MultiRowScratch : Table("multi_row_scratch") {
     val owner = integer("owner")

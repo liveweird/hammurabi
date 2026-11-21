@@ -19,7 +19,6 @@ import io.ktor.server.testing.testApplication
 import java.util.UUID
 import kotlin.test.Test
 import kotlin.test.assertEquals
-import kotlin.test.assertFalse
 import kotlin.test.assertNotNull
 import kotlin.test.assertTrue
 
@@ -226,14 +225,13 @@ class TeamTest {
     }
 
     @Test
-    fun `a soft-deleted manager reads as no manager and stops being the active manager`() = testApplication {
+    fun `a soft-deleted manager reads as no manager`() = testApplication {
         usePostgresTestcontainer()
         val admin = seededClient("teammgrdel", UserRole.ADMIN)
         val manager = TestUsers.seed(email = uniqueEmail("mgr-del"), password = "pw", role = UserRole.USER, name = "Soon Gone")
         val teamName = name("mgrdel")
         val id = admin.postJson("/api/v1/teams", TeamCreateRequest(name = teamName, managerUserId = manager))
             .body<TeamResponse>().id
-        assertTrue(TestTeams.service.isActiveManager(id, manager))
 
         TestUsers.softDelete(manager)
 
@@ -243,25 +241,6 @@ class TeamTest {
         val listed = admin.get("/api/v1/teams?name=$teamName").body<TeamPageResponse>().items.single()
         assertEquals(null, listed.managerUserId)
         assertEquals(null, listed.managerName)
-        assertFalse(TestTeams.service.isActiveManager(id, manager), "a deleted manager holds no rights")
-    }
-
-    @Test
-    fun `isActiveManager is true only for the active manager of an active team`() = testApplication {
-        usePostgresTestcontainer()
-        val admin = seededClient("teammgrchk", UserRole.ADMIN)
-        val manager = TestUsers.seed(email = uniqueEmail("mgr-chk"), password = "pw", role = UserRole.USER)
-        val other = TestUsers.seed(email = uniqueEmail("mgr-oth"), password = "pw", role = UserRole.USER)
-        val managed = admin.postJson("/api/v1/teams", TeamCreateRequest(name = name("chk"), managerUserId = manager))
-            .body<TeamResponse>().id
-        val unmanaged = TestTeams.seed(name("chk-none"))
-
-        assertTrue(TestTeams.service.isActiveManager(managed, manager))
-        assertFalse(TestTeams.service.isActiveManager(managed, other), "somebody else")
-        assertFalse(TestTeams.service.isActiveManager(unmanaged, manager), "a team they do not manage")
-        assertFalse(TestTeams.service.isActiveManager(999999u, manager), "a missing team")
-        assertEquals(HttpStatusCode.NoContent, admin.delete("/api/v1/teams/$managed").status)
-        assertFalse(TestTeams.service.isActiveManager(managed, manager), "a deleted team")
     }
 
     @Test

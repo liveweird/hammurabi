@@ -1,5 +1,6 @@
 package ch.nokillswit
 
+import ch.nokillswit.adrs.AdrEventService
 import ch.nokillswit.adrs.AdrEventType
 import ch.nokillswit.adrs.AdrStatus
 import ch.nokillswit.infra.db.FieldChange
@@ -10,6 +11,7 @@ import ch.nokillswit.infra.db.scalarChange
 import io.ktor.client.request.get
 import io.ktor.http.HttpStatusCode
 import io.ktor.server.testing.testApplication
+import org.jetbrains.exposed.v1.r2dbc.transactions.suspendTransaction
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
@@ -117,5 +119,63 @@ class AdrHistoryTest {
         val event = reader.client.adrEvents(adr.id).items.single()
         assertTrue(event.userDeleted)
         assertEquals("Histgone", event.userName)
+    }
+
+    @Test
+    fun `ever in review is ONE bounded probe whatever the history holds, and matches the decoded target exactly`() = testApplication {
+        usePostgresTestcontainer()
+        val cast = adrCast()
+        val adr = cast.raise(complete = true)
+        val recorder = AdrStatementRecorder()
+        val events = AdrEventService(recorder.database)
+        suspend fun probe(id: UInt): Pair<Boolean, List<String>> {
+            val before = recorder.statements.size
+            val answer = suspendTransaction(recorder.database) { events.hasEnteredReview(id) }
+            return answer to recorder.statements.drop(before).filter { "adr_events" in it }
+        }
+
+        // An ADR that never was in review, whose reason mentions the very text a substring match would look for.
+        val never = cast.raise(complete = true)
+        cast.driver.client.moveAdrNow(never.id, AdrStatus.CANCELLED, reason = "\"to\":\"IN_REVIEW\" is not where it went")
+        assertEquals(false to 1, probe(never.id).let { it.first to it.second.size })
+
+        // One round trip through review, then five more: the probe is the same one statement, the same text, and reads no params.
+        cast.driver.client.moveAdrNow(adr.id, AdrStatus.IN_REVIEW)
+        cast.approver.client.moveAdrNow(adr.id, AdrStatus.SOLUTION_DRAFT, reason = "round 1")
+        val (afterOne, statementsAfterOne) = probe(adr.id)
+        repeat(5) {
+            cast.driver.client.moveAdrNow(adr.id, AdrStatus.IN_REVIEW)
+            cast.approver.client.moveAdrNow(adr.id, AdrStatus.SOLUTION_DRAFT, reason = "round ${it + 2}")
+        }
+        val (afterSix, statementsAfterSix) = probe(adr.id)
+        assertTrue(afterOne && afterSix)
+        assertEquals(1, statementsAfterOne.size)
+        assertEquals(statementsAfterOne, statementsAfterSix, "six send-backs cost the same statement as one")
+        val statement = statementsAfterSix.single()
+        assertTrue(statement.contains("LIMIT 1"), "a probe, bounded to one row: $statement")
+        assertFalse(statement.substringBefore(" FROM ").contains("params"), "no event payload is read into memory: $statement")
+    }
+
+    @Test
+    fun `first activation takes the earliest move into ACTIVE in SQL - one row per ADR, none for one that never was`() = testApplication {
+        usePostgresTestcontainer()
+        val cast = adrCast()
+        val active = cast.raise(complete = true)
+        cast.driver.client.moveAdrNow(active.id, AdrStatus.IN_REVIEW)
+        cast.approver.client.moveAdrNow(active.id, AdrStatus.SOLUTION_DRAFT, reason = "again")
+        cast.activate(active)
+        val raised = cast.raise(complete = true)
+        val recorder = AdrStatementRecorder()
+        val events = AdrEventService(recorder.database)
+
+        val first = suspendTransaction(recorder.database) { events.firstActivations(listOf(active.id, raised.id)) }
+
+        assertEquals(setOf(active.id), first.keys)
+        val moves = cast.admin.client.adrEventsOldestFirst(active.id)
+            .filter { it.type == AdrEventType.TRANSITIONED && it.params["to"] == AdrStatus.ACTIVE.name }
+        assertEquals(moves.first().createdAt, first.getValue(active.id))
+        val statement = recorder.statements.single { "adr_events" in it }
+        assertTrue(statement.contains("MIN(") && statement.contains("GROUP BY"), "the earliest is computed in SQL: $statement")
+        assertFalse(statement.substringBefore(" FROM ").contains("params"), "no event payload is read into memory: $statement")
     }
 }

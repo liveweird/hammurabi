@@ -12,7 +12,7 @@ import kotlin.coroutines.CoroutineContext
 import kotlin.coroutines.coroutineContext
 
 /**
- * The largest number of bind parameters one [insertRows] statement carries. The PostgreSQL wire
+ * The largest number of bind parameters one [insertRowsIgnoringConflicts] statement carries. The PostgreSQL wire
  * protocol counts a Bind message's parameters in an Int16 (65,535); half of that leaves headroom,
  * and the row chunk is derived from it, so a wide table simply gets smaller chunks.
  */
@@ -28,7 +28,7 @@ private const val MAX_BIND_PARAMETERS = 32_000
  * bytes of non-ASCII text by up to 3x, so such a statement can carry up to ~3 MiB; harmless at this budget (a memory guard, not a
  * quota). Only `String` values count. Rows of short keys are far below it, so their statements are the ones the bind cap alone made.
  * A single row over the budget is written alone, never refused here (a writer that must refuse an oversized item does so
- * upstream, with its own stored-size ceiling). The rows are built lazily against this same budget (see [insertRows]).
+ * upstream, with its own stored-size ceiling). The rows are built lazily against this same budget (see [insertRowsIgnoringConflicts]).
  */
 internal const val MAX_PAYLOAD_CHARS = 1 shl 20
 
@@ -37,8 +37,8 @@ internal fun maxRowsPerStatement(columnCount: Int): Int = (MAX_BIND_PARAMETERS /
 
 /**
  * Test seam (`MultiRowInsertTest`): a coroutine-context element, installed with
- * `withContext(StatementProbe { table, rows -> … }) { … }`, that [writeRows] calls with the table and the number of rows a statement
- * carries, just before it runs. Those are the only rows [insertRows] and [insertRowsIgnoringConflicts] have in flight. It sees only the
+ * `withContext(StatementProbe { table, rows -> … }) { … }`, that [insertRowsIgnoringConflicts] calls with the table and the number of
+ * rows a statement carries, just before it runs. Those are the only rows [insertRowsIgnoringConflicts] has in flight. It sees only the
  * writes of coroutines running under it, so a concurrent writer elsewhere in the
  * same JVM can neither reach it nor be miscounted by it (it replaced a process-wide mutable hook).
  */
@@ -46,7 +46,7 @@ internal class StatementProbe(val onStatement: (Table, Int) -> Unit) : AbstractC
     companion object Key : CoroutineContext.Key<StatementProbe>
 }
 
-/** The row a [insertRows] body fills: `this[Column] = value`, the same DSL as `batchInsert`'s lambda. */
+/** The row a [insertRowsIgnoringConflicts] body fills: `this[Column] = value`, the same DSL as `batchInsert`'s lambda. */
 class InsertRow {
     internal val values = LinkedHashMap<Column<*>, Any?>()
 
@@ -68,7 +68,7 @@ class InsertRow {
 }
 
 /**
- * `batchInsert`'s call shape — `table.insertRows(rows) { this[Col] = it.value }` — executed as ONE
+ * `batchInsert`'s call shape — `table.insertRowsIgnoringConflicts(rows) { this[Col] = it.value }` — executed as ONE
  * multi-row `INSERT … VALUES (…), (…)` per chunk instead of one statement execution per row.
  *
  * Why it exists: `exposed-r2dbc`'s `batchInsert` runs every
@@ -99,7 +99,7 @@ class InsertRow {
  * so a chunk is either the table's maximum rows per statement or a power of two — a handful of texts per
  * table, however many rows a batch has.
  *
- * **Rows are built per statement, and the plan is the same.** [insertRows] and [insertRowsIgnoringConflicts] run `body` for a row only
+ * **Rows are built per statement, and the plan is the same.** [insertRowsIgnoringConflicts] runs `body` for a row only
  * while the statement that carries it is assembled ([lazyStatements]): rows are built until the next statement is decided (the row cap
  * reached, or the payload budget overflowed by one row, the payload of a row being known once it is built) and the rest wait for the
  * next one, so the rows in flight are one statement's cap ([maxRowsPerStatement]), not the call's: the `InsertRow` maps, the boxed
@@ -116,31 +116,19 @@ class InsertRow {
  * as soon as it ran (`clearExecutedStatements`), so a transaction's heap does not grow with the rows it writes.
  * `clearExecutedStatements()` empties the transaction's WHOLE list — the caller's earlier statements too (a
  * per-batch SELECT, ~80 MB at scale 20 if kept) — and resets `openResultRowsCount`. Per-batch reads
- * are therefore bounded only because every batch ends in an `insertRows`: a step that reads per batch but writes via
+ * are therefore bounded only because every batch ends in an `insertRowsIgnoringConflicts`: a step that reads per batch but writes via
  * `batchInsert`/`exec` would bring the linear retention back.
  */
-suspend fun <T : Table, E> T.insertRows(rows: Iterable<E>, body: InsertRow.(E) -> Unit) {
-    writeRows("insertRows", rows, body)
-}
-
 /**
- * [insertRows]' append-only sibling — `table.insertRowsIgnoringConflicts(rows) { … }` is ONE multi-row
- * `INSERT … VALUES (…), (…) ON CONFLICT DO NOTHING` per chunk (the same chunking, quantized statement texts, bind-parameter cap
- * and contract as [insertRows]; the suffix is constant). It is the batch form of Exposed's `insertIgnore`: a row that violates
+ * `table.insertRowsIgnoringConflicts(rows) { … }` is ONE multi-row `INSERT … VALUES (…), (…) ON CONFLICT DO NOTHING` per chunk (the
+ * chunking, quantized statement texts, bind-parameter cap and contract are the file's "Why" below; the suffix is constant). It is the batch
+ * form of Exposed's `insertIgnore`: a row that violates
  * any unique constraint is silently dropped, the first of two rows sharing a key winning (PostgreSQL skips a duplicate inside
  * one `DO NOTHING` statement — unlike `DO UPDATE`, which could not touch a row twice). Nothing is returned, so the number of
  * rows actually written is unknown to the caller.
  */
 suspend fun <T : Table, E> T.insertRowsIgnoringConflicts(rows: Iterable<E>, body: InsertRow.(E) -> Unit) {
-    writeRows("insertRowsIgnoringConflicts", rows, body, ignoreConflicts = true)
-}
-
-private suspend fun <T : Table, E> T.writeRows(
-    caller: String,
-    rows: Iterable<E>,
-    body: InsertRow.(E) -> Unit,
-    ignoreConflicts: Boolean = false,
-) {
+    val caller = "insertRowsIgnoringConflicts"
     val source = rows as? List<E> ?: rows.toList()
     if (source.isEmpty()) return
     fun build(element: E): Map<Column<*>, Any?> = InsertRow().also { it.body(element) }.values
@@ -154,7 +142,6 @@ private suspend fun <T : Table, E> T.writeRows(
     val columns = this.columns.filter { it in setColumns || it.defaultValueFun != null }
     val tx = TransactionManager.current()
     val header = "INSERT INTO ${tx.identity(this)} (${columns.joinToString(", ") { tx.identity(it) }}) VALUES "
-    val suffix = if (ignoreConflicts) " ON CONFLICT DO NOTHING" else ""
     val maxRows = maxRowsPerStatement(columns.size)
     // The lazy plan's first row is the one built above; the rest are built as their statement is assembled (`head` is dropped once used).
     var head: Map<Column<*>, Any?>? = firstRow
@@ -178,7 +165,7 @@ private suspend fun <T : Table, E> T.writeRows(
             }
             sql.append(')')
         }
-        sql.append(suffix)
+        sql.append(" ON CONFLICT DO NOTHING")
         coroutineContext[StatementProbe]?.onStatement?.invoke(this, size)
         tx.exec(sql.toString(), arguments)
         // Exposed keeps every executed statement until the transaction ends (commit or rollback; `closeStatementsAndConnection`
@@ -189,7 +176,7 @@ private suspend fun <T : Table, E> T.writeRows(
     }
 }
 
-/** The checks on the table and the columns a call sets that do not depend on any row's value (see the contract on [insertRows]). */
+/** The checks on the table and the columns a call sets that do not depend on any row's value (see [insertRowsIgnoringConflicts]). */
 private fun Table.requireWritable(caller: String, setColumns: Set<Column<*>>) {
     setColumns.firstOrNull { it.table != this }?.let { foreign ->
         throw IllegalArgumentException("$caller: column ${foreign.name} belongs to ${foreign.table.tableName}, not ${this.tableName}")

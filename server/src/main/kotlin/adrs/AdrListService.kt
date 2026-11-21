@@ -23,6 +23,11 @@ import org.jetbrains.exposed.v1.r2dbc.transactions.suspendTransaction
 
 val AdrListServiceKey = AttributeKey<AdrListService>("AdrListService")
 
+/** What [AdrListItem] is built from: the headline columns, never the Markdown bodies (`AdrListTest` pins the statement). */
+private val LIST_COLUMNS = with(AdrService.Adrs) {
+    listOf(id, number, name, status, expiresOn, revision, createdAt, updatedAt, statusChangedAt)
+}
+
 /** The page ceiling of a search: a row carries two headlines, and `ts_headline` is the expensive call (the shared maximum is 100). */
 const val MAX_SEARCH_PAGE_SIZE = 20
 
@@ -100,7 +105,8 @@ class AdrListService(
         budget?.arm(this)
         val total = adrs.selectAll().where { predicate }.count()
         budget?.arm(this)
-        val rows = adrs.selectAll().where { predicate }.applyPaging(paging, columns).toList()
+        // The row's own columns only: the five Markdown bodies (up to 20 KB each, 100 rows a page) are never read for a list.
+        val rows = adrs.select(LIST_COLUMNS).where { predicate }.applyPaging(paging, columns).toList()
         val ids = rows.map { it[adrs.id].value }
         budget?.arm(this)
         val leads = participants.leadsOf(ids)

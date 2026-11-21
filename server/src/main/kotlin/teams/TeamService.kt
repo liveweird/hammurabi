@@ -124,19 +124,6 @@ class TeamService(private val database: R2dbcDatabase) {
         TeamUpdateOutcome(affected, before[Teams.managerUserId]?.value)
     }
 
-    /**
-     * Whether [userId] is the team's current manager: an ACTIVE team whose manager is this ACTIVE user — one
-     * query. False for a missing/deleted team too, so `requireTeamManagerOrAdmin` answers a uniform 403.
-     */
-    suspend fun isActiveManager(teamId: UInt, userId: UInt): Boolean = suspendTransaction(database) {
-        Teams.innerJoin(UserService.Users) // the one Teams → users FK is `manager_user_id`
-            .select(Teams.id)
-            .where {
-                (Teams.id eq teamId) and Teams.active() and (Teams.managerUserId eq userId) and UserService.Users.active()
-            }
-            .count() > 0
-    }
-
     /** Soft delete: the team stops reading as active and frees its name. `0` = missing or already deleted (404). */
     suspend fun delete(id: UInt): Int = suspendTransaction(database) {
         if (!Teams.lockActiveForWrite(id)) return@suspendTransaction 0

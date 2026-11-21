@@ -89,9 +89,6 @@ private class FtsRank(private val vector: Expression<*>, private val queryText: 
     }
 }
 
-/** The raw-SQL spelling of the match, for a hand-written statement: `<vector> @@ CAST(? AS tsquery)`. */
-fun ftsMatchSql(vector: String): String = "$vector @@ CAST(? AS tsquery)"
-
 /** The raw-SQL headline of [text] against the query text bound as the first `?`, then the options text as the second. */
 fun ftsHeadlineSql(text: String): String = "ts_headline('$FTS_CONFIG'::regconfig, $text, CAST(? AS tsquery), ?)"
 

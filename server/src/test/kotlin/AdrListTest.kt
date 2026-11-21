@@ -1,9 +1,18 @@
 package ch.nokillswit
 
+import ch.nokillswit.adrs.ADR_DEFAULT_SORT
+import ch.nokillswit.adrs.AdrDiscussionService
+import ch.nokillswit.adrs.AdrEventService
+import ch.nokillswit.adrs.AdrListFilter
+import ch.nokillswit.adrs.AdrListService
 import ch.nokillswit.adrs.AdrPageResponse
+import ch.nokillswit.adrs.AdrParticipantService
 import ch.nokillswit.adrs.AdrParticipantRequest
 import ch.nokillswit.adrs.AdrRole
 import ch.nokillswit.adrs.AdrStatus
+import ch.nokillswit.adrs.AdrTagService
+import ch.nokillswit.infra.paging.PageRequest
+import ch.nokillswit.infra.paging.SortField
 import io.ktor.client.call.body
 import io.ktor.client.request.get
 import io.ktor.http.HttpStatusCode
@@ -128,5 +137,30 @@ class AdrListTest {
         }
         assertEquals(HttpStatusCode.BadRequest, cast.stranger.client.get("/api/v1/adrs?q=${"x".repeat(101)}").status)
         assertEquals(HttpStatusCode.BadRequest, cast.stranger.client.get("/api/v1/adrs?q=a&q=b").status, "a repeated scalar key")
+    }
+
+    @Test
+    fun `the list reads the headline columns only - no statement selects a Markdown body`() = testApplication {
+        usePostgresTestcontainer()
+        val cast = adrCast()
+        val adr = cast.raise()
+        val recorder = AdrStatementRecorder()
+        val database = recorder.database
+        val events = AdrEventService(database)
+        val participants = AdrParticipantService(events)
+        val service = AdrListService(
+            database, participants, AdrDiscussionService(database, participants, events), AdrTagService(events),
+            timeoutSeconds = 5, maxConcurrent = 2,
+        )
+        val page = service.list(AdrListFilter(), PageRequest(1, 100, ADR_DEFAULT_SORT + SortField("id", descending = false)), cast.admin.id)
+        assertTrue(page.items.any { it.id == adr.id })
+
+        // Every statement of the request: what it SELECTs (the text before FROM) names no body column of the adrs table.
+        val selectLists = recorder.statements.map { it.substringBefore(" FROM ").replace("\"", "") }
+        val pageStatement = recorder.statements.single { it.contains("FROM adrs") && it.contains(" LIMIT ") }
+        assertTrue(pageStatement.substringBefore(" FROM ").contains("adrs.id"), "the page statement selects the list columns")
+        for (body in listOf("problem", "context", "decision", "alternatives", "consequences")) {
+            assertTrue(selectLists.none { "adrs.$body" in it }, "a statement selects adrs.$body: $selectLists")
+        }
     }
 }

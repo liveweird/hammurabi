@@ -43,20 +43,6 @@ fun Parameters.repeatedValues(name: String): List<String> =
 fun Parameters.repeatedStrings(name: String, maxCount: Int): List<String> =
     boundedCount(name, repeatedValues(name).map { it.trim() }.distinct(), maxCount)
 
-/**
- * Every non-blank value of [name] parsed as an id (`Long`, `distinct()`) of at least [minValue] (default 0; pass 1 to refuse a zero id),
- * bounded to [maxCount] distinct values like [repeatedStrings]; 400 on a value that is not an integer of at least [minValue]. Empty when
- * absent.
- */
-fun Parameters.repeatedLongs(name: String, maxCount: Int, minValue: Long = 0): List<Long> =
-    boundedCount(
-        name,
-        repeatedValues(name).map { raw ->
-            raw.trim().toLongOrNull()?.takeIf { it >= minValue } ?: throw BadRequestException("Invalid $name: $raw")
-        }.distinct(),
-        maxCount,
-    )
-
 private fun <T> boundedCount(name: String, values: List<T>, maxCount: Int): List<T> {
     if (values.size > maxCount) throw BadRequestException("Parameter '$name' takes at most $maxCount values")
     return values

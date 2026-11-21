@@ -6,16 +6,19 @@ import ch.nokillswit.infra.db.EventLogTable
 import ch.nokillswit.infra.db.FieldChange
 import ch.nokillswit.infra.db.encodeChanges
 import ch.nokillswit.infra.db.nowMillis
-import ch.nokillswit.infra.json.decodeParams
 import ch.nokillswit.infra.paging.PageRequest
 import ch.nokillswit.infra.paging.PageResponse
 import ch.nokillswit.users.UserService
 import io.ktor.util.AttributeKey
 import kotlinx.serialization.Serializable
 import kotlinx.coroutines.flow.toList
+import org.jetbrains.exposed.v1.core.Op
+import org.jetbrains.exposed.v1.core.QueryBuilder
 import org.jetbrains.exposed.v1.core.and
 import org.jetbrains.exposed.v1.core.eq
 import org.jetbrains.exposed.v1.core.inList
+import org.jetbrains.exposed.v1.core.min
+import org.jetbrains.exposed.v1.core.stringParam
 import org.jetbrains.exposed.v1.r2dbc.R2dbcDatabase
 import org.jetbrains.exposed.v1.r2dbc.select
 
@@ -230,26 +233,51 @@ class AdrEventService(database: R2dbcDatabase, private val notices: AdrNotices =
 
     /**
      * Whether the ADR has ever been moved into `IN_REVIEW` (a `TRANSITIONED` event with `to` = `IN_REVIEW`), read in the caller's
-     * transaction. An ADR has a handful of moves, so the few `TRANSITIONED` rows are decoded rather than pattern-matched in SQL.
+     * transaction as ONE bounded probe (`LIMIT 1`): the send back / send to review loop is unbounded, so no event row is read into
+     * memory, however many there are. The match is exact on the decoded `to` value ([transitionedTo]).
      */
     suspend fun hasEnteredReview(adrId: UInt): Boolean =
-        AdrEvents.select(AdrEvents.params)
-            .where { (AdrEvents.ownerId eq adrId) and (AdrEvents.eventType eq AdrEventType.TRANSITIONED.name) }
+        AdrEvents.select(AdrEvents.id)
+            .where {
+                (AdrEvents.ownerId eq adrId) and (AdrEvents.eventType eq AdrEventType.TRANSITIONED.name) and
+                    transitionedTo(AdrStatus.IN_REVIEW)
+            }
+            .limit(1)
             .toList()
-            .any { decodeParams(it[AdrEvents.params])["to"] == AdrStatus.IN_REVIEW.name }
+            .isNotEmpty()
 
     /**
      * When each ADR in [adrIds] first became `ACTIVE` (the earliest `TRANSITIONED` event into it), epoch millis, read in the caller's
-     * transaction; an ADR that never was is absent. The Markdown export's decision date.
+     * transaction; an ADR that never was is absent. The Markdown export's decision date. The earliest is taken in SQL (`MIN` per ADR),
+     * so at most one row per ADR comes back whatever the history holds.
      */
     suspend fun firstActivations(adrIds: Collection<UInt>): Map<UInt, Long> {
         if (adrIds.isEmpty()) return emptyMap()
-        return AdrEvents.select(AdrEvents.ownerId, AdrEvents.params, AdrEvents.createdAt)
-            .where { (AdrEvents.ownerId inList adrIds.distinct()) and (AdrEvents.eventType eq AdrEventType.TRANSITIONED.name) }
+        val first = AdrEvents.createdAt.min()
+        return AdrEvents.select(AdrEvents.ownerId, first)
+            .where {
+                (AdrEvents.ownerId inList adrIds.distinct()) and (AdrEvents.eventType eq AdrEventType.TRANSITIONED.name) and
+                    transitionedTo(AdrStatus.ACTIVE)
+            }
+            .groupBy(AdrEvents.ownerId)
             .toList()
-            .filter { decodeParams(it[AdrEvents.params])["to"] == AdrStatus.ACTIVE.name }
-            .groupBy({ it[AdrEvents.ownerId].value }) { it[AdrEvents.createdAt] }
-            .mapValues { (_, at) -> at.min() }
+            .associate { it[AdrEvents.ownerId].value to checkNotNull(it[first]) }
+    }
+
+    /**
+     * `params` is the JSON TEXT `encodeParams` wrote (always a valid object of strings), so the cast to `jsonb` is safe and the key is
+     * read EXACTLY (no substring match: a free-text reason that mentions a status cannot pass). Only the rows the owner and the event
+     * type already narrowed (`idx_adr_events_adr_created`) are cast.
+     */
+    private fun transitionedTo(status: AdrStatus): Op<Boolean> = object : Op<Boolean>() {
+        override fun toQueryBuilder(queryBuilder: QueryBuilder) {
+            queryBuilder {
+                append("(CAST(")
+                append(AdrEvents.params)
+                append(" AS jsonb) ->> 'to') = ")
+                append(stringParam(status.name))
+            }
+        }
     }
 
     /** The ADR's history, newest first by default (the id descending as the same-instant tiebreaker). */

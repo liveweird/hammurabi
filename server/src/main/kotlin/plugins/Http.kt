@@ -236,6 +236,9 @@ fun Application.configureHttp() {
     // a `Content-Encoding` is refused with a 415 above, and this keeps the plugin from decoding one even if that guard were lost.
     install(Compression) {
         mode = CompressionConfig.Mode.CompressResponse
+        default()
+        // The bulk ADR export (0.8.0) is a ZIP, already deflated entry by entry: compressing it again costs CPU for nothing.
+        excludeContentType(ContentType.Application.Zip)
     }
     // DefaultHeaders' own `Server: Ktor/<version>` would disclose the framework and its exact version to
     // every client (checkup 2C18); a fixed generic value replaces it. `Date` stays.

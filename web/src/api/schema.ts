@@ -610,6 +610,35 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/adrs/export": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Export the matching ADRs as a ZIP of Markdown files
+         * @description Any authenticated user (ADRs are an open decision log). A download, not a page: `application/zip` with one adr-tools Markdown file
+         *     per matching ADR (`ADR-0042-use-postgresql.md`) and an `index.md` listing them in number order. It takes the list's FILTERS with the
+         *     same names and the same validation (`status`, `q`, `text`, `participant`, `role`, `tag`, the created/updated day ranges,
+         *     `expiresBefore`, `hasOpenIssues`, `supersedes`, `supersededBy`; every one an AND); `text` is allowed and runs under the search's deadline
+         *     and process cap like the list (`429`, `Retry-After`). It takes no `page`, `pageSize` or `sort` (the files are always in number order).
+         *     A filter matching more than 500 ADRs (`adrs.export.maxAdrs`) is `400` - narrow it; nothing is truncated silently. At most
+         *     `adrs.export.maxConcurrent` (2) bulk exports stream per process: the next is `429` `urn:hammurabi:problem:export-busy` with `Retry-After`. `HEAD` is `405`. No match is a `200` archive holding only
+         *     `index.md`. The archive is streamed: every refusal comes before the first byte, a failure after it aborts the connection (the client's
+         *     download fails; it never receives a finished archive with files missing). Rate limit:
+         *     the per-user `export` bucket, 20 per minute, shared with the single-ADR export. Audited as `adr.exported_bulk` (ids and count only).
+         */
+        get: operations["exportAdrs"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/adrs/{id}": {
         parameters: {
             query?: never;
@@ -832,6 +861,34 @@ export interface paths {
          *     - Sortable fields: `id`, `createdAt`. The default sort is `createdAt` descending, then `id` descending (newest first).
          */
         get: operations["listAdrEvents"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/adrs/{id}/export": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["parameters"]["ResourceId"];
+            };
+            cookie?: never;
+        };
+        /**
+         * Export an ADR as one Markdown file
+         * @description Any authenticated user (every ADR is readable); a missing or soft-deleted ADR is `404`. A download: `text/markdown; charset=utf-8`
+         *     with `Content-Disposition: attachment; filename="ADR-0042-<slug>.md"`, the slug being the name folded to ASCII (`[a-z0-9-]`, at most
+         *     60 characters; none when the name has no Latin letter or digit). The document follows the adr-tools convention - `# 42. Name`,
+         *     `Date:` (the day the decision was first made active, else created, UTC), `## Status` (in words, the expiry date, `Supersedes` /
+         *     `Superseded by` links to the sibling files), `## Context` (the problem, then the context), `## Decision`, `## Consequences` - plus
+         *     `## Alternatives considered` (only when non-empty), `## Roles (DACI)` and `## Tags`. The Markdown fields are included verbatim
+         *     (line endings normalised, nothing escaped). Rate limit: the per-user `export` bucket, 20 per minute. Audited as `adr.exported`. `HEAD` is `405`.
+         */
+        get: operations["exportAdr"];
         put?: never;
         post?: never;
         delete?: never;
@@ -1877,6 +1934,7 @@ export interface components {
              *     - `urn:hammurabi:problem:adr-frozen` (409): a write the ADR's status closes - content (and the successor link) once `ACTIVE`, anything once terminal.
              *     - `urn:hammurabi:problem:search-timeout` (429, `Retry-After`): a full-text search outran its deadline - narrow it.
              *     - `urn:hammurabi:problem:search-busy` (429, `Retry-After`): the server already runs its maximum of searches - retry shortly.
+             *     - `urn:hammurabi:problem:export-busy` (429, `Retry-After`): the server already streams its maximum of bulk ADR exports - retry shortly.
              *     - `urn:hammurabi:problem:discussion-closed` (409): a discussion write the ADR's status does not take - a comment or question once `ACTIVE`, an issue or escalation before it (a post or an edit; a state change and a delete have no window).
              * @default about:blank
              */
@@ -2189,7 +2247,7 @@ export interface components {
                 "application/problem+json": components["schemas"]["ProblemDetail"];
             };
         };
-        /** @description Throttled — either the per-IP rate-limit bucket is exhausted (generic detail), on a telemetry read (`/api/v1/telemetry/**`) the per-USER telemetry bucket is exhausted (30/min), on the user directory (`/api/v1/users/directory`) the per-USER directory bucket is exhausted (120/min), or, on /login, the per-account lockout is active (account-specific detail), or, on the ADR list's full-text `text` search, the search ran past its deadline (`urn:hammurabi:problem:search-timeout`) or the process's concurrent-search cap is reached (`urn:hammurabi:problem:search-busy`; both with `Retry-After`). All carry a ProblemDetail body. */
+        /** @description Throttled — either the per-IP rate-limit bucket is exhausted (generic detail), on a telemetry read (`/api/v1/telemetry/**`) the per-USER telemetry bucket is exhausted (30/min), on the user directory (`/api/v1/users/directory`) the per-USER directory bucket is exhausted (120/min), or, on /login, the per-account lockout is active (account-specific detail), or, on the ADR list's full-text `text` search, the search ran past its deadline (`urn:hammurabi:problem:search-timeout`) or the process's concurrent-search cap is reached (`urn:hammurabi:problem:search-busy`; both with `Retry-After`), or the bulk ADR export's concurrency cap is reached (`urn:hammurabi:problem:export-busy`, `Retry-After`). All carry a ProblemDetail body. */
         TooManyRequests: {
             headers: {
                 [name: string]: unknown;
@@ -2238,6 +2296,30 @@ export interface components {
         OptionalQ: string;
         /** @description Full-text search (0.5.0), OPTIONAL where declared (the ADR list): accent- and case-insensitive, every word must match, a word of three characters or more as a prefix. 2 to 100 characters (code points) after trimming with a letter or a digit (`400` otherwise); blank is no search. Distinct from `q`, the name-or-key substring. */
         SearchText: string;
+        /** @description Any-of filter on the lifecycle status; repeat the key for several. */
+        AdrFilterStatus: components["schemas"]["AdrStatus"][];
+        /** @description A user id - only the ADRs this user holds a DACI role on. */
+        AdrFilterParticipant: number;
+        /** @description Narrows `participant` to one role (`400` without `participant`). */
+        AdrFilterRole: components["schemas"]["AdrRole"];
+        /** @description Any-of filter on the ADR's tags; repeat the key for several. */
+        AdrFilterTag: string[];
+        /** @description Created on or after this UTC day. */
+        AdrFilterCreatedFrom: string;
+        /** @description Created on or before this UTC day. */
+        AdrFilterCreatedTo: string;
+        /** @description Last changed on or after this UTC day. */
+        AdrFilterUpdatedFrom: string;
+        /** @description Last changed on or before this UTC day. */
+        AdrFilterUpdatedTo: string;
+        /** @description Expiry date strictly before this day. */
+        AdrFilterExpiresBefore: string;
+        /** @description Has (`true`) or has no (`false`) open issue or escalation. */
+        AdrFilterHasOpenIssues: boolean;
+        /** @description Replaces (`true`) or does not replace (`false`) another ADR. */
+        AdrFilterSupersedes: boolean;
+        /** @description Has (`true`) or has no (`false`) successor. */
+        AdrFilterSupersededBy: boolean;
         /** @description A discussion entry of the ADR in the path; one of another ADR is `404`. */
         DiscussionEntryId: number;
         /**
@@ -3123,33 +3205,33 @@ export interface operations {
                  */
                 sort?: components["parameters"]["Sort"];
                 /** @description Any-of filter on the lifecycle status; repeat the key for several. */
-                status?: components["schemas"]["AdrStatus"][];
+                status?: components["parameters"]["AdrFilterStatus"];
                 /** @description Free-text search (API-LIST-005), OPTIONAL where declared (the ADR list): a case- and accent-insensitive substring match on the fields the endpoint names (an ADR's name or key), at most 100 characters. */
                 q?: components["parameters"]["OptionalQ"];
                 /** @description A user id - only the ADRs this user holds a DACI role on. */
-                participant?: number;
+                participant?: components["parameters"]["AdrFilterParticipant"];
                 /** @description Narrows `participant` to one role (`400` without `participant`). */
-                role?: components["schemas"]["AdrRole"];
+                role?: components["parameters"]["AdrFilterRole"];
                 /** @description Any-of filter on the ADR's tags; repeat the key for several. */
-                tag?: string[];
+                tag?: components["parameters"]["AdrFilterTag"];
                 /** @description Full-text search (0.5.0), OPTIONAL where declared (the ADR list): accent- and case-insensitive, every word must match, a word of three characters or more as a prefix. 2 to 100 characters (code points) after trimming with a letter or a digit (`400` otherwise); blank is no search. Distinct from `q`, the name-or-key substring. */
                 text?: components["parameters"]["SearchText"];
                 /** @description Created on or after this UTC day. */
-                createdFrom?: string;
+                createdFrom?: components["parameters"]["AdrFilterCreatedFrom"];
                 /** @description Created on or before this UTC day. */
-                createdTo?: string;
+                createdTo?: components["parameters"]["AdrFilterCreatedTo"];
                 /** @description Last changed on or after this UTC day. */
-                updatedFrom?: string;
+                updatedFrom?: components["parameters"]["AdrFilterUpdatedFrom"];
                 /** @description Last changed on or before this UTC day. */
-                updatedTo?: string;
+                updatedTo?: components["parameters"]["AdrFilterUpdatedTo"];
                 /** @description Expiry date strictly before this day. */
-                expiresBefore?: string;
+                expiresBefore?: components["parameters"]["AdrFilterExpiresBefore"];
                 /** @description Has (`true`) or has no (`false`) open issue or escalation. */
-                hasOpenIssues?: boolean;
+                hasOpenIssues?: components["parameters"]["AdrFilterHasOpenIssues"];
                 /** @description Replaces (`true`) or does not replace (`false`) another ADR. */
-                supersedes?: boolean;
+                supersedes?: components["parameters"]["AdrFilterSupersedes"];
                 /** @description Has (`true`) or has no (`false`) successor. */
-                supersededBy?: boolean;
+                supersededBy?: components["parameters"]["AdrFilterSupersededBy"];
             };
             header?: never;
             path?: never;
@@ -3209,6 +3291,70 @@ export interface operations {
             409: components["responses"]["Conflict"];
             413: components["responses"]["PayloadTooLarge"];
             415: components["responses"]["UnsupportedMediaType"];
+            500: components["responses"]["InternalServerError"];
+        };
+    };
+    exportAdrs: {
+        parameters: {
+            query?: {
+                /** @description Any-of filter on the lifecycle status; repeat the key for several. */
+                status?: components["parameters"]["AdrFilterStatus"];
+                /** @description Free-text search (API-LIST-005), OPTIONAL where declared (the ADR list): a case- and accent-insensitive substring match on the fields the endpoint names (an ADR's name or key), at most 100 characters. */
+                q?: components["parameters"]["OptionalQ"];
+                /** @description Full-text search (0.5.0), OPTIONAL where declared (the ADR list): accent- and case-insensitive, every word must match, a word of three characters or more as a prefix. 2 to 100 characters (code points) after trimming with a letter or a digit (`400` otherwise); blank is no search. Distinct from `q`, the name-or-key substring. */
+                text?: components["parameters"]["SearchText"];
+                /** @description A user id - only the ADRs this user holds a DACI role on. */
+                participant?: components["parameters"]["AdrFilterParticipant"];
+                /** @description Narrows `participant` to one role (`400` without `participant`). */
+                role?: components["parameters"]["AdrFilterRole"];
+                /** @description Any-of filter on the ADR's tags; repeat the key for several. */
+                tag?: components["parameters"]["AdrFilterTag"];
+                /** @description Created on or after this UTC day. */
+                createdFrom?: components["parameters"]["AdrFilterCreatedFrom"];
+                /** @description Created on or before this UTC day. */
+                createdTo?: components["parameters"]["AdrFilterCreatedTo"];
+                /** @description Last changed on or after this UTC day. */
+                updatedFrom?: components["parameters"]["AdrFilterUpdatedFrom"];
+                /** @description Last changed on or before this UTC day. */
+                updatedTo?: components["parameters"]["AdrFilterUpdatedTo"];
+                /** @description Expiry date strictly before this day. */
+                expiresBefore?: components["parameters"]["AdrFilterExpiresBefore"];
+                /** @description Has (`true`) or has no (`false`) open issue or escalation. */
+                hasOpenIssues?: components["parameters"]["AdrFilterHasOpenIssues"];
+                /** @description Replaces (`true`) or does not replace (`false`) another ADR. */
+                supersedes?: components["parameters"]["AdrFilterSupersedes"];
+                /** @description Has (`true`) or has no (`false`) successor. */
+                supersededBy?: components["parameters"]["AdrFilterSupersededBy"];
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The archive */
+            200: {
+                headers: {
+                    /** @description `attachment; filename="adr-export-YYYY-MM-DD.zip"` */
+                    "Content-Disposition"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/zip": string;
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            /** @description The per-user export bucket is empty, or the process already streams its maximum of bulk exports (`urn:hammurabi:problem:export-busy`, `Retry-After` 5), or a search (`text`) outran its deadline (`urn:hammurabi:problem:search-timeout`, `Retry-After` 2) or the process already runs its maximum of searches (`urn:hammurabi:problem:search-busy`, `Retry-After` 1). */
+            429: {
+                headers: {
+                    "Retry-After"?: number;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetail"];
+                };
+            };
             500: components["responses"]["InternalServerError"];
         };
     };
@@ -3515,6 +3661,35 @@ export interface operations {
             400: components["responses"]["BadRequest"];
             401: components["responses"]["Unauthorized"];
             404: components["responses"]["NotFound"];
+            500: components["responses"]["InternalServerError"];
+        };
+    };
+    exportAdr: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["parameters"]["ResourceId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The document */
+            200: {
+                headers: {
+                    /** @description `attachment; filename="ADR-0042-<slug>.md"` */
+                    "Content-Disposition"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "text/markdown": string;
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            404: components["responses"]["NotFound"];
+            429: components["responses"]["TooManyRequests"];
             500: components["responses"]["InternalServerError"];
         };
     };

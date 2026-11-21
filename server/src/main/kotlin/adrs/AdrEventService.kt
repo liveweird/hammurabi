@@ -15,6 +15,7 @@ import kotlinx.serialization.Serializable
 import kotlinx.coroutines.flow.toList
 import org.jetbrains.exposed.v1.core.and
 import org.jetbrains.exposed.v1.core.eq
+import org.jetbrains.exposed.v1.core.inList
 import org.jetbrains.exposed.v1.r2dbc.R2dbcDatabase
 import org.jetbrains.exposed.v1.r2dbc.select
 
@@ -236,6 +237,20 @@ class AdrEventService(database: R2dbcDatabase, private val notices: AdrNotices =
             .where { (AdrEvents.ownerId eq adrId) and (AdrEvents.eventType eq AdrEventType.TRANSITIONED.name) }
             .toList()
             .any { decodeParams(it[AdrEvents.params])["to"] == AdrStatus.IN_REVIEW.name }
+
+    /**
+     * When each ADR in [adrIds] first became `ACTIVE` (the earliest `TRANSITIONED` event into it), epoch millis, read in the caller's
+     * transaction; an ADR that never was is absent. The Markdown export's decision date.
+     */
+    suspend fun firstActivations(adrIds: Collection<UInt>): Map<UInt, Long> {
+        if (adrIds.isEmpty()) return emptyMap()
+        return AdrEvents.select(AdrEvents.ownerId, AdrEvents.params, AdrEvents.createdAt)
+            .where { (AdrEvents.ownerId inList adrIds.distinct()) and (AdrEvents.eventType eq AdrEventType.TRANSITIONED.name) }
+            .toList()
+            .filter { decodeParams(it[AdrEvents.params])["to"] == AdrStatus.ACTIVE.name }
+            .groupBy({ it[AdrEvents.ownerId].value }) { it[AdrEvents.createdAt] }
+            .mapValues { (_, at) -> at.min() }
+    }
 
     /** The ADR's history, newest first by default (the id descending as the same-instant tiebreaker). */
     suspend fun list(adrId: UInt, paging: PageRequest): AdrEventListResult {

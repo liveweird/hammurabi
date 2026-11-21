@@ -17,6 +17,7 @@ import org.jetbrains.exposed.v1.core.ResultRow
 import org.jetbrains.exposed.v1.core.and
 import org.jetbrains.exposed.v1.r2dbc.R2dbcDatabase
 import org.jetbrains.exposed.v1.r2dbc.R2dbcTransaction
+import org.jetbrains.exposed.v1.r2dbc.select
 import org.jetbrains.exposed.v1.r2dbc.selectAll
 import org.jetbrains.exposed.v1.r2dbc.transactions.suspendTransaction
 
@@ -47,8 +48,25 @@ class AdrListService(
     private val permits = Semaphore(maxConcurrent)
     private val adrs = AdrService.Adrs
 
-    suspend fun list(filter: AdrListFilter, paging: PageRequest, callerUserId: UInt): AdrListResult {
-        val text = filter.text ?: return suspendTransaction(database) { page(filter, null, paging) }
+    suspend fun list(filter: AdrListFilter, paging: PageRequest, callerUserId: UInt): AdrListResult =
+        searching(filter.text, callerUserId, AdrListResult(emptyList(), 0)) { queryText, budget -> page(filter, queryText, paging, budget) }
+
+    /**
+     * The bulk export's plan (0.8.0): which ADRs match [filter], in number order, as the headline columns only - the same predicate, the
+     * same `text` guard (deadline, concurrency cap, the typed `429`s) as the list. A match over [cap] answers its total and NO rows (the
+     * route refuses it with a `400` before a byte is streamed); at most [cap] rows are ever read.
+     */
+    suspend fun exportPlan(filter: AdrListFilter, cap: Int, callerUserId: UInt): AdrExportPlan =
+        searching(filter.text, callerUserId, AdrExportPlan(0, emptyList())) { queryText, budget -> plan(filter, queryText, cap, budget) }
+
+    /** Runs [block] plainly without `text`, else under the search's permit and deadline (a term with no lexeme: [noMatch]). */
+    private suspend fun <T> searching(
+        text: String?,
+        callerUserId: UInt,
+        noMatch: T,
+        block: suspend R2dbcTransaction.(queryText: String?, budget: SearchBudget?) -> T,
+    ): T {
+        text ?: return suspendTransaction(database) { block(null, null) }
         if (!permits.tryAcquire()) {
             audit("search.busy", "byUserId" to callerUserId.toLong())
             throw searchBusy()
@@ -56,8 +74,8 @@ class AdrListService(
         try {
             return budgetedTransaction(database, timeoutSeconds, clock, onTimeout = { timedOut(callerUserId) }) { budget ->
                 budget.arm(this)
-                val queryText = ftsQueryText(text) ?: return@budgetedTransaction AdrListResult(emptyList(), 0)
-                page(filter, queryText, paging, budget)
+                val queryText = ftsQueryText(text) ?: return@budgetedTransaction noMatch
+                block(queryText, budget)
             }
         } finally {
             permits.release()
@@ -104,6 +122,16 @@ class AdrListService(
             },
             total = total,
         )
+    }
+
+    private suspend fun R2dbcTransaction.plan(filter: AdrListFilter, queryText: String?, cap: Int, budget: SearchBudget?): AdrExportPlan {
+        val predicate = adrListPredicate(filter, queryText) and adrs.active()
+        budget?.arm(this)
+        val total = adrs.selectAll().where { predicate }.count()
+        if (total > cap) return AdrExportPlan(total, emptyList())
+        budget?.arm(this)
+        val rows = adrs.select(adrs.id, adrs.number, adrs.name).where { predicate }.orderBy(adrs.number).limit(cap).toList()
+        return AdrExportPlan(total, rows.map { AdrExportRow(it[adrs.id].value, it[adrs.number], it[adrs.name]) })
     }
 
     private fun ResultRow.toItem(

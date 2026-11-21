@@ -4,6 +4,8 @@ import ch.nokillswit.adrs.AdrDiscussionService
 import ch.nokillswit.adrs.AdrDiscussionServiceKey
 import ch.nokillswit.adrs.AdrEventService
 import ch.nokillswit.adrs.AdrEventServiceKey
+import ch.nokillswit.adrs.AdrExportService
+import ch.nokillswit.adrs.AdrExportServiceKey
 import ch.nokillswit.adrs.AdrListService
 import ch.nokillswit.adrs.AdrListServiceKey
 import ch.nokillswit.adrs.AdrParticipantService
@@ -288,6 +290,8 @@ suspend fun Application.configureDatabase() {
         AdrListServiceKey,
         AdrListService(database, adrParticipants, adrDiscussion, adrTags, searchTimeoutSeconds, searchMaxConcurrent),
     )
+    // The Markdown export (0.8.0): reads the ADR, its people, tags, links and first activation.
+    attributes.put(AdrExportServiceKey, AdrExportService(database, adrParticipants, adrTags, adrSuccessors, adrEvents))
     attributes.put(LensServiceKey, LensService(database))
     attributes.put(
         TokenBlocklistServiceKey,

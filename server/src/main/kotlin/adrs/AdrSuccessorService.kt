@@ -70,6 +70,23 @@ class AdrSuccessorService(private val events: AdrEventService) {
         return adrs.selectAll().where { (adrs.id eq id) and adrs.active() }.toList().singleOrNull()?.toRef()
     }
 
+    /** The live ADRs among [ids] by id, in ONE query (the bulk export's predecessors). */
+    suspend fun refsOf(ids: Collection<UInt>): Map<UInt, AdrRef> {
+        if (ids.isEmpty()) return emptyMap()
+        return adrs.selectAll().where { (adrs.id inList ids.distinct()) and adrs.active() }.toList()
+            .associate { it[adrs.id].value to it.toRef() }
+    }
+
+    /** [successorOf] for every ADR in [ids] in ONE query: the predecessor's id to its lowest-id successor in play or in effect. */
+    suspend fun successorsOf(ids: Collection<UInt>): Map<UInt, AdrRef> {
+        if (ids.isEmpty()) return emptyMap()
+        return adrs.selectAll()
+            .where { (adrs.supersedesId inList ids.distinct()) and adrs.active() and successorInPlayOrInEffect() }
+            .orderBy(adrs.id).toList()
+            .groupBy { checkNotNull(it[adrs.supersedesId]).value }
+            .mapValues { (_, rows) -> rows.first().toRef() }
+    }
+
     /** The ADR [id] whatever its state, soft-deleted included (the old end of a link being removed still deserves its event). */
     private suspend fun refOfAny(id: UInt?): AdrRef? {
         if (id == null) return null

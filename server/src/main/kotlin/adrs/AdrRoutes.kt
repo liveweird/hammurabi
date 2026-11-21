@@ -38,6 +38,11 @@ import kotlinx.serialization.Serializable
 @Serializable
 @Resource("/api/v1/adrs")
 class AdrsRoute {
+    /** `GET /adrs/export` (0.8.0): a ZIP of Markdown files for the ADRs matching the list's filters; a literal, so it beats `{id}`. */
+    @Serializable
+    @Resource("export")
+    class Export(val parent: AdrsRoute = AdrsRoute())
+
     @Serializable
     @Resource("{id}")
     class Id(val parent: AdrsRoute = AdrsRoute(), val id: UInt) {
@@ -64,6 +69,11 @@ class AdrsRoute {
         @Serializable
         @Resource("events")
         class Events(val parent: Id)
+
+        /** `GET /adrs/{id}/export` (0.8.0): the ADR as one Markdown file. */
+        @Serializable
+        @Resource("export")
+        class Export(val parent: Id)
 
         @Serializable
         @Resource("discussion")
@@ -127,7 +137,7 @@ private fun Route.adrReads(adrService: AdrService, listService: AdrListService) 
 }
 
 /** The list's query string as a filter document (repeated keys read as lists, a repeated scalar is a `400`); [normalized] validates it. */
-private fun adrFilterDocument(params: Parameters): AdrFilterDocument = AdrFilterDocument(
+internal fun adrFilterDocument(params: Parameters): AdrFilterDocument = AdrFilterDocument(
     status = params.repeatedStrings("status", maxCount = AdrStatus.entries.size).map(::parseStatus),
     q = params.optionalString("q"),
     text = params.optionalString("text"),

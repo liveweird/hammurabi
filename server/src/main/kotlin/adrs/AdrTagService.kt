@@ -7,6 +7,7 @@ import ch.nokillswit.tags.requireValidTagName
 import ch.nokillswit.users.UserService
 import io.ktor.server.plugins.BadRequestException
 import kotlinx.coroutines.flow.toList
+import org.jetbrains.exposed.v1.core.JoinType
 import org.jetbrains.exposed.v1.core.Table
 import org.jetbrains.exposed.v1.core.and
 import org.jetbrains.exposed.v1.core.eq
@@ -63,6 +64,16 @@ class AdrTagService(private val events: AdrEventService) {
             .where { AdrTags.adrId inList adrIds.distinct() }.toList()
             .groupBy({ it[AdrTags.adrId].value }) { AdrTag(it[tags.name], it[tags.markedAsDeleted]) }
             .mapValues { (_, list) -> list.sortedBy { it.name } }
+    }
+
+    /** The tags of every ADR in [adrIds] with their category's name, in ONE query (the Markdown export); a retired tag is marked. */
+    suspend fun categorizedForAdrs(adrIds: Collection<UInt>): Map<UInt, List<ExportTag>> {
+        if (adrIds.isEmpty()) return emptyMap()
+        val categories = TagCategoryService.TagCategories
+        return AdrTags.innerJoin(tags).join(categories, JoinType.INNER, onColumn = tags.categoryId, otherColumn = categories.id)
+            .select(AdrTags.adrId, categories.name, tags.name, tags.markedAsDeleted)
+            .where { AdrTags.adrId inList adrIds.distinct() }.toList()
+            .groupBy({ it[AdrTags.adrId].value }) { ExportTag(it[categories.name], it[tags.name], it[tags.markedAsDeleted]) }
     }
 
     /**

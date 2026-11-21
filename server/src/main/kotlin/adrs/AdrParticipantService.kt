@@ -49,6 +49,10 @@ class AdrParticipantService(private val events: AdrEventService) {
     /** The participants of [adrId] with the display names as they are now (a soft-deleted user keeps the name), in role order. */
     suspend fun forAdr(adrId: UInt): List<AdrParticipant> = rowsOf(listOf(adrId)).values.firstOrNull().orEmpty().sortedForDisplay()
 
+    /** The participants of every ADR in [adrIds] in ONE query (the bulk export), each list in role order. */
+    suspend fun forAdrs(adrIds: Collection<UInt>): Map<UInt, List<AdrParticipant>> =
+        rowsOf(adrIds.distinct()).mapValues { (_, list) -> list.sortedForDisplay() }
+
     /** Every stored row of one ADR, by user id: the diff's baseline (role plus who added it and when, which a role change keeps). */
     private data class Stored(val participant: AdrParticipant, val addedAt: Long, val addedBy: UInt)
 

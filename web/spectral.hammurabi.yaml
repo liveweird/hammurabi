@@ -11,3 +11,18 @@ rules:
   # `info.termsOfService`. Revisit (delete these two lines) if Hammurabi ever publishes commitments or terms.
   sla-extension-present: off
   terms-of-service-present: off
+
+  # API-STRUCT-001 (bodies are application/json) governs the JSON API. The two ADR exports (0.8.0) are FILE DOWNLOADS by design: one
+  # Markdown document (text/markdown) and a ZIP of them (application/zip), so their 2xx bodies are exempt - by path, never by pattern, so a
+  # new endpoint answering something other than JSON still fails. Their errors stay application/problem+json (that rule is untouched).
+  # The shape exception is recorded in list-endpoints.md ("The one shape exception"). Remove the two paths if the exports ever go away.
+  success-bodies-are-json:
+    description: "API-STRUCT-001: request and 2xx response bodies use application/json (the two ADR file downloads excepted)."
+    message: "Body must use `application/json` (API-STRUCT-001)."
+    severity: error
+    given:
+      - $.paths[?(@property != '/api/v1/adrs/export' && @property != '/api/v1/adrs/{id}/export')][*].responses[?(@property && @property.match(/^2\d\d$/))].content
+      - $..requestBody.content
+    then:
+      field: application/json
+      function: truthy

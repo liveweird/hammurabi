@@ -48,6 +48,8 @@ ktor:
       # The ADR core (`.claude/docs/adr-model.md`): the /api/v1/adrs routes, the discussion routes (0.3.0), then the expiry sweep (`adrs.expiry.*` below).
       - ch.nokillswit.adrs.AdrRoutesKt.configureAdrRoutes
       - ch.nokillswit.adrs.AdrDiscussionRoutesKt.configureAdrDiscussionRoutes
+      # The Markdown export (0.8.0, `.claude/docs/adr-model.md` "Export"): /api/v1/adrs/{id}/export and /api/v1/adrs/export (a ZIP).
+      - ch.nokillswit.adrs.AdrExportRoutesKt.configureAdrExportRoutes
       - ch.nokillswit.adrs.AdrExpirySweepKt.configureAdrExpirySweep
       # The saved ADR-list filters (0.5.0, `.claude/docs/adr-model.md` "Lenses"): /api/v1/lenses.
       - ch.nokillswit.lenses.LensRoutesKt.configureLensRoutes
@@ -216,6 +218,12 @@ adrs:
     # expiry date is this many days away or fewer notifies its Driver and Approver once per expiry date. 0 = off. 0..365. The pass lives
     # in the notification sweep, so it runs only when `notifications.sweepEnabled` is true (it does NOT depend on `adrs.expiry.enabled`).
     reminderDays: "$ADRS_EXPIRY_REMINDER_DAYS:14"
+  # The Markdown export (adrs/AdrExportRoutes.kt, `.claude/docs/adr-model.md` "Export"). `maxAdrs` is the most ADRs one bulk export holds (a
+  # filter matching more is a 400, never a truncation), 1..5000; `maxConcurrent` is how many bulk exports one process streams at once (the
+  # next one is a 429 `export-busy`: a slow reader holds a blocking IO thread), 1..16.
+  export:
+    maxAdrs: "$ADRS_EXPORT_MAX_ADRS:500"
+    maxConcurrent: "$ADRS_EXPORT_MAX_CONCURRENT:2"
 
 notifications:
   # How long a notice is kept (`notifications/NotificationSweep.kt`): older rows are deleted, at most once an hour, in the sweep's own scope

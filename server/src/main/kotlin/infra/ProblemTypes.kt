@@ -31,6 +31,11 @@ object ProblemTypes {
     /** The process already runs its maximum of concurrent searches (429 + `Retry-After`; `adrs/AdrSearchProblems.kt`): retry shortly. */
     const val SEARCH_BUSY = "urn:hammurabi:problem:search-busy"
 
+    /** The process already runs its maximum of concurrent bulk exports (429 + `Retry-After`; `adrs/AdrExportRoutes.kt`): retry shortly. */
+    const val EXPORT_BUSY = "urn:hammurabi:problem:export-busy"
+
     /** Every registered URI; the spec's list and the main sources are diffed against it. */
-    val ALL: Set<String> = setOf(REVISION_CONFLICT, ILLEGAL_TRANSITION, ADR_FROZEN, DISCUSSION_CLOSED, SEARCH_TIMEOUT, SEARCH_BUSY)
+    val ALL: Set<String> = setOf(
+        REVISION_CONFLICT, ILLEGAL_TRANSITION, ADR_FROZEN, DISCUSSION_CLOSED, SEARCH_TIMEOUT, SEARCH_BUSY, EXPORT_BUSY,
+    )
 }

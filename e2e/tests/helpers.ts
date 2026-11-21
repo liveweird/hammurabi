@@ -1,6 +1,8 @@
 import AxeBuilder from "@axe-core/playwright";
 import { type APIRequestContext, expect, type Page, request as playwrightRequest, test } from "@playwright/test";
 import { randomUUID } from "node:crypto";
+import { readFile } from "node:fs/promises";
+import { inflateRawSync } from "node:zlib";
 import { BASE_URL, MAILPIT_URL } from "../playwright.config";
 
 export { expect, test };
@@ -332,4 +334,42 @@ export async function mailText(to: string, subject: (subject: string) => boolean
   );
   if (!msg) return undefined;
   return (await fetch(`${MAILPIT_URL}/api/v1/message/${msg.ID}`).then((r) => r.json())).Text as string;
+}
+
+/**
+ * The text of every file in a ZIP, by name, with no dependency: the central directory (found from the end-of-central-directory record)
+ * says where each entry sits and how big it is, which a streamed archive (the server's, written with data descriptors) only knows there.
+ * Handles stored and deflated entries, which is all `java.util.zip` writes.
+ */
+export function unzipText(zip: Buffer): Map<string, string> {
+  const END_OF_DIRECTORY = 0x06054b50;
+  const CENTRAL_HEADER = 0x02014b50;
+  const LOCAL_HEADER = 0x04034b50;
+  let end = zip.length - 22;
+  while (end >= 0 && zip.readUInt32LE(end) !== END_OF_DIRECTORY) end--;
+  expect(end, "the archive has an end-of-central-directory record").toBeGreaterThanOrEqual(0);
+  const count = zip.readUInt16LE(end + 10);
+  let at = zip.readUInt32LE(end + 16);
+  const files = new Map<string, string>();
+  for (let n = 0; n < count; n++) {
+    expect(zip.readUInt32LE(at)).toBe(CENTRAL_HEADER);
+    const method = zip.readUInt16LE(at + 10);
+    const size = zip.readUInt32LE(at + 20);
+    const nameLength = zip.readUInt16LE(at + 28);
+    const extraLength = zip.readUInt16LE(at + 30);
+    const commentLength = zip.readUInt16LE(at + 32);
+    const local = zip.readUInt32LE(at + 42);
+    const name = zip.toString("utf8", at + 46, at + 46 + nameLength);
+    expect(zip.readUInt32LE(local)).toBe(LOCAL_HEADER);
+    const start = local + 30 + zip.readUInt16LE(local + 26) + zip.readUInt16LE(local + 28);
+    const data = zip.subarray(start, start + size);
+    files.set(name, (method === 8 ? inflateRawSync(data) : data).toString("utf8"));
+    at += 46 + nameLength + extraLength + commentLength;
+  }
+  return files;
+}
+
+/** The bytes of a finished Playwright download. */
+export async function downloadBytes(download: { path(): Promise<string> }): Promise<Buffer> {
+  return readFile(await download.path());
 }

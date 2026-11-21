@@ -8,12 +8,11 @@ import ch.nokillswit.infra.db.active
 import ch.nokillswit.infra.db.lockActiveForWrite
 import ch.nokillswit.infra.db.nowMillis
 import ch.nokillswit.infra.db.scalarChange
-import ch.nokillswit.infra.paging.PageRequest
-import ch.nokillswit.infra.paging.applyPaging
 import ch.nokillswit.infra.revision.requireRevision
 import ch.nokillswit.users.UserService
 import io.ktor.server.plugins.BadRequestException
 import io.ktor.util.AttributeKey
+import kotlinx.coroutines.flow.single
 import kotlinx.coroutines.flow.toList
 import org.jetbrains.exposed.v1.core.ResultRow
 import org.jetbrains.exposed.v1.core.and
@@ -25,7 +24,7 @@ import org.jetbrains.exposed.v1.core.statements.StatementType
 import org.jetbrains.exposed.v1.core.vendors.ForUpdateOption
 import org.jetbrains.exposed.v1.r2dbc.R2dbcDatabase
 import org.jetbrains.exposed.v1.r2dbc.R2dbcTransaction
-import org.jetbrains.exposed.v1.r2dbc.insert
+import org.jetbrains.exposed.v1.r2dbc.insertReturning
 import org.jetbrains.exposed.v1.r2dbc.select
 import org.jetbrains.exposed.v1.r2dbc.selectAll
 import org.jetbrains.exposed.v1.r2dbc.transactions.suspendTransaction
@@ -145,37 +144,6 @@ class AdrService(
         view.toResponse(AdrStanding(caller, view.participants.firstOrNull { it.userId == caller.userId }?.role), counts)
     }
 
-    suspend fun list(filter: AdrListFilter, paging: PageRequest): AdrListResult = suspendTransaction(database) {
-        val predicate = adrListPredicate(filter) and Adrs.active()
-        val total = Adrs.selectAll().where { predicate }.count()
-        val rows = Adrs.selectAll().where { predicate }.applyPaging(paging, ADR_SORT_COLUMNS).toList().map { it.toRecord() }
-        val leads = participants.leadsOf(rows.map { it.id })
-        val counts = discussion.countsOf(rows.map { it.id })
-        val tagsOf = tags.forAdrs(rows.map { it.id })
-        AdrListResult(
-            items = rows.map { record ->
-                val lead = leads[record.id].orEmpty()
-                AdrListItem(
-                    id = record.id,
-                    number = record.number,
-                    key = adrKey(record.number),
-                    name = record.name,
-                    status = record.status,
-                    expiresOn = record.expiresOn,
-                    revision = record.revision,
-                    createdAt = record.createdAt,
-                    updatedAt = record.updatedAt,
-                    statusChangedAt = record.statusChangedAt,
-                    driver = lead.firstOrNull { it.role == AdrRole.DRIVER },
-                    approver = lead.firstOrNull { it.role == AdrRole.APPROVER },
-                    tags = tagsOf[record.id].orEmpty(),
-                    openIssueCount = counts[record.id]?.openIssues ?: 0,
-                )
-            },
-            total = total,
-        )
-    }
-
     /** `MAX("number") + 1` over EVERY row (a soft-deleted ADR keeps its number), under [ADR_NUMBER_LOCK_KEY], held until the commit. */
     private suspend fun R2dbcTransaction.nextNumber(): Int {
         exec("SELECT pg_advisory_xact_lock($ADR_NUMBER_LOCK_KEY)", explicitStatementType = StatementType.SELECT) { true }?.toList()
@@ -203,7 +171,9 @@ class AdrService(
             val names = participants.requireActiveUsers(request.participants.map { it.userId })
             val number = nextNumber()
             val stamp = nowMillis()
-            val id = Adrs.insert {
+            // `insertReturning(id)`, not `insert`: a plain insert answers `RETURNING *`, which would send the generated `search` vector
+            // (V15) back. The generated column is never in this table object, so only the id returns.
+            val id = Adrs.insertReturning(listOf(Adrs.id)) {
                 it[Adrs.number] = number
                 it[Adrs.name] = name
                 it[problem] = request.problem
@@ -217,7 +187,7 @@ class AdrService(
                 it[createdAt] = stamp
                 it[updatedAt] = stamp
                 it[statusChangedAt] = stamp
-            }[Adrs.id].value
+            }.single()[Adrs.id].value
             events.record(id, caller.userId, adrCreatedEvent(number, name), stamp)
             participants.insertForCreation(id, caller.userId, request.participants, names, stamp)
             CreatedAdr(id, number)

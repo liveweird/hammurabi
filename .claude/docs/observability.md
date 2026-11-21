@@ -120,6 +120,8 @@ with `hasKeyValue` from `TestEnvironment.kt`). Emitted today:
   `adr.discussion_edited` (the same fields; only when the text changed) / `adr.discussion_deleted` (the same plus `byAdmin` - a moderation delete is visible) / `adr.discussion_state_changed` (the same plus `from`/`to`; only when the state really changed, or - `from == to` - when a RESOLVED entry's note did) - the discussion's four, never the
   text; every ADR mutation after its commit; a refused or conflicting
   write (403/409/400) emits none, a 403 is the generic `authz.denied`; content (the name and the Markdown fields) is never a field,
+- `lens.created` (byUserId/lensId/visibility) / `lens.updated` (the same) / `lens.deleted` (byUserId/lensId/byAdmin - true when an ADMIN moderated a PUBLIC lens of someone else) - the saved ADR-list filters (`/api/v1/lenses`, V16); NEVER the name or the filters (a search term is user content),
+- `search.timeout` (byUserId) / `search.busy` (byUserId) - a full-text search (`GET /adrs?text=`) outran `search.timeoutSeconds` (the cancelled statement or a deadline spent between two statements) or met the `search.maxConcurrent` cap: the typed `429`s, ids only, the throwable neither logged nor attached (`adrs/AdrListService.kt`, `security.md` "Search"),
 - `bootstrap.admin_password_rotated` (userId/email — the fixed seed-admin email, never the password or
   its hash; `infra/db/Bootstrap.kt`, only when `ADMIN_INITIAL_PASSWORD` actually replaced the seed
   hash, so an idempotent re-boot emits nothing) — the boot-time credential event, so an admin-password reset leaves a trail beyond a log line

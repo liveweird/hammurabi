@@ -14,10 +14,10 @@ in-network consumers use `postgres:5432`). There is one persistence stack:
   makes every long-lived database refuse to boot (a failure no fresh-container CI run can see).
   `MigrationChecksumTest` pins every file's checksum; a new migration adds one manifest line, and
   a red pin means REVERT the edit (clarifications go into this doc), never update the pinned
-  value. The range today is **V1–V14**: V1 `users`, V2 `revoked_tokens`, V3 the seed admin, V4 the
+  value. The range today is **V1–V16**: V1 `users`, V2 `revoked_tokens`, V3 the seed admin, V4 the
   `unaccent` extension, V5 `user_disabled_features` (V1–V5 are Flow's), V6 `teams` (with the optional
   manager), V7 `users.credential_revision`, V8 `password_reset_tokens`, V9 the `ops` telemetry
-  schema, V10 `adrs` + `adr_participants`, V11 `adr_events`, V12 `adr_discussion`, V13 `tag_categories` + `tags` + `adr_tags` (and the seed), V14 `adrs.supersedes_id`. (The bootstrap renumbered the donor's history; from V10 on, migrations are append-only like any other.)
+  schema, V10 `adrs` + `adr_participants`, V11 `adr_events`, V12 `adr_discussion`, V13 `tag_categories` + `tags` + `adr_tags` (and the seed), V14 `adrs.supersedes_id`, V15 `adrs.search` (the generated `tsvector`, the `hammurabi_search` configuration, the GIN index and the filter indexes), V16 `lenses`. (The bootstrap renumbered the donor's history; from V10 on, migrations are append-only like any other.)
 - **Exposed + R2DBC** (`infra/db/Database.kt` + the feature services) — runtime DB access.
   `Database.kt` connects the `R2dbcDatabase` and is the composition root: it constructs the
   services and publishes them into `Application.attributes` (`UserServiceKey`, `TeamServiceKey`,
@@ -170,6 +170,9 @@ place:
 - `telemetry/TelemetryRoutes.kt` (the ADMIN read API: `TelemetryReads.kt`, `TelemetryCurrent.kt`, `TelemetryHistory.kt`) READS `ops.telemetry_processes` /
   `ops.telemetry_samples` (its own schema; one SELECT per transaction under `queryTimeout` 5 s, the history grouped per role/metric/label/bucket in SQL).
 
+- `adrs/AdrListService` (the list and the search) READS `adrs`, `adr_participants` (the `participant` filter and the Driver and Approver of the page: `AdrParticipantService.leadsOf`), `adr_tags` and `tags/TagCategoryService.Tags` (the `tag` filter, the page's tags), `adr_discussion` (the `hasOpenIssues` filter and the page's counts) and the generated `adrs.search`; it writes nothing.
+- `lenses/LensService` READS `users/UserService.Users` (the creator's name and deleted flag, joined in the lens query's own transaction) and WRITES only `lenses`.
+
 List each new cross-feature read/write here as it lands — the list IS the permission.
 
 ### Schemas
@@ -224,7 +227,7 @@ transaction under `TELEMETRY_LOCK_KEY`, and a row exactly at its cutoff stays. T
 
 ### Soft delete (convention)
 
-`users`, `teams`, `adrs`, `tag_categories`, `tags` (a retired tag) and `adr_discussion` (a deleted entry is a tombstone) are **soft-deleted** — rows are flagged, never physically removed; every
+`users`, `teams`, `adrs`, `lenses`, `tag_categories`, `tags` (a retired tag) and `adr_discussion` (a deleted entry is a tombstone) are **soft-deleted** — rows are flagged, never physically removed; every
 business entity follows the same convention. Only join/token tables (today: `revoked_tokens`, a
 pure token registry, `password_reset_tokens` (V8, expiring single-use credentials, not history), `user_disabled_features`, a pure flag join
 whose PUT is a wholesale replace, `adr_participants` and `adr_tags`, current-fact joins replaced as a diff whose every change is an `adr_events` row, and the
@@ -308,6 +311,10 @@ digests agree — this is key-order independence, not general structural equalit
 does not normalize number spelling (`1`, `1.0` and `1e0` stay distinct token text). The output must stay byte-stable, since stored
 text and sha256 are compared against stored rows.
 
+### Persisted enums
+
+A Kotlin enum is stored by NAME in a `VARCHAR` with no CHECK (the V5 rule: the enum is the whitelist, so adding a value is code only). Renaming or removing a value is a DATA migration in the same commit: rewrite every place that holds the old name - the enum's own column (`adrs.status`, `adr_participants.role`, `adr_discussion.kind`/`status`, `lenses.visibility`), the JSON of `adr_events.params`, and **`lenses.filters`**, whose `status` and `role` keys hold the names inside a TEXT document no column type protects (rewrite it with a JSON-aware statement, and test it). A lens that slips through is read leniently (`LensService.decodeStoredFilters`: an unknown key is ignored, an unknown `status`/`role` value is dropped, so the lens widens on that key until it is saved again) instead of failing the list with a `500`; every other column fails on an unknown name, so the rewrite is not optional.
+
 ### ADRs (V10, V11, V12)
 
 `adrs` (`adrs/AdrService.kt`), `adr_participants` (`AdrParticipantService.kt`), `adr_events` (`AdrEventService.kt`, V11) and `adr_discussion` (`AdrDiscussionService.kt`, V12); the domain is `adr-model.md`.
@@ -339,7 +346,20 @@ text and sha256 are compared against stored rows.
 
 `adrs.supersedes_id` (a self-reference, nullable, no ON DELETE rule: ADRs soft-delete; `ck_adrs_supersedes_self` refuses `= id`) on the SUCCESSOR. `uq_adrs_supersedes_open (supersedes_id) WHERE supersedes_id IS NOT NULL AND NOT marked_as_deleted AND status NOT IN (CANCELLED, WITHDRAWN, EXPIRED, SUPERSEDED)` allows one successor in play per predecessor (the terminal names are spelled in the predicate; they are the frozen `AdrStatus` values); `idx_adrs_supersedes` serves the reverse lookup ("who replaces this one?"). Two locks, in this order and never the other way: the `ADRLINKS` advisory lock (`ADR_LINK_LOCK_KEY`, `pg_advisory_xact_lock`, the first statement of a link write, because a cycle spans rows) and then the ADR row lock `FOR NO KEY UPDATE`. An activation takes only row locks: the successor's and the predecessor's TOGETHER in one `ORDER BY id` statement, so two writers touching the same pair cannot deadlock (two activations along a chain, B replaces A and C replaces B, share only B's row, always taken in id order - `AdrSuccessorDetachTest` runs them at once, with the chain in both id orders); it peeks the predecessor id without a lock first (a link change bumps the successor's revision, so a stale peek is a revision `409`). A DETACH (`DELETE /adrs/{id}/successor`, the predecessor's owner) takes the link lock first and then both rows in the same id order, clears the successor's `supersedes_id` and bumps the successor's revision. The cycle check walks UP the `supersedes_id` chain from the requested predecessor, one primary-key lookup per step (O(depth)), skipping a link whose successor is deleted, `CANCELLED` or `WITHDRAWN`.
 
+### Search and filters (V15)
+
+Adder's V16 search column, ported to ONE table (`infra/db/Fts.kt`, `adr-model.md` "Search"). `CREATE TEXT SEARCH CONFIGURATION public.hammurabi_search (COPY = simple)` with `unaccent` (V4) as a filtering dictionary in front of `simple` for the six token types that can hold non-ASCII letters (`to_tsvector(regconfig, text)` is IMMUTABLE, so a generated column can use it where the STABLE `public.unaccent()` could not; no stemming and no stop words: ADR text mixes English and Polish). Then `adrs.search tsvector GENERATED ALWAYS AS (setweight(name, 'A') || setweight(problem || decision, 'B') || setweight(context || alternatives || consequences, 'C')) STORED` and a plain GIN index `idx_adrs_search` (a search matches the whole table, so unlike Adder's per-thread probe the index IS what serves it; `AdrSearchSchemaTest` pins `attgenerated = 's'` and the index). **`STORED` must be written**: on PostgreSQL 18 a bare `GENERATED ALWAYS AS (...)` is VIRTUAL and cannot be indexed. The `ALTER TABLE` is the backfill (a rewrite of `adrs`: an ADR log is thousands of rows, milliseconds). A word of 2,047 BYTES or more is skipped with a NOTICE; the fields are capped at 20,000 characters, far below the 1 MB limit of one tsvector.
+
+- **Never in an Exposed table object.** `selectAll()` would read the vector on every ADR read and the driver has no `tsvector` codec: `Fts.kt` names the configuration and refers to the column as the free expression `adrs.search`; a plain Exposed `insert` answers `RETURNING *`, which would send the vector (about as large as the text) back on every create, so `AdrService.create` uses `insertReturning(listOf(Adrs.id))` (`RETURNING adrs.id`; `AdrSearchTest` pins it through the driver's query log).
+- **Recompute runbook.** The configuration is immutable BY PROMISE. After it changes, or after a PostgreSQL major upgrade that changes `unaccent.rules`, the stored vectors AND the GIN index are stale until `ALTER TABLE adrs ALTER COLUMN search SET EXPRESSION AS (<the V15 expression>)` rewrites them (no `STORED`: the column already is; the index is rebuilt by it). A migration that alters the configuration runs that statement in the SAME file. `uq_adrs_name_active`'s `adr_name_key` wrapper has the same promise (a `REINDEX`).
+- **The filter indexes** (same file): `idx_adrs_created_at (created_at)`, `idx_adrs_updated_at (updated_at)` (also the `updatedAt` sort) and `idx_adrs_expires_on (expires_on) WHERE expires_on IS NOT NULL`, all `AND NOT marked_as_deleted`. `hasOpenIssues` reads `adr_discussion` through the existing partial `idx_adr_discussion_open` (its predicate spelled as literals), `supersedes` / `supersededBy` through `idx_adrs_supersedes`, `participant` through `idx_adr_participants_user` and `tag` through `idx_adr_tags_tag`. The presence filters are `IN (sub-select)` / `NOT IN (sub-select)` over sub-selects that never hold a NULL.
+- **Statement timeout.** A search arms `queryTimeout` per statement with the time left of ONE request deadline (`infra/db/SearchBudget.kt`; the only way a statement timeout may be set, "Statement timeouts"); the participants, counts and tags of the page are read in the same transaction after one arm.
+
+### Lenses (V16)
+
+`lenses` (`lenses/LensService.kt`, Toadie's V20, ported): `name` (1-100), `visibility` PRIVATE/PUBLIC (no CHECK: the V5 rule), `filters` TEXT (the `AdrFilterDocument` as JSON, at most 20,000 characters, replaced whole on every save, validated by the list's own rules BEFORE it is stored), `created_by` (FK to `users`), `created_at/updated_at`, `marked_as_deleted`. The 50-lens cap is a count, so a create takes `pg_advisory_xact_lock(LENS_CAP_LOCK_KEY, userId)` (the two-`int` form, disjoint from the single-`bigint` ADR locks; per user, transaction-scoped) before counting - the row lock of an update cannot serialise a row that does not exist yet (`LensTest` races two creates at the 49th lens). `uq_lenses_owner_name_active (created_by, LOWER(name)) WHERE NOT marked_as_deleted` makes a name unique per owner and a soft-deleted lens frees it; `idx_lenses_public` serves "everyone's PUBLIC ones". Updates and deletes lock the row `FOR NO KEY UPDATE`. A filter document is plain TEXT, not `jsonb`: it is never queried, only round-tripped. A lens references a participant by user id and tags by name, with no FK: a lens outlives a deleted user or a retired tag and simply matches nothing.
+
 ### Planned persistence (not yet built)
 
-The remaining ADR table arrives with v0.5 find (the generated search vector; epoch-millis timestamps, `SoftDeletable`, partial unique indexes); v0.6 adds the notifications. The schema list, the soft-delete list and the cross-feature list above grow in the same commit as each
+v0.6 adds the notifications (epoch-millis timestamps, `SoftDeletable`, partial unique indexes). The schema list, the soft-delete list and the cross-feature list above grow in the same commit as each
 migration. The ported-later infrastructure is named in `product.md` "Donors" (`infra/db/Fts.kt`).

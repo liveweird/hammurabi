@@ -8,6 +8,7 @@ import ch.nokillswit.authz.orNotFound
 import ch.nokillswit.authz.requireAdmin
 import ch.nokillswit.infra.db.EVENT_LOG_DEFAULT_SORT
 import ch.nokillswit.infra.db.EVENT_LOG_SORT_FIELDS
+import ch.nokillswit.infra.paging.optionalBoolean
 import ch.nokillswit.infra.paging.optionalEnum
 import ch.nokillswit.infra.paging.optionalString
 import ch.nokillswit.infra.paging.optionalUInt
@@ -15,9 +16,9 @@ import ch.nokillswit.infra.paging.parsePaging
 import ch.nokillswit.infra.paging.repeatedStrings
 import ch.nokillswit.infra.paging.toPage
 import ch.nokillswit.infra.revision.expectedRevision
-import ch.nokillswit.tags.normalizedTagName
 import io.ktor.http.HttpHeaders
 import io.ktor.http.HttpStatusCode
+import io.ktor.http.Parameters
 import io.ktor.resources.Resource
 import io.ktor.server.application.*
 import io.ktor.server.auth.authenticate
@@ -78,12 +79,6 @@ class AdrsRoute {
     }
 }
 
-/** The most `tag` filters one list request names (any-of; more is a 400). */
-const val MAX_TAG_FILTERS = 20
-
-/** The longest `q` the list takes, in characters (the shared free-text bound, API-LIST-005). */
-const val MAX_ADR_QUERY_LENGTH = 100
-
 /**
  * The ADR surface (`/api/v1/adrs`, `.claude/docs/adr-model.md`, `authorization.md`): reads are any-authenticated (an open decision log, so
  * a missing ADR is a plain 404 BEFORE the guard - read-before-guard, nothing to disclose); every write takes the caller's standing
@@ -93,11 +88,12 @@ const val MAX_ADR_QUERY_LENGTH = 100
  */
 fun Application.configureAdrRoutes() {
     val adrService = attributes[AdrServiceKey]
+    val listService = attributes[AdrListServiceKey]
     val eventService = attributes[AdrEventServiceKey]
 
     routing {
         authenticate {
-            adrReads(adrService)
+            adrReads(adrService, listService)
             adrCreate(adrService)
             adrDocument(adrService)
             adrLifecycle(adrService)
@@ -108,32 +104,47 @@ fun Application.configureAdrRoutes() {
     }
 }
 
-private fun Route.adrReads(adrService: AdrService) {
+private fun Route.adrReads(adrService: AdrService, listService: AdrListService) {
     get<AdrsRoute> {
-        call.caller()
-        val paging = call.parsePaging(sortable = ADR_SORT_FIELDS, defaultSort = ADR_DEFAULT_SORT)
+        val caller = call.caller()
         val params = call.request.queryParameters
-        val participantUserId = params.optionalUInt("participant")
-        val participantRole = params.optionalEnum<AdrRole>("role")
-        if (participantRole != null && participantUserId == null) throw BadRequestException("role needs participant")
-        val q = params.optionalString("q")?.trim()
-        if (q != null && q.codePointCount(0, q.length) > MAX_ADR_QUERY_LENGTH) {
-            throw BadRequestException("q must be at most $MAX_ADR_QUERY_LENGTH characters")
-        }
-        val filter = AdrListFilter(
-            statuses = params.repeatedStrings("status", maxCount = AdrStatus.entries.size).map(::parseStatus),
-            q = q,
-            participantUserId = participantUserId,
-            participantRole = participantRole,
-            tags = params.repeatedStrings("tag", maxCount = MAX_TAG_FILTERS).map(::normalizedTagName),
+        val filter = adrFilterDocument(params).normalized().toListFilter()
+        // A search ranks by relevance unless the caller sorts; `sort=relevance` only means something with `text` to rank.
+        val paging = call.parsePaging(
+            sortable = ADR_SORT_FIELDS,
+            defaultSort = if (filter.text == null) ADR_DEFAULT_SORT else ADR_SEARCH_DEFAULT_SORT,
         )
-        val result = adrService.list(filter, paging)
+        if (filter.text == null && paging.sort.any { it.name == SORT_RELEVANCE }) throw BadRequestException("sort=relevance needs text")
+        if (filter.text != null && paging.pageSize > MAX_SEARCH_PAGE_SIZE) {
+            throw BadRequestException("pageSize must be between 1 and $MAX_SEARCH_PAGE_SIZE with text")
+        }
+        val result = listService.list(filter, paging, caller.userId)
         call.respond(HttpStatusCode.OK, paging.toPage(result.items, result.total))
     }
     get<AdrsRoute.Id> { route ->
         call.respond(HttpStatusCode.OK, adrService.read(route.id, call.caller()).orNotFound("ADR"))
     }
 }
+
+/** The list's query string as a filter document (repeated keys read as lists, a repeated scalar is a `400`); [normalized] validates it. */
+private fun adrFilterDocument(params: Parameters): AdrFilterDocument = AdrFilterDocument(
+    status = params.repeatedStrings("status", maxCount = AdrStatus.entries.size).map(::parseStatus),
+    q = params.optionalString("q"),
+    text = params.optionalString("text"),
+    participant = params.optionalUInt("participant"),
+    role = params.optionalEnum<AdrRole>("role"),
+    // Bounded in count here (`repeatedStrings`: more than MAX_TAG_FILTERS distinct values is a 400);
+    // `normalized` bounds each name's length and form.
+    tag = params.repeatedStrings("tag", maxCount = MAX_TAG_FILTERS),
+    createdFrom = params.optionalString("createdFrom"),
+    createdTo = params.optionalString("createdTo"),
+    updatedFrom = params.optionalString("updatedFrom"),
+    updatedTo = params.optionalString("updatedTo"),
+    expiresBefore = params.optionalString("expiresBefore"),
+    hasOpenIssues = params.optionalBoolean("hasOpenIssues"),
+    supersedes = params.optionalBoolean("supersedes"),
+    supersededBy = params.optionalBoolean("supersededBy"),
+)
 
 private fun parseStatus(raw: String): AdrStatus =
     AdrStatus.entries.firstOrNull { it.name == raw }

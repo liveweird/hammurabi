@@ -162,6 +162,8 @@ data class AdrListItem(
     val tags: List<AdrTag>,
     /** The OPEN issues and escalations (deleted entries excluded). */
     val openIssueCount: Int,
+    /** What matched the full-text `text` filter (highlighted name and a fragment); null when the list was not searched. */
+    val match: AdrSearchMatch? = null,
 )
 
 typealias AdrPageResponse = PageResponse<AdrListItem>
@@ -231,16 +233,6 @@ fun AdrView.toResponse(standing: AdrStanding, counts: DiscussionCounts): AdrResp
     canRaiseIssue = DiscussionKind.ISSUE.acceptedIn(record.status),
     openIssueCount = counts.openIssues,
     unansweredQuestionCount = counts.unansweredQuestions,
-)
-
-/** The list filters (all optional, whitelisted by the route). */
-data class AdrListFilter(
-    val statuses: List<AdrStatus> = emptyList(),
-    val q: String? = null,
-    val participantUserId: UInt? = null,
-    val participantRole: AdrRole? = null,
-    /** Any-of: the ADRs carrying at least one of these tags (normalised names; a retired tag still matches the ADRs that kept it). */
-    val tags: List<String> = emptyList(),
 )
 
 data class AdrListResult(val items: List<AdrListItem>, val total: Long)

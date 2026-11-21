@@ -7,7 +7,7 @@ package ch.nokillswit.infra
  * against the list `ProblemDetail.type` documents in `openapi/documentation.yaml`; a new type lands here, in [ALL] and in that list
  * in the same commit. Every other problem is `about:blank`. Adder's fifteen types are chat problems (room-busy, search-timeout, ...):
  * the ADR increments add their own here as they arrive (0.2.0: the illegal lifecycle move and the content freeze; 0.3.0: a closed
- * discussion).
+ * discussion; 0.5.0: the search's timeout and busy).
  */
 object ProblemTypes {
     /** A stale `X-Expected-Revision` (409). */
@@ -25,6 +25,12 @@ object ProblemTypes {
      */
     const val DISCUSSION_CLOSED = "urn:hammurabi:problem:discussion-closed"
 
+    /** A search outran its deadline (429 + `Retry-After`; `adrs/AdrSearchProblems.kt`): narrow it. */
+    const val SEARCH_TIMEOUT = "urn:hammurabi:problem:search-timeout"
+
+    /** The process already runs its maximum of concurrent searches (429 + `Retry-After`; `adrs/AdrSearchProblems.kt`): retry shortly. */
+    const val SEARCH_BUSY = "urn:hammurabi:problem:search-busy"
+
     /** Every registered URI; the spec's list and the main sources are diffed against it. */
-    val ALL: Set<String> = setOf(REVISION_CONFLICT, ILLEGAL_TRANSITION, ADR_FROZEN, DISCUSSION_CLOSED)
+    val ALL: Set<String> = setOf(REVISION_CONFLICT, ILLEGAL_TRANSITION, ADR_FROZEN, DISCUSSION_CLOSED, SEARCH_TIMEOUT, SEARCH_BUSY)
 }

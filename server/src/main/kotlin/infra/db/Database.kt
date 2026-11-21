@@ -4,6 +4,8 @@ import ch.nokillswit.adrs.AdrDiscussionService
 import ch.nokillswit.adrs.AdrDiscussionServiceKey
 import ch.nokillswit.adrs.AdrEventService
 import ch.nokillswit.adrs.AdrEventServiceKey
+import ch.nokillswit.adrs.AdrListService
+import ch.nokillswit.adrs.AdrListServiceKey
 import ch.nokillswit.adrs.AdrParticipantService
 import ch.nokillswit.adrs.AdrService
 import ch.nokillswit.adrs.AdrServiceKey
@@ -15,6 +17,8 @@ import ch.nokillswit.auth.TokenBlocklistService
 import ch.nokillswit.auth.TokenBlocklistServiceKey
 import ch.nokillswit.infra.config.requireConfigInt
 import ch.nokillswit.infra.config.requireConfigLong
+import ch.nokillswit.lenses.LensService
+import ch.nokillswit.lenses.LensServiceKey
 import ch.nokillswit.tags.TagCategoryService
 import ch.nokillswit.tags.TagCategoryServiceKey
 import ch.nokillswit.teams.TeamService
@@ -235,12 +239,26 @@ private fun connectPooledDatabase(options: ConnectionFactoryOptions, bounds: Poo
 )
 
 /**
+ * The fail-closed pool check of production mode: a search holds ONE pooled connection while it runs, so the process cap must stay below
+ * the pool, or a flood of searches could take every connection. Development mode skips it: tests run tiny pools on purpose.
+ */
+internal fun requireSearchersUnderPool(searchMaxConcurrent: Int, poolMaxSize: Int) {
+    check(searchMaxConcurrent < poolMaxSize) {
+        "Config \"search.maxConcurrent\" ($searchMaxConcurrent) must stay below \"postgres.pool.maxSize\" ($poolMaxSize), " +
+            "so searches can never take the whole pool"
+    }
+}
+
+/**
  * The DI composition root: connects the one R2DBC database (through the bounded pool above) and
  * publishes every service into [Application.attributes]. Feature modules read their services back
  * via the AttributeKey — application.yaml runs this module before any route module, so the keys
  * are always present.
  */
 suspend fun Application.configureDatabase() {
+    // The full-text search's process cap (`AdrListService`), boot-validated here, once; in production it must stay below the pool.
+    val searchMaxConcurrent = requireConfigInt(environment.config, "search.maxConcurrent", min = 1, max = 16)
+    if (!developmentMode) requireSearchersUnderPool(searchMaxConcurrent, readPoolBounds(environment.config).maxSize)
     val database = connectPooled()
     val userService = UserService(database)
     attributes.put(R2dbcDatabaseKey, database)
@@ -259,6 +277,13 @@ suspend fun Application.configureDatabase() {
     val adrTags = AdrTagService(adrEvents)
     val adrSuccessors = AdrSuccessorService(adrEvents)
     attributes.put(AdrServiceKey, AdrService(database, adrParticipants, adrEvents, adrDiscussion, adrTags, adrSuccessors))
+    // The list and the full-text search (V15) under their own deadline and concurrency cap; the saved filters (V16, `lenses/`).
+    val searchTimeoutSeconds = requireConfigInt(environment.config, "search.timeoutSeconds", min = 1, max = 30)
+    attributes.put(
+        AdrListServiceKey,
+        AdrListService(database, adrParticipants, adrDiscussion, adrTags, searchTimeoutSeconds, searchMaxConcurrent),
+    )
+    attributes.put(LensServiceKey, LensService(database))
     attributes.put(
         TokenBlocklistServiceKey,
         TokenBlocklistService(

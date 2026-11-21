@@ -246,3 +246,13 @@ suspend fun rawEntry(entryId: UInt): RawEntry = suspendTransaction(sharedDatabas
         row[t.markedAsDeleted], row[t.deletedAt],
     )
 }
+
+/** Forces the stored creation and last-change times of [id] (epoch millis): the API stamps them with the wall clock. */
+suspend fun forceAdrTimes(id: UInt, createdAt: Long, updatedAt: Long = createdAt) {
+    suspendTransaction(sharedDatabaseForTests()) {
+        AdrService.Adrs.update({ AdrService.Adrs.id eq id }) {
+            it[AdrService.Adrs.createdAt] = createdAt
+            it[AdrService.Adrs.updatedAt] = updatedAt
+        }
+    }
+}

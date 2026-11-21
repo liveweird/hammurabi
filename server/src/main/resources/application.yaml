@@ -49,6 +49,8 @@ ktor:
       - ch.nokillswit.adrs.AdrRoutesKt.configureAdrRoutes
       - ch.nokillswit.adrs.AdrDiscussionRoutesKt.configureAdrDiscussionRoutes
       - ch.nokillswit.adrs.AdrExpirySweepKt.configureAdrExpirySweep
+      # The saved ADR-list filters (0.5.0, `.claude/docs/adr-model.md` "Lenses"): /api/v1/lenses.
+      - ch.nokillswit.lenses.LensRoutesKt.configureLensRoutes
       - ch.nokillswit.auth.AuthRoutesKt.configureAuthRoutes
       - ch.nokillswit.auth.PasswordResetRoutesKt.configurePasswordResetRoutes
       # The telemetry read API (ADMIN, `.claude/docs/observability.md` "Telemetry"): reads what the sampler wrote.
@@ -205,6 +207,16 @@ adrs:
   expiry:
     enabled: "$ADRS_EXPIRY_ENABLED:true"
     intervalSeconds: "$ADRS_EXPIRY_INTERVAL_SECONDS:3600"
+
+search:
+  # The budget of a full-text search REQUEST (`infra/db/SearchBudget.kt`, one deadline for all its statements: each statement's
+  # `queryTimeout` is the whole seconds left): a statement past it is cancelled and answered 429 `search-timeout` with `Retry-After: 2`.
+  # A normal search takes milliseconds, so 5 s is a runaway. 1..30.
+  timeoutSeconds: "$SEARCH_TIMEOUT_SECONDS:5"
+  # The most searches this process runs AT ONCE (`AdrListService`: a `tryAcquire` before any pool connection, never a wait): the next one
+  # is answered 429 `search-busy` with `Retry-After: 1`. Keep it well below `postgres.pool.maxSize` (20); a search holds ONE connection
+  # (production boot refuses a value that reaches the pool size). 1..16.
+  maxConcurrent: "$SEARCH_MAX_CONCURRENT:4"
 
 web:
   # When set, the server serves the built React SPA from this directory (static

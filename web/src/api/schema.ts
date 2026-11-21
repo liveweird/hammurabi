@@ -569,14 +569,29 @@ export interface paths {
          *
          *     Supports offset pagination, sorting and filtering.
          *
-         *     - Sortable fields: `id`, `number`, `name`, `updatedAt`, `status` (in lifecycle order, not alphabetically). The default sort is
-         *       `number` descending (newest first); `id` ascending is always appended as a deterministic tiebreaker.
-         *     - Filters (optional, whitelisted):
+         *     - Sortable fields: `id`, `number`, `name`, `updatedAt`, `status` (in lifecycle order, not alphabetically) and `relevance` (the full-text
+         *       rank, higher first with `-relevance`; `400` without `text`). The default sort is `number` descending (newest first), or, with
+         *       `text`, `-relevance,-number` (most relevant first, newest among equals); `id` ascending is always appended as a deterministic tiebreaker.
+         *     - Filters (optional, whitelisted, all combinable: every one is an AND):
          *       - `status` - repeatable, any-of (`status=ACTIVE&status=IN_REVIEW`), at most one per status; an unknown value is `400`.
          *       - `q` - case- and accent-insensitive substring of the name OR the key (`0042`, `adr-0042`), at most 100 characters.
+         *       - `text` - FULL-TEXT search (0.5.0), distinct from `q`: the name (weight A), the problem and the decision (B), the context,
+         *         the alternatives and the consequences (C), case- and accent-insensitive ("zolw" finds "Zolw"), every word must match, a word of
+         *         three characters or more matches as a prefix. 2 to 100 characters (code points) after trimming with at least one letter or digit
+         *         (`400` otherwise; a blank value is no search). The rows then carry `match` (the name with its hits marked and a body snippet, as
+         *         plain-text segments - never markup). A search runs under a deadline (`search.timeoutSeconds`) and a process cap: `429` of type
+         *         `urn:hammurabi:problem:search-timeout` or `urn:hammurabi:problem:search-busy`, both with `Retry-After`. `pageSize` is at most 20
+         *         with `text`. The term is never logged.
          *       - `participant` - a user id: the ADRs that user holds a role on; `role` narrows it to one DACI role (`400` without `participant`).
          *       - `tag` - repeatable, any-of (`tag=data&tag=security`), a tag name (normalised: trimmed and lower-cased), at most 20, duplicates collapsed.
          *         An unregistered name simply matches nothing (a retired tag still matches the ADRs that kept it).
+         *       - `createdFrom` / `createdTo` and `updatedFrom` / `updatedTo` - inclusive UTC days (`YYYY-MM-DD`) on the creation and last-change
+         *         times; a malformed or impossible date, or a `...From` after its `...To`, is `400`.
+         *       - `expiresBefore` - a day (`YYYY-MM-DD`): the ADRs with an expiry date strictly before it (any status; an ADR with no expiry date never matches).
+         *       - `hasOpenIssues` - `true` keeps the ADRs with an open issue or escalation (`openIssueCount > 0`), `false` the others.
+         *       - `supersedes` - `true` keeps the ADRs that replace another (a live predecessor), `false` the others.
+         *       - `supersededBy` - `true` keeps the ADRs that have a successor (pending, or the one that replaced them; never a cancelled or withdrawn one), `false` the others.
+         *       A saved combination of these is a lens (`/lenses`): the lens's `filters` use exactly these names.
          */
         get: operations["listAdrs"];
         put?: never;
@@ -910,6 +925,69 @@ export interface paths {
         put: operations["setAdrDiscussionEntryState"];
         post?: never;
         delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/lenses": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List the lenses
+         * @description Any authenticated user: the caller's OWN lenses (both visibilities) plus everyone's PUBLIC ones. Paged; sortable by `id`,
+         *     `name` (case-insensitively, the default), `updatedAt` and `createdAt`. Filters: `mine` (`true` = only the caller's own, `false` =
+         *     only the PUBLIC lenses of others) and `visibility`. One user keeps at most 50 lenses, so `mine=true` fits one page.
+         */
+        get: operations["listLenses"];
+        put?: never;
+        /**
+         * Save a lens
+         * @description Any authenticated user; the caller becomes the creator. A name (1-100 characters, single line) unique among the caller's own
+         *     lenses case-insensitively (`409`), a visibility and the `filters` document, validated by the SAME rules as the list's query
+         *     parameters (`400`; a search term is never echoed). At most 50 lenses per user (`409`). Validated structurally only: a lens
+         *     holding a since-retired tag simply matches nothing.
+         */
+        post: operations["createLens"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/lenses/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["parameters"]["ResourceId"];
+            };
+            cookie?: never;
+        };
+        /**
+         * Read a lens
+         * @description Any authenticated user. A PRIVATE lens of someone else, a missing and a deleted lens are all the same `404`.
+         */
+        get: operations["getLens"];
+        /**
+         * Replace a lens
+         * @description Whole-lens replace (rename, flip the visibility and overwrite the filters are all this one PUT), by its CREATOR only. Disclosure
+         *     and order: a missing, deleted or someone else's PRIVATE lens is `404`; someone else's PUBLIC lens is `403` (an ADMIN's too); only then
+         *     is the body judged (`400`), so `403`/`404` win over `400`. A name clash among the caller's own lenses is `409`.
+         */
+        put: operations["updateLens"];
+        post?: never;
+        /**
+         * Delete a lens (soft)
+         * @description By its CREATOR, or by an `ADMIN` when the lens is PUBLIC (moderation; audited with `byAdmin`). A missing, deleted or someone
+         *     else's PRIVATE lens is `404` (an ADMIN's too: a private lens's existence is itself the secret); someone else's PUBLIC lens is `403`
+         *     for a non-admin. The name is freed for reuse.
+         */
+        delete: operations["deleteLens"];
         options?: never;
         head?: never;
         patch?: never;
@@ -1390,6 +1468,19 @@ export interface components {
             tags: components["schemas"]["AdrTag"][];
             /** @description The OPEN issues and escalations (deleted entries excluded). */
             openIssueCount: number;
+            /** @description What the `text` filter matched in this row; null when the list was not searched. */
+            match?: components["schemas"]["AdrSearchMatch"] | null;
+        };
+        /** @description One run of a snippet. `text` is plain text copied from the ADR (never markup - render it as text), `hit` when it matched the search. */
+        SnippetSegment: {
+            text: string;
+            hit: boolean;
+        };
+        AdrSearchMatch: {
+            /** @description The whole name with its hits marked (one plain segment when only the body matched). */
+            name: components["schemas"]["SnippetSegment"][];
+            /** @description One or two fragments of the body (decision, problem, context, alternatives, consequences, in that order), whitespace collapsed; empty when only the name matched. */
+            snippet: components["schemas"]["SnippetSegment"][];
         };
         AdrPage: {
             items: components["schemas"]["AdrListItem"][];
@@ -1453,6 +1544,62 @@ export interface components {
         };
         TagCategoryList: {
             items: components["schemas"]["TagCategory"][];
+        };
+        /** @enum {string} */
+        LensVisibility: "PRIVATE" | "PUBLIC";
+        /** @description The ADR list's filters as one document - the names and meanings of the `GET /adrs` query parameters (`status` and `tag` as arrays). Every key is optional (absent = not filtered on); a blank string or an empty array is read as absent. */
+        AdrFilterDocument: {
+            status?: components["schemas"]["AdrStatus"][];
+            q?: string;
+            text?: string;
+            /** Format: int32 */
+            participant?: number;
+            role?: components["schemas"]["AdrRole"];
+            tag?: string[];
+            /** Format: date */
+            createdFrom?: string;
+            /** Format: date */
+            createdTo?: string;
+            /** Format: date */
+            updatedFrom?: string;
+            /** Format: date */
+            updatedTo?: string;
+            /** Format: date */
+            expiresBefore?: string;
+            hasOpenIssues?: boolean;
+            supersedes?: boolean;
+            supersededBy?: boolean;
+        };
+        LensRequest: {
+            name: string;
+            visibility: components["schemas"]["LensVisibility"];
+            filters: components["schemas"]["AdrFilterDocument"];
+        };
+        Lens: {
+            /** Format: int32 */
+            id: number;
+            name: string;
+            visibility: components["schemas"]["LensVisibility"];
+            filters: components["schemas"]["AdrFilterDocument"];
+            /** Format: int32 */
+            createdBy: number;
+            creatorName: string;
+            creatorDeleted: boolean;
+            /** Format: int64 */
+            createdAt: number;
+            /** Format: int64 */
+            updatedAt: number;
+            /** @description The caller is the creator: may rename, flip the visibility and replace the filters. */
+            canEdit: boolean;
+            /** @description The caller is the creator, or an ADMIN looking at a PUBLIC lens. */
+            canDelete: boolean;
+        };
+        LensPage: {
+            items: components["schemas"]["Lens"][];
+            page: number;
+            pageSize: number;
+            /** Format: int64 */
+            total: number;
         };
         /**
          * @description `COMMENT` and `QUESTION` are accepted while the ADR is pre-active (`PROBLEM_RAISED`, `SOLUTION_DRAFT`, `IN_REVIEW`); `ISSUE` and `ESCALATION` only while it is `ACTIVE`.
@@ -1542,6 +1689,8 @@ export interface components {
              *     - `urn:hammurabi:problem:revision-conflict` (409): a stale `X-Expected-Revision`.
              *     - `urn:hammurabi:problem:illegal-transition` (409): an ADR lifecycle move the map does not allow, or one only the system makes.
              *     - `urn:hammurabi:problem:adr-frozen` (409): a write the ADR's status closes - content (and the successor link) once `ACTIVE`, anything once terminal.
+             *     - `urn:hammurabi:problem:search-timeout` (429, `Retry-After`): a full-text search outran its deadline - narrow it.
+             *     - `urn:hammurabi:problem:search-busy` (429, `Retry-After`): the server already runs its maximum of searches - retry shortly.
              *     - `urn:hammurabi:problem:discussion-closed` (409): a discussion write the ADR's status does not take - a comment or question once `ACTIVE`, an issue or escalation before it (a post or an edit; a state change and a delete have no window).
              * @default about:blank
              */
@@ -1854,7 +2003,7 @@ export interface components {
                 "application/problem+json": components["schemas"]["ProblemDetail"];
             };
         };
-        /** @description Throttled — either the per-IP rate-limit bucket is exhausted (generic detail), on a telemetry read (`/api/v1/telemetry/**`) the per-USER telemetry bucket is exhausted (30/min), on the user directory (`/api/v1/users/directory`) the per-USER directory bucket is exhausted (120/min), or, on /login, the per-account lockout is active (account-specific detail). All carry a ProblemDetail body. */
+        /** @description Throttled — either the per-IP rate-limit bucket is exhausted (generic detail), on a telemetry read (`/api/v1/telemetry/**`) the per-USER telemetry bucket is exhausted (30/min), on the user directory (`/api/v1/users/directory`) the per-USER directory bucket is exhausted (120/min), or, on /login, the per-account lockout is active (account-specific detail), or, on the ADR list's full-text `text` search, the search ran past its deadline (`urn:hammurabi:problem:search-timeout`) or the process's concurrent-search cap is reached (`urn:hammurabi:problem:search-busy`; both with `Retry-After`). All carry a ProblemDetail body. */
         TooManyRequests: {
             headers: {
                 [name: string]: unknown;
@@ -1901,6 +2050,8 @@ export interface components {
         Q: string;
         /** @description Free-text search (API-LIST-005), OPTIONAL where declared (the ADR list): a case- and accent-insensitive substring match on the fields the endpoint names (an ADR's name or key), at most 100 characters. */
         OptionalQ: string;
+        /** @description Full-text search (0.5.0), OPTIONAL where declared (the ADR list): accent- and case-insensitive, every word must match, a word of three characters or more as a prefix. 2 to 100 characters (code points) after trimming with a letter or a digit (`400` otherwise); blank is no search. Distinct from `q`, the name-or-key substring. */
+        SearchText: string;
         /** @description A discussion entry of the ADR in the path; one of another ADR is `404`. */
         DiscussionEntryId: number;
         /**
@@ -2795,6 +2946,24 @@ export interface operations {
                 role?: components["schemas"]["AdrRole"];
                 /** @description Any-of filter on the ADR's tags; repeat the key for several. */
                 tag?: string[];
+                /** @description Full-text search (0.5.0), OPTIONAL where declared (the ADR list): accent- and case-insensitive, every word must match, a word of three characters or more as a prefix. 2 to 100 characters (code points) after trimming with a letter or a digit (`400` otherwise); blank is no search. Distinct from `q`, the name-or-key substring. */
+                text?: components["parameters"]["SearchText"];
+                /** @description Created on or after this UTC day. */
+                createdFrom?: string;
+                /** @description Created on or before this UTC day. */
+                createdTo?: string;
+                /** @description Last changed on or after this UTC day. */
+                updatedFrom?: string;
+                /** @description Last changed on or before this UTC day. */
+                updatedTo?: string;
+                /** @description Expiry date strictly before this day. */
+                expiresBefore?: string;
+                /** @description Has (`true`) or has no (`false`) open issue or escalation. */
+                hasOpenIssues?: boolean;
+                /** @description Replaces (`true`) or does not replace (`false`) another ADR. */
+                supersedes?: boolean;
+                /** @description Has (`true`) or has no (`false`) successor. */
+                supersededBy?: boolean;
             };
             header?: never;
             path?: never;
@@ -2813,6 +2982,16 @@ export interface operations {
             };
             400: components["responses"]["BadRequest"];
             401: components["responses"]["Unauthorized"];
+            /** @description A search (`text`) outran its deadline (`urn:hammurabi:problem:search-timeout`, `Retry-After` 2) or the process already runs its maximum of searches (`urn:hammurabi:problem:search-busy`, `Retry-After` 1). */
+            429: {
+                headers: {
+                    "Retry-After"?: number;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetail"];
+                };
+            };
             500: components["responses"]["InternalServerError"];
         };
     };
@@ -3350,6 +3529,156 @@ export interface operations {
             404: components["responses"]["NotFound"];
             413: components["responses"]["PayloadTooLarge"];
             415: components["responses"]["UnsupportedMediaType"];
+            500: components["responses"]["InternalServerError"];
+        };
+    };
+    listLenses: {
+        parameters: {
+            query?: {
+                /** @description 1-based page index. Defaults to 1. */
+                page?: components["parameters"]["Page"];
+                /** @description Rows per page. Defaults to 20, maximum 100. */
+                pageSize?: components["parameters"]["PageSize"];
+                /**
+                 * @description Sort spec. Format: `field` (ascending) or `-field` (descending). Multiple fields are
+                 *     comma-separated, leftmost wins: `sort=-updatedAt,name`. The endpoint declares its
+                 *     sortable-field whitelist; unknown fields are rejected with `400`. `id` ascending is
+                 *     always appended as a deterministic tiebreaker.
+                 */
+                sort?: components["parameters"]["Sort"];
+                /** @description `true`: the caller's own lenses; `false`: the PUBLIC lenses of others. */
+                mine?: boolean;
+                visibility?: components["schemas"]["LensVisibility"];
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description A page of lenses */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["LensPage"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            500: components["responses"]["InternalServerError"];
+        };
+    };
+    createLens: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["LensRequest"];
+            };
+        };
+        responses: {
+            /** @description Created; `Location` points at the new lens */
+            201: {
+                headers: {
+                    Location?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Lens"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            409: components["responses"]["Conflict"];
+            413: components["responses"]["PayloadTooLarge"];
+            415: components["responses"]["UnsupportedMediaType"];
+            500: components["responses"]["InternalServerError"];
+        };
+    };
+    getLens: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["parameters"]["ResourceId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The lens */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Lens"];
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+            404: components["responses"]["NotFound"];
+            500: components["responses"]["InternalServerError"];
+        };
+    };
+    updateLens: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["parameters"]["ResourceId"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["LensRequest"];
+            };
+        };
+        responses: {
+            /** @description Saved */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+            409: components["responses"]["Conflict"];
+            413: components["responses"]["PayloadTooLarge"];
+            415: components["responses"]["UnsupportedMediaType"];
+            500: components["responses"]["InternalServerError"];
+        };
+    };
+    deleteLens: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["parameters"]["ResourceId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Deleted */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
             500: components["responses"]["InternalServerError"];
         };
     };

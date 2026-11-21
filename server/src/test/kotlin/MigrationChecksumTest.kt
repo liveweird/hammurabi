@@ -34,6 +34,8 @@ class MigrationChecksumTest {
         "V12__create_adr_discussion.sql" to 1682926896,
         "V13__create_tags.sql" to 1011239595,
         "V14__adr_successor_link.sql" to -2003639275,
+        "V15__adr_search.sql" to 949532765,
+        "V16__create_lenses.sql" to 1934820111,
     )
 
     @Test

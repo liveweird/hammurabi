@@ -23,6 +23,7 @@ import io.ktor.server.plugins.CannotTransformContentToTypeException
 import io.ktor.server.plugins.PayloadTooLargeException
 import io.ktor.server.plugins.statuspages.StatusPages
 import io.ktor.server.request.path
+import io.ktor.server.response.header
 import io.ktor.server.response.respond
 import io.r2dbc.spi.R2dbcException
 import kotlinx.serialization.Serializable
@@ -117,6 +118,7 @@ private val UNIQUE_CONSTRAINT_DETAILS = mapOf(
     "uq_teams_name_active" to "A team with this name already exists",
     "uq_adrs_name_active" to "An ADR with this name already exists",
     "uq_tag_categories_name_active" to "A tag category with this name already exists",
+    "uq_lenses_owner_name_active" to "You already have a saved filter with this name",
     "uq_adrs_supersedes_open" to "That ADR already has a successor in play",
 )
 
@@ -217,7 +219,8 @@ fun Application.configureErrorHandling() {
             call.respondProblem(status, "Method not allowed for this resource")
         }
         exception<TooManyRequestsException> { call, cause ->
-            call.respondProblem(HttpStatusCode.TooManyRequests, cause.message ?: "Too many requests")
+            cause.retryAfterSeconds?.let { call.response.header(HttpHeaders.RetryAfter, it.toString()) }
+            call.respondProblem(HttpStatusCode.TooManyRequests, cause.message ?: "Too many requests", type = cause.problemType)
         }
         // The global RequestBodyLimit plugin (plugins/Http.kt) rejects oversized bodies with
         // this exception; give the 413 the RFC 7807 body every other error carries.

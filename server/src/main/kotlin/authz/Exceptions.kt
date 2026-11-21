@@ -34,6 +34,11 @@ open class ConflictException(
 /**
  * Caller-specific throttling (e.g. the per-account login lockout) → 429 with the given detail.
  * Distinct from the per-IP RateLimit plugin's bodiless 429, which the StatusPages
- * `status(TooManyRequests)` handler completes with a generic problem body.
+ * `status(TooManyRequests)` handler completes with a generic problem body. A throttle a client must tell apart names its RFC 7807
+ * [problemType] (a `urn:hammurabi:problem:…` URI) and may carry a [retryAfterSeconds] hint, answered as the `Retry-After` header.
  */
-class TooManyRequestsException(message: String = "Too many requests") : RuntimeException(message)
+class TooManyRequestsException(
+    message: String = "Too many requests",
+    val problemType: String = "about:blank",
+    val retryAfterSeconds: Int? = null,
+) : RuntimeException(message)

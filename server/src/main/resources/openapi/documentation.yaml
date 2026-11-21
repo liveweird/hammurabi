@@ -1,12 +1,12 @@
 openapi: 3.1.0
 info:
   title: hammurabi-api
-  version: 0.4.0
+  version: 0.5.0
   description: |
     JWT-authenticated REST API for Hammurabi — Architecture Decision Records (ADRs) across their lifecycle, with DACI
     responsibility. It serves the Hammurabi web app and is versioned by its `/api/v1` path prefix. It exposes the ADRs
     (`/adrs`: the record, its lifecycle transitions, its DACI participants, its tags, its successor link, its history and its discussion)
-    and the tag registry (`/tag-categories`) on top of the accounts, teams, feature-flag and operational surface of the foundation.
+    the tag registry (`/tag-categories`) and the saved ADR-list filters (`/lenses`) on top of the accounts, teams, feature-flag and operational surface of the foundation.
 
     Authorization model: every user is implicitly a regular user; additional global roles (`ADMIN`) are carried as
     the `roles` array and only ever ADD privileges on top of that baseline. Every operation requires a bearer
@@ -43,6 +43,8 @@ tags:
     description: The ADR tag registry - categories of tags curated by ADMIN, readable by any authenticated user; an ADR may carry only registered tags.
   - name: adrs
     description: Architecture Decision Records - the record, its lifecycle transitions, its DACI participants, its tags, its successor link, its history and its discussion (comments and questions before the decision is in force, issues and escalations while it is); readable and postable by any authenticated user, the record written by the roles the caller holds on the ADR.
+  - name: lenses
+    description: Lenses - named, saved ADR-list filters (the list's own filter names), PRIVATE to their creator or PUBLIC to every signed-in user; mutable by their creator only.
   - name: telemetry
     description: Hammurabi's own vital signs (process memory, JVM, storage, request latency) and their 24h/7d/90d trends - ADMIN only.
 
@@ -857,14 +859,29 @@ paths:
 
         Supports offset pagination, sorting and filtering.
 
-        - Sortable fields: `id`, `number`, `name`, `updatedAt`, `status` (in lifecycle order, not alphabetically). The default sort is
-          `number` descending (newest first); `id` ascending is always appended as a deterministic tiebreaker.
-        - Filters (optional, whitelisted):
+        - Sortable fields: `id`, `number`, `name`, `updatedAt`, `status` (in lifecycle order, not alphabetically) and `relevance` (the full-text
+          rank, higher first with `-relevance`; `400` without `text`). The default sort is `number` descending (newest first), or, with
+          `text`, `-relevance,-number` (most relevant first, newest among equals); `id` ascending is always appended as a deterministic tiebreaker.
+        - Filters (optional, whitelisted, all combinable: every one is an AND):
           - `status` - repeatable, any-of (`status=ACTIVE&status=IN_REVIEW`), at most one per status; an unknown value is `400`.
           - `q` - case- and accent-insensitive substring of the name OR the key (`0042`, `adr-0042`), at most 100 characters.
+          - `text` - FULL-TEXT search (0.5.0), distinct from `q`: the name (weight A), the problem and the decision (B), the context,
+            the alternatives and the consequences (C), case- and accent-insensitive ("zolw" finds "Zolw"), every word must match, a word of
+            three characters or more matches as a prefix. 2 to 100 characters (code points) after trimming with at least one letter or digit
+            (`400` otherwise; a blank value is no search). The rows then carry `match` (the name with its hits marked and a body snippet, as
+            plain-text segments - never markup). A search runs under a deadline (`search.timeoutSeconds`) and a process cap: `429` of type
+            `urn:hammurabi:problem:search-timeout` or `urn:hammurabi:problem:search-busy`, both with `Retry-After`. `pageSize` is at most 20
+            with `text`. The term is never logged.
           - `participant` - a user id: the ADRs that user holds a role on; `role` narrows it to one DACI role (`400` without `participant`).
           - `tag` - repeatable, any-of (`tag=data&tag=security`), a tag name (normalised: trimmed and lower-cased), at most 20, duplicates collapsed.
             An unregistered name simply matches nothing (a retired tag still matches the ADRs that kept it).
+          - `createdFrom` / `createdTo` and `updatedFrom` / `updatedTo` - inclusive UTC days (`YYYY-MM-DD`) on the creation and last-change
+            times; a malformed or impossible date, or a `...From` after its `...To`, is `400`.
+          - `expiresBefore` - a day (`YYYY-MM-DD`): the ADRs with an expiry date strictly before it (any status; an ADR with no expiry date never matches).
+          - `hasOpenIssues` - `true` keeps the ADRs with an open issue or escalation (`openIssueCount > 0`), `false` the others.
+          - `supersedes` - `true` keeps the ADRs that replace another (a live predecessor), `false` the others.
+          - `supersededBy` - `true` keeps the ADRs that have a successor (pending, or the one that replaced them; never a cancelled or withdrawn one), `false` the others.
+          A saved combination of these is a lens (`/lenses`): the lens's `filters` use exactly these names.
       parameters:
         - $ref: '#/components/parameters/Page'
         - $ref: '#/components/parameters/PageSize'
@@ -902,6 +919,47 @@ paths:
             maxItems: 20
             items: { type: string, minLength: 1, maxLength: 40 }
           description: Any-of filter on the ADR's tags; repeat the key for several.
+        - $ref: '#/components/parameters/SearchText'
+        - name: createdFrom
+          in: query
+          required: false
+          schema: { type: string, format: date }
+          description: Created on or after this UTC day.
+        - name: createdTo
+          in: query
+          required: false
+          schema: { type: string, format: date }
+          description: Created on or before this UTC day.
+        - name: updatedFrom
+          in: query
+          required: false
+          schema: { type: string, format: date }
+          description: Last changed on or after this UTC day.
+        - name: updatedTo
+          in: query
+          required: false
+          schema: { type: string, format: date }
+          description: Last changed on or before this UTC day.
+        - name: expiresBefore
+          in: query
+          required: false
+          schema: { type: string, format: date }
+          description: Expiry date strictly before this day.
+        - name: hasOpenIssues
+          in: query
+          required: false
+          schema: { type: boolean }
+          description: Has (`true`) or has no (`false`) open issue or escalation.
+        - name: supersedes
+          in: query
+          required: false
+          schema: { type: boolean }
+          description: Replaces (`true`) or does not replace (`false`) another ADR.
+        - name: supersededBy
+          in: query
+          required: false
+          schema: { type: boolean }
+          description: Has (`true`) or has no (`false`) successor.
       responses:
         '200':
           description: A page of ADRs
@@ -911,6 +969,16 @@ paths:
                 $ref: '#/components/schemas/AdrPage'
         '400': { $ref: '#/components/responses/BadRequest' }
         '401': { $ref: '#/components/responses/Unauthorized' }
+        '429':
+          description: >-
+            A search (`text`) outran its deadline (`urn:hammurabi:problem:search-timeout`, `Retry-After` 2) or the process already runs its
+            maximum of searches (`urn:hammurabi:problem:search-busy`, `Retry-After` 1).
+          headers:
+            Retry-After:
+              schema: { type: integer }
+          content:
+            application/problem+json:
+              schema: { $ref: '#/components/schemas/ProblemDetail' }
         '500': { $ref: '#/components/responses/InternalServerError' }
     post:
       tags: [adrs]
@@ -1405,6 +1473,127 @@ paths:
         '413': { $ref: '#/components/responses/PayloadTooLarge' }
         '500': { $ref: '#/components/responses/InternalServerError' }
 
+  /api/v1/lenses:
+    get:
+      tags: [lenses]
+      operationId: listLenses
+      summary: List the lenses
+      description: |
+        Any authenticated user: the caller's OWN lenses (both visibilities) plus everyone's PUBLIC ones. Paged; sortable by `id`,
+        `name` (case-insensitively, the default), `updatedAt` and `createdAt`. Filters: `mine` (`true` = only the caller's own, `false` =
+        only the PUBLIC lenses of others) and `visibility`. One user keeps at most 50 lenses, so `mine=true` fits one page.
+      parameters:
+        - $ref: '#/components/parameters/Page'
+        - $ref: '#/components/parameters/PageSize'
+        - $ref: '#/components/parameters/Sort'
+        - name: mine
+          in: query
+          required: false
+          schema: { type: boolean }
+          description: "`true`: the caller's own lenses; `false`: the PUBLIC lenses of others."
+        - name: visibility
+          in: query
+          required: false
+          schema: { $ref: '#/components/schemas/LensVisibility' }
+      responses:
+        '200':
+          description: A page of lenses
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/LensPage'
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '500': { $ref: '#/components/responses/InternalServerError' }
+    post:
+      tags: [lenses]
+      operationId: createLens
+      summary: Save a lens
+      description: |
+        Any authenticated user; the caller becomes the creator. A name (1-100 characters, single line) unique among the caller's own
+        lenses case-insensitively (`409`), a visibility and the `filters` document, validated by the SAME rules as the list's query
+        parameters (`400`; a search term is never echoed). At most 50 lenses per user (`409`). Validated structurally only: a lens
+        holding a since-retired tag simply matches nothing.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/LensRequest'
+      responses:
+        '415': { $ref: '#/components/responses/UnsupportedMediaType' }
+        '201':
+          description: Created; `Location` points at the new lens
+          headers:
+            Location:
+              schema: { type: string }
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Lens'
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '409': { $ref: '#/components/responses/Conflict' }
+        '413': { $ref: '#/components/responses/PayloadTooLarge' }
+        '500': { $ref: '#/components/responses/InternalServerError' }
+  /api/v1/lenses/{id}:
+    parameters:
+      - $ref: '#/components/parameters/ResourceId'
+    get:
+      tags: [lenses]
+      operationId: getLens
+      summary: Read a lens
+      description: Any authenticated user. A PRIVATE lens of someone else, a missing and a deleted lens are all the same `404`.
+      responses:
+        '200':
+          description: The lens
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Lens'
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '500': { $ref: '#/components/responses/InternalServerError' }
+    put:
+      tags: [lenses]
+      operationId: updateLens
+      summary: Replace a lens
+      description: |
+        Whole-lens replace (rename, flip the visibility and overwrite the filters are all this one PUT), by its CREATOR only. Disclosure
+        and order: a missing, deleted or someone else's PRIVATE lens is `404`; someone else's PUBLIC lens is `403` (an ADMIN's too); only then
+        is the body judged (`400`), so `403`/`404` win over `400`. A name clash among the caller's own lenses is `409`.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/LensRequest'
+      responses:
+        '415': { $ref: '#/components/responses/UnsupportedMediaType' }
+        '204':
+          description: Saved
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/Conflict' }
+        '413': { $ref: '#/components/responses/PayloadTooLarge' }
+        '500': { $ref: '#/components/responses/InternalServerError' }
+    delete:
+      tags: [lenses]
+      operationId: deleteLens
+      summary: Delete a lens (soft)
+      description: |
+        By its CREATOR, or by an `ADMIN` when the lens is PUBLIC (moderation; audited with `byAdmin`). A missing, deleted or someone
+        else's PRIVATE lens is `404` (an ADMIN's too: a private lens's existence is itself the secret); someone else's PUBLIC lens is `403`
+        for a non-admin. The name is freed for reuse.
+      responses:
+        '204':
+          description: Deleted
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '500': { $ref: '#/components/responses/InternalServerError' }
   /api/v1/telemetry/current:
     get:
       tags: [telemetry]
@@ -1535,6 +1724,15 @@ components:
       description: >-
         Free-text search (API-LIST-005), OPTIONAL where declared (the ADR list): a case- and accent-insensitive substring match on the
         fields the endpoint names (an ADR's name or key), at most 100 characters.
+    SearchText:
+      name: text
+      in: query
+      required: false
+      schema: { type: string, maxLength: 100 }
+      description: >-
+        Full-text search (0.5.0), OPTIONAL where declared (the ADR list): accent- and case-insensitive, every word must match, a word of
+        three characters or more as a prefix. 2 to 100 characters (code points) after trimming with a letter or a digit (`400`
+        otherwise); blank is no search. Distinct from `q`, the name-or-key substring.
     DiscussionEntryId:
       name: entryId
       in: path
@@ -1585,7 +1783,9 @@ components:
         Throttled — either the per-IP rate-limit bucket is exhausted (generic detail), on a telemetry read
         (`/api/v1/telemetry/**`) the per-USER telemetry bucket is exhausted (30/min), on the user directory
         (`/api/v1/users/directory`) the per-USER directory bucket is exhausted (120/min), or, on /login, the
-        per-account lockout is active (account-specific detail). All carry a ProblemDetail body.
+        per-account lockout is active (account-specific detail), or, on the ADR list's full-text `text` search, the search ran past its deadline
+        (`urn:hammurabi:problem:search-timeout`) or the process's concurrent-search cap is reached (`urn:hammurabi:problem:search-busy`; both
+        with `Retry-After`). All carry a ProblemDetail body.
       content:
         application/problem+json:
           schema: { $ref: '#/components/schemas/ProblemDetail' }
@@ -2149,6 +2349,30 @@ components:
           items: { $ref: '#/components/schemas/AdrTag' }
           description: The ADR's tags, alphabetical.
         openIssueCount: { type: integer, minimum: 0, description: "The OPEN issues and escalations (deleted entries excluded)." }
+        match:
+          allOf:
+            - $ref: '#/components/schemas/AdrSearchMatch'
+          nullable: true
+          description: What the `text` filter matched in this row; null when the list was not searched.
+    SnippetSegment:
+      type: object
+      required: [text, hit]
+      description: One run of a snippet. `text` is plain text copied from the ADR (never markup - render it as text), `hit` when it matched the search.
+      properties:
+        text: { type: string }
+        hit: { type: boolean }
+    AdrSearchMatch:
+      type: object
+      required: [name, snippet]
+      properties:
+        name:
+          type: array
+          items: { $ref: '#/components/schemas/SnippetSegment' }
+          description: The whole name with its hits marked (one plain segment when only the body matched).
+        snippet:
+          type: array
+          items: { $ref: '#/components/schemas/SnippetSegment' }
+          description: One or two fragments of the body (decision, problem, context, alternatives, consequences, in that order), whitespace collapsed; empty when only the name matched.
     AdrPage:
       type: object
       required: [items, page, pageSize, total]
@@ -2256,6 +2480,71 @@ components:
         items:
           type: array
           items: { $ref: '#/components/schemas/TagCategory' }
+
+    LensVisibility:
+      type: string
+      enum: [PRIVATE, PUBLIC]
+    AdrFilterDocument:
+      type: object
+      description: >-
+        The ADR list's filters as one document - the names and meanings of the `GET /adrs` query parameters (`status` and `tag` as arrays).
+        Every key is optional (absent = not filtered on); a blank string or an empty array is read as absent.
+      properties:
+        status:
+          type: array
+          maxItems: 8
+          items: { $ref: '#/components/schemas/AdrStatus' }
+        q: { type: string, maxLength: 100 }
+        text: { type: string, maxLength: 100 }
+        participant: { type: integer, format: int32, minimum: 0 }
+        role: { $ref: '#/components/schemas/AdrRole' }
+        tag:
+          type: array
+          maxItems: 20
+          items: { type: string, minLength: 1, maxLength: 40 }
+        createdFrom: { type: string, format: date }
+        createdTo: { type: string, format: date }
+        updatedFrom: { type: string, format: date }
+        updatedTo: { type: string, format: date }
+        expiresBefore: { type: string, format: date }
+        hasOpenIssues: { type: boolean }
+        supersedes: { type: boolean }
+        supersededBy: { type: boolean }
+    LensRequest:
+      type: object
+      required: [name, visibility, filters]
+      properties:
+        name: { type: string, minLength: 1, maxLength: 100 }
+        visibility: { $ref: '#/components/schemas/LensVisibility' }
+        filters: { $ref: '#/components/schemas/AdrFilterDocument' }
+    Lens:
+      type: object
+      required: [id, name, visibility, filters, createdBy, creatorName, creatorDeleted, createdAt, updatedAt, canEdit, canDelete]
+      properties:
+        id: { type: integer, format: int32, minimum: 0 }
+        name: { type: string }
+        visibility: { $ref: '#/components/schemas/LensVisibility' }
+        filters: { $ref: '#/components/schemas/AdrFilterDocument' }
+        createdBy: { type: integer, format: int32, minimum: 0 }
+        creatorName: { type: string }
+        creatorDeleted: { type: boolean }
+        createdAt: { type: integer, format: int64 }
+        updatedAt: { type: integer, format: int64 }
+        canEdit: { type: boolean, description: "The caller is the creator: may rename, flip the visibility and replace the filters." }
+        canDelete: { type: boolean, description: "The caller is the creator, or an ADMIN looking at a PUBLIC lens." }
+    LensPage:
+      type: object
+      required: [items, page, pageSize, total]
+      properties:
+        items:
+          type: array
+          items: { $ref: '#/components/schemas/Lens' }
+        page: { type: integer, minimum: 1 }
+        pageSize: { type: integer, minimum: 1, maximum: 100 }
+        total:
+          type: integer
+          format: int64
+          minimum: 0
 
     DiscussionKind:
       type: string
@@ -2367,6 +2656,8 @@ components:
             - `urn:hammurabi:problem:revision-conflict` (409): a stale `X-Expected-Revision`.
             - `urn:hammurabi:problem:illegal-transition` (409): an ADR lifecycle move the map does not allow, or one only the system makes.
             - `urn:hammurabi:problem:adr-frozen` (409): a write the ADR's status closes - content (and the successor link) once `ACTIVE`, anything once terminal.
+            - `urn:hammurabi:problem:search-timeout` (429, `Retry-After`): a full-text search outran its deadline - narrow it.
+            - `urn:hammurabi:problem:search-busy` (429, `Retry-After`): the server already runs its maximum of searches - retry shortly.
             - `urn:hammurabi:problem:discussion-closed` (409): a discussion write the ADR's status does not take - a comment or question once `ACTIVE`, an issue or escalation before it (a post or an edit; a state change and a delete have no window).
         title:
           type: string

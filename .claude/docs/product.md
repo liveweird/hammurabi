@@ -90,7 +90,7 @@ stele of the Code of Hammurabi on a lapis disc — the sun disc of Shamash crown
 
 ## Roadmap
 
-Each increment is built and gated on its own. **Current version: 1.2.2** (safer ADR edits).
+Each increment is built and gated on its own. **Current version: 1.2.3** (a clearer Decision log).
 
 | Ver | Scope |
 |---|---|
@@ -130,6 +130,10 @@ Left in Flow on purpose: `ingest/`, `fetch/`, `jira/`, `gitlab/`, `norm/`, `iden
 `infra/outbound/` (the SSRF guard — port it with the first server-initiated call other than SMTP), `plugins/Role.kt`, `EncryptedAtRest`/`Reencrypt`.
 
 ## Release history
+
+### v1.2.3 — a clearer Decision log (2026-11-21)
+
+The Decision log has an aligned status grid, a shared panel for pending reviews, upcoming expirations and recent decisions, and a clearer hierarchy for active ADRs by category and tag. The layout adapts to available content width and uses the app's light and dark theme tokens.
 
 ### v1.2.2 — safer ADR edits (2026-11-21)
 

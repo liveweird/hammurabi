@@ -17,6 +17,20 @@ interface ChangelogEntry {
 
 export const CHANGELOG: readonly ChangelogEntry[] = [
   {
+    version: "1.2.3",
+    date: "2026-11-21",
+    en: `**Hammurabi 1.2.3 — a clearer Decision log.**
+
+- Compare ADR counts by status in a single grid. Select a count to open the filtered ADR list.
+- Read pending reviews, upcoming expirations, and recent decisions in one panel. Reviews that need your decision and overdue ADRs are easy to spot.
+- Browse decisions in force by category and tag. The page adapts to narrower screens and supports both themes.`,
+    pl: `**Hammurabi 1.2.3 — czytelniejszy rejestr decyzji.**
+
+- Porównaj liczbę ADR-ów według statusu w jednej siatce. Wybierz liczbę, aby otworzyć przefiltrowaną listę ADR-ów.
+- Sprawdź oczekujące przeglądy, nadchodzące terminy wygaśnięcia i ostatnie decyzje w jednym panelu. Łatwo zauważysz przeglądy, które wymagają Twojej decyzji, i ADR-y po terminie.
+- Przeglądaj obowiązujące decyzje według kategorii i tagów. Widok dopasowuje się do węższych ekranów i działa w obu motywach.`,
+  },
+  {
     version: "1.2.2",
     date: "2026-11-21",
     en: `**Hammurabi 1.2.2 — safer ADR edits.**

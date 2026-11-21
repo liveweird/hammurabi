@@ -22,6 +22,8 @@ import { isFeatureEnabled, withFeatureEnabled, type UserRow } from "../utils/fea
 import { refreshQueriesAfterMutation } from "../utils/queryRefresh";
 import { saveErrorMessage } from "../utils/saveError";
 import { showSuccessToast } from "../utils/toast";
+import WorkspaceTable from "../components/WorkspaceTable";
+import styles from "./RegistryViews.module.css";
 
 const SORT_FIELDS = ["id", "name", "email"] as const;
 type SortField = (typeof SORT_FIELDS)[number];
@@ -108,20 +110,22 @@ export default function FeatureFlags() {
   const sortProps = { activeField: sortField, activeDir: sortDir, onToggle: toggleSort };
 
   return (
-    <Stack gap="md">
+    <Stack gap="lg" className={styles.page}>
       <PageHeader
         title={t("users.featureFlags.title")}
         actions={
           <FeatureFlagBulkButtons state={bulkState} disabled={total === 0} onStart={startBulk} />
         }
       />
-      <FeatureFlagFilters filters={filters} />
+      <Stack gap="md">
+        <FeatureFlagFilters filters={filters} />
 
-      {isError && <ErrorAlert error={loadError} title={t("users.loadFailed")} />}
-      {error && <FormErrorAlert>{error}</FormErrorAlert>}
-      <FeatureFlagBulkFeedback state={bulkState} featureLabel={featureLabel} />
+        {isError && <ErrorAlert error={loadError} title={t("users.loadFailed")} />}
+        {error && <FormErrorAlert>{error}</FormErrorAlert>}
+        <FeatureFlagBulkFeedback state={bulkState} featureLabel={featureLabel} />
+      </Stack>
 
-      <Table aria-label={t("users.featureFlags.title")}>
+      <WorkspaceTable label={t("users.featureFlags.title")} minWidth={620}>
         <Table.Thead>
           <Table.Tr>
             <SortHeader field="name" label={t("common.field.name")} {...sortProps} />
@@ -153,7 +157,7 @@ export default function FeatureFlags() {
             </Table.Tr>
           ) : null}
         </Table.Tbody>
-      </Table>
+      </WorkspaceTable>
 
       <PaginationBar
         total={total}

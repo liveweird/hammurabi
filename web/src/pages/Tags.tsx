@@ -12,11 +12,13 @@ import PageHeader from "../components/PageHeader";
 import RowActionsMenu from "../components/RowActionsMenu";
 import TableLoadingRow from "../components/TableLoadingRow";
 import TagCategoryEditorModal from "../components/TagCategoryEditorModal";
+import WorkspaceTable from "../components/WorkspaceTable";
 import { useDeleteConfirm } from "../hooks/useDeleteConfirm";
 import { useTagCategories } from "../hooks/useTagCategories";
 import { adrConflict } from "../utils/adrErrors";
 import { refreshQueriesAfterMutation } from "../utils/queryRefresh";
 import { saveErrorMessage } from "../utils/saveError";
+import styles from "./RegistryViews.module.css";
 
 /**
  * The tag registry (`/tags`, ADMIN-only: the nav entry and the route are - UX only, the server's `requireAdmin` is the rule, and reading the
@@ -45,7 +47,7 @@ export default function Tags() {
   const items = categories.data ?? [];
 
   return (
-    <Stack gap="md">
+    <Stack gap="lg" className={styles.page}>
       <PageHeader
         title={t("tags.title")}
         description={t("tags.intro")}
@@ -57,7 +59,7 @@ export default function Tags() {
       />
 
       {categories.isError && <ErrorAlert error={categories.error} title={t("tags.loadFailed")} />}
-      <Table aria-label={t("tags.title")}>
+      <WorkspaceTable label={t("tags.title")} minWidth={760}>
         <Table.Thead>
           <Table.Tr>
             <Table.Th>{t("tags.column.name")}</Table.Th>
@@ -71,14 +73,14 @@ export default function Tags() {
             <TableLoadingRow colSpan={4} />
           ) : items.length > 0 ? (
             items.map((category) => (
-              <Table.Tr key={category.id}>
-                <Table.Td>
+              <Table.Tr key={category.id} className={styles.tableRow}>
+                <Table.Td className={styles.primaryCell}>
                   <Text size="sm" fw={500}>
                     {category.name}
                   </Text>
                 </Table.Td>
                 <Table.Td>
-                  <Text size="sm" c={category.description ? undefined : "dimmed"}>
+                  <Text size="sm" c={category.description ? undefined : "dimmed"} className={styles.secondaryText}>
                     {category.description ?? "—"}
                   </Text>
                 </Table.Td>
@@ -115,7 +117,7 @@ export default function Tags() {
             </Table.Tr>
           ) : null}
         </Table.Tbody>
-      </Table>
+      </WorkspaceTable>
 
       {editorTarget !== null && (
         <TagCategoryEditorModal

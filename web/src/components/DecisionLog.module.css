@@ -1,19 +1,11 @@
 .page {
   container: decision-log / inline-size;
   max-inline-size: 90rem;
-  margin-inline: auto;
-  padding-block: 0.5rem 1rem;
+  padding-block-end: 1rem;
   --log-border: 1px solid var(--mantine-color-default-border);
   --log-surface: var(--mantine-color-default);
   --log-inset: light-dark(var(--hammurabi-surface-tint), color-mix(in srgb, var(--log-surface), var(--mantine-color-text) 7%));
   --log-padding: clamp(0.875rem, 2cqi, 1.25rem);
-}
-
-.page h2 {
-  font-size: clamp(1.5rem, 1.2rem + 1.1cqi, 2rem);
-  letter-spacing: -0.025em;
-  line-height: 1.2;
-  margin-block-end: 0.25rem;
 }
 
 .statusSection,

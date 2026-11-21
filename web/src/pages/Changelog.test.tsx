@@ -13,10 +13,11 @@ describe("Changelog page", () => {
     await i18n.changeLanguage("en");
   });
 
-  test("renders one timeline entry per release with version and date", () => {
+  test("renders one article per release with version and date", () => {
     renderWithProviders(<Changelog />);
+    expect(screen.getAllByRole("article")).toHaveLength(CHANGELOG.length);
     for (const entry of CHANGELOG) {
-      expect(screen.getByText(`v${entry.version}`)).toBeInTheDocument();
+      expect(screen.getByRole("heading", { level: 3, name: `v${entry.version}` })).toBeInTheDocument();
       expect(screen.getAllByText(entry.date).length).toBeGreaterThanOrEqual(1);
     }
   });

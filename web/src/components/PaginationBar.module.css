@@ -1,0 +1,10 @@
+.footer {
+  container-type: inline-size;
+}
+
+/* The numbered first and last pages remain available when space is tight. */
+@container (max-width: 26rem) {
+  .edge {
+    display: none;
+  }
+}

@@ -18,6 +18,7 @@ import PageHeader from "../components/PageHeader";
 import { FORM_MAX_WIDTH } from "../utils/layout";
 import { usersPath } from "../utils/userLinks";
 import FormErrorAlert from "../components/FormErrorAlert";
+import styles from "../components/AccountForm.module.css";
 
 export default function EditUser() {
   const { t } = useTranslation();
@@ -97,7 +98,7 @@ export default function EditUser() {
   return (
     <Stack gap="md">
       <PageHeader title={t("users.editUser")} backTo={{ to: usersPath, label: t("users.title") }} />
-      <Paper withBorder p="xl" maw={FORM_MAX_WIDTH}>
+      <Paper withBorder radius="lg" maw={FORM_MAX_WIDTH} className={styles.panel}>
         <Stack>
           {isLoading || isError ? (
             <EditPageLoadState
@@ -115,7 +116,7 @@ export default function EditUser() {
                     {error}
                   </FormErrorAlert>
                 )}
-                <Group justify="flex-end" gap="sm">
+                <Group justify="flex-end" gap="xs" className={styles.actions}>
                   <Button component={RouterLink} to={usersPath} variant="default">
                     {t("common.action.cancel")}
                   </Button>

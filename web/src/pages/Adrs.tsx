@@ -28,6 +28,7 @@ import { ADR_ROLES, ADR_STATUSES, isAdrRole, isAdrStatus } from "../utils/adrSta
 import { MAX_TAG_FILTERS, tagOptionGroups } from "../utils/adrTags";
 import { browserTimeZone, formatDate } from "../utils/formatDate";
 import { filtersFromParams, paramsFromFilters } from "../utils/lensFilters";
+import styles from "./AdrWorkspace.module.css";
 
 // `number` is the key's order (ADR-0042 is number 42); the default is newest first, like the server's.
 const SORT_FIELDS = ["number", "name", "status", "updatedAt"] as const;
@@ -115,7 +116,7 @@ export default function Adrs() {
   );
 
   return (
-    <Stack gap="md">
+    <Stack gap="lg" className={styles.listPage}>
       <PageHeader
         title={t("adrs.title")}
         description={t("adrs.intro")}
@@ -130,97 +131,89 @@ export default function Adrs() {
         }
       />
 
-      <Box maw={480} data-print="hide">
-        <ClearableTextInput
-          label={t("adrs.filter.search")}
-          value={search.value}
-          onChange={search.onChange}
-          clearLabel={t("adrs.filter.clearSearch")}
-          placeholder={t("adrs.filter.searchPlaceholder")}
-          description={search.tooShort ? t("adrs.filter.searchHint") : undefined}
-          maxLength={100}
-        />
+      <Box className={styles.listControls} data-print="hide">
+        <Box className={styles.searchField}>
+          <ClearableTextInput
+            label={t("adrs.filter.search")}
+            value={search.value}
+            onChange={search.onChange}
+            clearLabel={t("adrs.filter.clearSearch")}
+            placeholder={t("adrs.filter.searchPlaceholder")}
+            description={search.tooShort ? t("adrs.filter.searchHint") : undefined}
+            maxLength={100}
+          />
+        </Box>
+
+        <FilterPanel
+          activeFilterCount={activeAdrFilterCount(params)}
+          storageKey={SETTINGS_KEY}
+          aside={
+            <Group gap="xs">
+              <LensPicker filters={filtersFromParams(params, getUserId())} onApply={(lensFilters) => update(paramsFromFilters(lensFilters, getUserId()))} />
+              {hasAdrFilters(params) && (
+                <Button variant="subtle" size="xs" onClick={() => update(NO_ADR_FILTERS)}>
+                  {t("adrs.filter.clearAll")}
+                </Button>
+              )}
+            </Group>
+          }
+        >
+          <ClearableTextInput label={t("adrs.filter.q")} value={params.q} onChange={(q) => update({ q })} clearLabel={t("adrs.filter.clearQ")} />
+          <MultiSelect
+            label={t("adrs.filter.status")}
+            placeholder={params.status.length === 0 ? t("common.state.any") : undefined}
+            data={ADR_STATUSES.map((status) => ({ value: status, label: t(`adrs.status.${status}`) }))}
+            value={params.status}
+            onChange={(values) => update({ status: values.filter(isAdrStatus) })}
+            clearable
+            clearButtonProps={{ "aria-label": t("adrs.filter.clearStatus") }}
+          />
+          <MultiSelect
+            label={t("adrs.filter.tag")}
+            placeholder={params.tag.length === 0 ? t("common.state.any") : undefined}
+            data={tagOptionGroups(categories.data ?? [])}
+            value={params.tag}
+            onChange={(values) => update({ tag: values })}
+            maxValues={MAX_TAG_FILTERS}
+            searchable
+            clearable
+            clearButtonProps={{ "aria-label": t("adrs.filter.clearTag") }}
+          />
+          <Switch label={t("adrs.filter.mine")} checked={params.mine} onChange={(e) => update({ mine: e.currentTarget.checked })} mb={6} />
+          {params.participantId !== null && (
+            <Badge
+              variant="light"
+              color="gray"
+              mb={6}
+              style={{ textTransform: "none" }}
+              rightSection={<CloseButton size="xs" aria-label={t("adrs.filter.clearParticipant")} onClick={() => update({ participantId: null, participantRole: null })} />}
+            >
+              {t("adrs.filter.participant", { id: params.participantId })}
+            </Badge>
+          )}
+          <Select
+            label={t("adrs.filter.role")}
+            placeholder={t("common.state.any")}
+            data={ADR_ROLES.map((role) => ({ value: role, label: t(`adrs.role.${role}`) }))}
+            value={params.participantRole}
+            onChange={(value) => update({ participantRole: isAdrRole(value) ? value : null })}
+            disabled={!params.mine && params.participantId === null}
+            clearable
+            clearButtonProps={{ "aria-label": t("adrs.filter.clearRole") }}
+          />
+          {dateField("createdFrom")}
+          {dateField("createdTo", createdInverted ? t("adrs.filter.rangeInverted") : undefined)}
+          {dateField("updatedFrom")}
+          {dateField("updatedTo", updatedInverted ? t("adrs.filter.rangeInverted") : undefined)}
+          {dateField("expiresBefore")}
+          {triState("hasOpenIssues")}
+          {triState("hasPredecessor")}
+          {triState("hasSuccessor")}
+        </FilterPanel>
       </Box>
 
-      <FilterPanel
-        activeFilterCount={activeAdrFilterCount(params)}
-        storageKey={SETTINGS_KEY}
-        aside={
-          <Group gap="xs">
-            <LensPicker filters={filtersFromParams(params, getUserId())} onApply={(lensFilters) => update(paramsFromFilters(lensFilters, getUserId()))} />
-            {hasAdrFilters(params) && (
-              <Button variant="subtle" size="xs" onClick={() => update(NO_ADR_FILTERS)}>
-                {t("adrs.filter.clearAll")}
-              </Button>
-            )}
-          </Group>
-        }
-      >
-        <ClearableTextInput
-          label={t("adrs.filter.q")}
-          value={params.q}
-          onChange={(q) => update({ q })}
-          clearLabel={t("adrs.filter.clearQ")}
-        />
-        <MultiSelect
-          label={t("adrs.filter.status")}
-          placeholder={params.status.length === 0 ? t("common.state.any") : undefined}
-          data={ADR_STATUSES.map((status) => ({ value: status, label: t(`adrs.status.${status}`) }))}
-          value={params.status}
-          onChange={(values) => update({ status: values.filter(isAdrStatus) })}
-          clearable
-          clearButtonProps={{ "aria-label": t("adrs.filter.clearStatus") }}
-        />
-        <MultiSelect
-          label={t("adrs.filter.tag")}
-          placeholder={params.tag.length === 0 ? t("common.state.any") : undefined}
-          data={tagOptionGroups(categories.data ?? [])}
-          value={params.tag}
-          onChange={(values) => update({ tag: values })}
-          maxValues={MAX_TAG_FILTERS}
-          searchable
-          clearable
-          clearButtonProps={{ "aria-label": t("adrs.filter.clearTag") }}
-        />
-        <Switch
-          label={t("adrs.filter.mine")}
-          checked={params.mine}
-          onChange={(e) => update({ mine: e.currentTarget.checked })}
-          mb={6}
-        />
-        {params.participantId !== null && (
-          <Badge
-            variant="light"
-            color="gray"
-            mb={6}
-            style={{ textTransform: "none" }}
-            rightSection={<CloseButton size="xs" aria-label={t("adrs.filter.clearParticipant")} onClick={() => update({ participantId: null, participantRole: null })} />}
-          >
-            {t("adrs.filter.participant", { id: params.participantId })}
-          </Badge>
-        )}
-        <Select
-          label={t("adrs.filter.role")}
-          placeholder={t("common.state.any")}
-          data={ADR_ROLES.map((role) => ({ value: role, label: t(`adrs.role.${role}`) }))}
-          value={params.participantRole}
-          onChange={(value) => update({ participantRole: isAdrRole(value) ? value : null })}
-          disabled={!params.mine && params.participantId === null}
-          clearable
-          clearButtonProps={{ "aria-label": t("adrs.filter.clearRole") }}
-        />
-        {dateField("createdFrom")}
-        {dateField("createdTo", createdInverted ? t("adrs.filter.rangeInverted") : undefined)}
-        {dateField("updatedFrom")}
-        {dateField("updatedTo", updatedInverted ? t("adrs.filter.rangeInverted") : undefined)}
-        {dateField("expiresBefore")}
-        {triState("hasOpenIssues")}
-        {triState("hasPredecessor")}
-        {triState("hasSuccessor")}
-      </FilterPanel>
-
       {relevanceOrder && (
-        <Text size="xs" c="dimmed">
+        <Text size="xs" c="dimmed" className={styles.relevanceNote}>
           {t("adrs.filter.relevance")}
         </Text>
       )}
@@ -249,15 +242,15 @@ export default function Adrs() {
           </Table.Tr>
         }
         rows={data?.items.map((adr) => (
-          <Table.Tr key={adr.id}>
+          <Table.Tr key={adr.id} className={styles.adrRow}>
             <Table.Td>
-              <Text size="sm" ff="monospace" span>
+              <Text size="sm" ff="monospace" span className={styles.adrKey}>
                 {adr.key}
               </Text>
             </Table.Td>
             <Table.Td>
               {/* The name is the way into the ADR — a real link (the detail-link rule). */}
-              <Anchor component={RouterLink} to={adrPath(adr.id)} fw={500} size="sm" aria-label={t("adrs.openAria", { key: adr.key, name: adr.name })}>
+              <Anchor component={RouterLink} to={adrPath(adr.id)} size="sm" className={styles.adrName} aria-label={t("adrs.openAria", { key: adr.key, name: adr.name })}>
                 {adr.match ? <AdrMatchText segments={adr.match.name} /> : adr.name}
               </Anchor>
               {adr.match && adr.match.snippet.length > 0 && (
@@ -266,7 +259,7 @@ export default function Adrs() {
                 </Text>
               )}
             </Table.Td>
-            <Table.Td>
+            <Table.Td className={styles.adrStatus}>
               <AdrStatusBadge status={adr.status} />
             </Table.Td>
             <Table.Td>
@@ -279,7 +272,7 @@ export default function Adrs() {
                 {adr.approver?.name ?? "—"}
               </Text>
             </Table.Td>
-            <Table.Td>
+            <Table.Td className={styles.adrTags}>
               <AdrTagPills tags={adr.tags} none="—" />
             </Table.Td>
             <Table.Td>
@@ -295,7 +288,9 @@ export default function Adrs() {
               )}
             </Table.Td>
             <Table.Td>
-              <Text size="sm">{formatDate(adr.updatedAt, "—", browserTimeZone())}</Text>
+              <Text size="sm" className={styles.adrUpdated}>
+                {formatDate(adr.updatedAt, "—", browserTimeZone())}
+              </Text>
             </Table.Td>
           </Table.Tr>
         ))}
@@ -305,6 +300,7 @@ export default function Adrs() {
         onPageChange={setPage}
         onPageSizeChange={setPageSize}
         maxPageSize={textActive ? SEARCH_MAX_PAGE_SIZE : undefined}
+        minWidth={1120}
       />
     </Stack>
   );

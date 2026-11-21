@@ -15,7 +15,7 @@ export default function ScrollRegion({
   children,
 }: {
   label: string;
-  minWidth: number;
+  minWidth: number | string;
   maxHeight?: number | string;
   children: ReactNode;
 }) {

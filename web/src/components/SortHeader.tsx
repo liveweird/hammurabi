@@ -31,10 +31,10 @@ export default function SortHeader<F extends string>({
     <Table.Th aria-sort={!isActive ? "none" : activeDir === "asc" ? "ascending" : "descending"} w={width}>
       <UnstyledButton
         onClick={() => onToggle(field)}
-        style={{ display: "inline-flex", alignItems: "center", gap: 4, fontWeight: 600 }}
+        style={{ display: "inline-flex", alignItems: "center", gap: 4, fontSize: "inherit", fontWeight: 600 }}
       >
         <span>{label}</span>
-        <Icon size={14} stroke={1.5} opacity={isActive ? 1 : 0.4} />
+        <Icon size={14} stroke={1.5} opacity={isActive ? 1 : 0.4} aria-hidden />
       </UnstyledButton>
     </Table.Th>
   );

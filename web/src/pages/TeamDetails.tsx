@@ -12,6 +12,7 @@ import PageHeader from "../components/PageHeader";
 import TeamEditorModal from "../components/TeamEditorModal";
 import { loadErrorMessage } from "../utils/saveError";
 import { teamsPath } from "../utils/teamLinks";
+import styles from "./RegistryViews.module.css";
 
 /**
  * One team (`/teams/:id`): its name, description and manager. Everyone reads it, its manager included; an ADMIN
@@ -46,21 +47,9 @@ export default function TeamDetails() {
   const data = team.data;
 
   return (
-    <Stack gap="md">
+    <Stack gap="lg" className={styles.page}>
       <PageHeader
         title={data.name}
-        description={
-          <>
-            {data.description && (
-              <Text span display="block">
-                {data.description}
-              </Text>
-            )}
-            <Text span display="block">
-              {data.managerName ? t("teams.managerLine", { name: data.managerName }) : t("teams.noManager")}
-            </Text>
-          </>
-        }
         backTo={{ to: teamsPath, label: t("teams.backToTeams") }}
         actions={
           admin && (
@@ -70,6 +59,18 @@ export default function TeamDetails() {
           )
         }
       />
+
+      <Stack component="section" gap="lg" className={styles.detailPanel} aria-label={data.name}>
+        {data.description && (
+          <Stack gap={4}>
+            <Text className={styles.detailLabel}>{t("common.field.description")}</Text>
+            <Text className={styles.detailValue}>{data.description}</Text>
+          </Stack>
+        )}
+        <Text className={styles.detailValue} c={data.managerName ? undefined : "dimmed"}>
+          {data.managerName ? t("teams.managerLine", { name: data.managerName }) : t("teams.noManager")}
+        </Text>
+      </Stack>
 
       {editing && (
         <TeamEditorModal

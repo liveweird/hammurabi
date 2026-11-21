@@ -7,6 +7,7 @@
     "browse": "Browse the ADRs",
     "raise": "Raise an ADR",
     "mine": "ADRs I take part in",
-    "log": "Open the decision log"
+    "log": "Open the decision log",
+    "navigation": "ADR shortcuts"
   }
 }

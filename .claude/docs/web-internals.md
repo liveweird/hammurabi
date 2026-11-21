@@ -161,8 +161,8 @@ skips a level going down. A page whose real title needs loaded data passes a sta
 
 Rendering & UI wiring:
 
-- `pages/Changelog.tsx` (`/changelog`, authenticated, lazy) renders the entries as a Mantine
-  `Timeline` with `MarkdownView` bodies in the viewer's language, and calls `markChangelogSeen()`
+- `pages/Changelog.tsx` (`/changelog`, authenticated, lazy) renders a list of release articles
+  with version headings, dates and `MarkdownView` bodies in the viewer's language, and calls `markChangelogSeen()`
   on mount. **Bodies are authored EN+PL only, by policy** — a new shipped UI language does NOT
   add changelog fields; non-authored languages read the English body (`AUTHORED_LANGUAGES` in the
   page). `components/MarkdownView.tsx` (Typography + react-markdown + remark-gfm/gemoji, all

@@ -15,6 +15,7 @@ import PageHeader from "../components/PageHeader";
 import { FORM_MAX_WIDTH } from "../utils/layout";
 import { usersPath } from "../utils/userLinks";
 import FormErrorAlert from "../components/FormErrorAlert";
+import styles from "../components/AccountForm.module.css";
 
 export default function CreateUser() {
   const { t } = useTranslation();
@@ -83,7 +84,7 @@ export default function CreateUser() {
   return (
     <Stack gap="md">
       <PageHeader title={t("users.createUser")} backTo={{ to: usersPath, label: t("users.title") }} />
-      <Paper withBorder p="xl" maw={FORM_MAX_WIDTH}>
+      <Paper withBorder radius="lg" maw={FORM_MAX_WIDTH} className={styles.panel}>
         <form onSubmit={form.onSubmit(onSubmit)} noValidate>
           <Stack>
             {/* No password field: it is generated on submit and revealed exactly once. */}
@@ -93,7 +94,7 @@ export default function CreateUser() {
                 {error}
               </FormErrorAlert>
             )}
-            <Group justify="flex-end" gap="sm">
+            <Group justify="flex-end" gap="xs" className={styles.actions}>
               <Button component={RouterLink} to={usersPath} variant="default">
                 {t("common.action.cancel")}
               </Button>

@@ -13,10 +13,11 @@ import ErrorAlert from "../components/ErrorAlert";
 import FormErrorAlert from "../components/FormErrorAlert";
 import LoadingBlock from "../components/LoadingBlock";
 import PageHeader from "../components/PageHeader";
-import ScrollRegion from "../components/ScrollRegion";
+import WorkspaceTable from "../components/WorkspaceTable";
 import { CONTENT_MAX_WIDTH } from "../utils/layout";
 import { saveErrorMessage } from "../utils/saveError";
 import { showSuccessToast } from "../utils/toast";
+import styles from "./NotificationPreferences.module.css";
 
 /** The kinds this build words, in the order the server lists them; a newer server's kind is not shown (and its stored switches are kept on save). */
 const KNOWN_TYPES: ReadonlySet<string> = new Set<NotificationType>([
@@ -96,63 +97,61 @@ export default function NotificationPreferences() {
       ) : query.isError || query.data === undefined ? (
         <ErrorAlert error={query.error} />
       ) : (
-        <Box maw={CONTENT_MAX_WIDTH}>
+        <Box maw={CONTENT_MAX_WIDTH} className={styles.preferences}>
           <Stack>
             {!query.data.emailAvailable && (
               <Alert color="gray" variant="light" role="note">
                 {t("notifications.preferences.emailOff")}
               </Alert>
             )}
-            <ScrollRegion label={t("notifications.preferences.tableAria")} minWidth={520}>
-              <Table aria-label={t("notifications.preferences.tableAria")}>
-                <Table.Thead>
-                  <Table.Tr>
-                    <Table.Th>{t("notifications.preferences.column.kind")}</Table.Th>
-                    <Table.Th w={96}>{t("notifications.preferences.column.bell")}</Table.Th>
-                    <Table.Th w={96}>{t("notifications.preferences.column.email")}</Table.Th>
-                  </Table.Tr>
-                </Table.Thead>
-                <Table.Tbody>
-                  {kinds.map((k) => {
-                    const kind = t(`notifications.preferences.kind.${k.type}.label`);
-                    const bell = bellOn(k);
-                    return (
-                      <Table.Tr key={k.type}>
-                        <Table.Td>
-                          <Text size="sm" fw={500}>
-                            {kind}
-                          </Text>
-                          <Text size="xs" c="dimmed">
-                            {t(`notifications.preferences.kind.${k.type}.description`)}
-                          </Text>
-                        </Table.Td>
-                        <Table.Td>
-                          <Switch
-                            aria-label={t("notifications.preferences.bellAria", { kind })}
-                            checked={bell}
-                            onChange={(e) => {
-                              const value = e.currentTarget.checked;
-                              setBellOverrides((prev) => ({ ...prev, [k.type]: value }));
-                            }}
-                          />
-                        </Table.Td>
-                        <Table.Td>
-                          <Switch
-                            aria-label={t("notifications.preferences.emailAria", { kind })}
-                            checked={bell && emailOn(k)}
-                            disabled={!query.data.emailAvailable || !bell}
-                            onChange={(e) => {
-                              const value = e.currentTarget.checked;
-                              setEmailOverrides((prev) => ({ ...prev, [k.type]: value }));
-                            }}
-                          />
-                        </Table.Td>
-                      </Table.Tr>
-                    );
-                  })}
-                </Table.Tbody>
-              </Table>
-            </ScrollRegion>
+            <WorkspaceTable label={t("notifications.preferences.tableAria")} minWidth={0}>
+              <Table.Thead>
+                <Table.Tr>
+                  <Table.Th scope="col">{t("notifications.preferences.column.kind")}</Table.Th>
+                  <Table.Th scope="col" className={styles.channel}>{t("notifications.preferences.column.bell")}</Table.Th>
+                  <Table.Th scope="col" className={styles.channel}>{t("notifications.preferences.column.email")}</Table.Th>
+                </Table.Tr>
+              </Table.Thead>
+              <Table.Tbody>
+                {kinds.map((k) => {
+                  const kind = t(`notifications.preferences.kind.${k.type}.label`);
+                  const bell = bellOn(k);
+                  return (
+                    <Table.Tr key={k.type}>
+                      <Table.Th scope="row" className={styles.kind}>
+                        <Text size="sm" fw={600}>
+                          {kind}
+                        </Text>
+                        <Text size="xs" c="dimmed">
+                          {t(`notifications.preferences.kind.${k.type}.description`)}
+                        </Text>
+                      </Table.Th>
+                      <Table.Td className={styles.channel}>
+                        <Switch
+                          aria-label={t("notifications.preferences.bellAria", { kind })}
+                          checked={bell}
+                          onChange={(e) => {
+                            const value = e.currentTarget.checked;
+                            setBellOverrides((prev) => ({ ...prev, [k.type]: value }));
+                          }}
+                        />
+                      </Table.Td>
+                      <Table.Td className={styles.channel}>
+                        <Switch
+                          aria-label={t("notifications.preferences.emailAria", { kind })}
+                          checked={bell && emailOn(k)}
+                          disabled={!query.data.emailAvailable || !bell}
+                          onChange={(e) => {
+                            const value = e.currentTarget.checked;
+                            setEmailOverrides((prev) => ({ ...prev, [k.type]: value }));
+                          }}
+                        />
+                      </Table.Td>
+                    </Table.Tr>
+                  );
+                })}
+              </Table.Tbody>
+            </WorkspaceTable>
             <Text c="dimmed" size="sm">
               {t("notifications.preferences.emailNeedsBell")}
             </Text>

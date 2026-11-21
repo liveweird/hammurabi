@@ -1,0 +1,11 @@
+.panel {
+  padding: clamp(1rem, 3vw, 1.75rem);
+  background: var(--mantine-color-default);
+}
+
+.options,
+.actions {
+  margin-block-start: 0.25rem;
+  padding-block-start: var(--mantine-spacing-md);
+  border-block-start: 1px solid var(--mantine-color-default-border);
+}

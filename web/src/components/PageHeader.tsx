@@ -3,6 +3,7 @@ import { Anchor, Group, Stack, Text, Title } from "@mantine/core";
 import { IconArrowLeft } from "@tabler/icons-react";
 import { Link as RouterLink } from "react-router-dom";
 import { useDocumentTitle } from "../hooks/useDocumentTitle";
+import styles from "./PageHeader.module.css";
 
 /**
  * Every page's first row (v1.19.0): the title (an `order={2}` heading — the name tests and
@@ -29,26 +30,26 @@ export default function PageHeader({
 }) {
   useDocumentTitle(documentTitle ?? title);
   return (
-    <Stack gap="sm">
-      <Group justify="space-between" align="flex-start" wrap="wrap" gap="sm">
-        <Stack gap={2}>
+    <Stack component="header" gap="sm" className={styles.header}>
+      <Group justify="space-between" align="center" wrap="wrap" gap="sm">
+        <Stack gap={4} className={styles.heading}>
           {backTo && (
             <Anchor component={RouterLink} to={backTo.to} size="xs" c="dimmed">
               <Group gap={4} wrap="nowrap" component="span">
-                <IconArrowLeft size={12} />
+                <IconArrowLeft size={12} aria-hidden />
                 {backTo.label}
               </Group>
             </Anchor>
           )}
-          <Title order={2}>{title}</Title>
+          <Title order={2} className={styles.title}>{title}</Title>
           {description && (
-            <Text c="dimmed" size="sm">
+            <Text c="dimmed" size="sm" className={styles.description}>
               {description}
             </Text>
           )}
         </Stack>
         {actions && (
-          <Group gap="sm" wrap="wrap">
+          <Group gap="xs" wrap="wrap" className={styles.actions}>
             {actions}
           </Group>
         )}

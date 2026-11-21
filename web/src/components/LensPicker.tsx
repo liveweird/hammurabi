@@ -70,11 +70,12 @@ export default function LensPicker({ filters, onApply }: { filters: LensFilters;
   }
 
   return (
-    <Stack gap={4}>
+    <Stack gap={4} miw={0} maw="100%">
       <Group gap="xs" wrap="nowrap">
         <Select
           size="xs"
           w={240}
+          miw={0}
           aria-label={t("lenses.picker.label")}
           placeholder={all.length === 0 ? t("lenses.picker.empty") : t("lenses.picker.placeholder")}
           data={data}
@@ -83,20 +84,9 @@ export default function LensPicker({ filters, onApply }: { filters: LensFilters;
           allowDeselect={false}
           searchable
         />
-        {selected && (
-          <Badge size="sm" variant="light" color="gray">
-            {t(`lenses.visibility.${selected.visibility}`)}
-          </Badge>
-        )}
-        {/* Neutral gray: "differs from the saved lens" is state, not caution. */}
-        {modified && (
-          <Badge size="sm" variant="light" color="gray">
-            {t("lenses.modified")}
-          </Badge>
-        )}
         <Menu position="bottom-start" withinPortal>
           <Menu.Target>
-            <ActionIcon variant="default" size="input-xs" aria-label={t("lenses.actionsAria")}>
+            <ActionIcon variant="default" size="input-xs" style={{ flex: "none" }} aria-label={t("lenses.actionsAria")}>
               <IconDots size={16} />
             </ActionIcon>
           </Menu.Target>
@@ -122,6 +112,12 @@ export default function LensPicker({ filters, onApply }: { filters: LensFilters;
           </Menu.Dropdown>
         </Menu>
       </Group>
+      {selected && (
+        <Group gap={4}>
+          <Badge size="sm">{t(`lenses.visibility.${selected.visibility}`)}</Badge>
+          {modified && <Badge size="sm">{t("lenses.modified")}</Badge>}
+        </Group>
+      )}
       {isError && <ErrorAlert error={error} title={t("lenses.picker.loadFailed")} />}
       {overwrite.isError && <FormErrorAlert p="xs">{lensErrorMessage(overwrite.error, t)}</FormErrorAlert>}
 

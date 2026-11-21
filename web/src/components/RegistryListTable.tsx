@@ -5,6 +5,7 @@ import EmptyState from "./EmptyState";
 import PaginationBar from "./PaginationBar";
 import TableLoadingRow from "./TableLoadingRow";
 import ErrorAlert from "./ErrorAlert";
+import WorkspaceTable from "./WorkspaceTable";
 
 /** Common load/error/empty/pagination shell for the small registry tables. */
 export default function RegistryListTable({
@@ -26,6 +27,7 @@ export default function RegistryListTable({
   onPageChange,
   onPageSizeChange,
   maxPageSize,
+  minWidth,
 }: {
   /** The table's accessible name — the same words as the page or section heading above it. */
   label: string;
@@ -47,11 +49,12 @@ export default function RegistryListTable({
   onPageSizeChange: (size: number) => void;
   /** Passed to the `PaginationBar`: the largest page size on offer. */
   maxPageSize?: number;
+  minWidth?: number | string;
 }) {
   return (
     <>
       {isError && <ErrorAlert error={error} title={errorTitle} />}
-      <Table aria-label={label}>
+      <WorkspaceTable label={label} minWidth={minWidth}>
         <Table.Thead>{header}</Table.Thead>
         <Table.Tbody>
           {isLoading && !hasData ? (
@@ -66,7 +69,7 @@ export default function RegistryListTable({
             </Table.Tr>
           ) : null}
         </Table.Tbody>
-      </Table>
+      </WorkspaceTable>
       <PaginationBar
         total={total}
         page={page}

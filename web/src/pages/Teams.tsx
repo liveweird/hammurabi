@@ -19,6 +19,7 @@ import { useRegistryListControls } from "../hooks/useRegistryListControls";
 import { saveErrorMessage } from "../utils/saveError";
 import { teamPath } from "../utils/teamLinks";
 import { refreshQueriesAfterMutation } from "../utils/queryRefresh";
+import styles from "./RegistryViews.module.css";
 
 const SORT_FIELDS = ["name", "updatedAt"] as const;
 type SortField = (typeof SORT_FIELDS)[number];
@@ -62,7 +63,7 @@ export default function Teams() {
   const columnCount = 4;
 
   return (
-    <Stack gap="md">
+    <Stack gap="lg" className={styles.page}>
       <PageHeader
         title={t("teams.title")}
         description={t("teams.intro")}
@@ -105,45 +106,45 @@ export default function Teams() {
         }
         rows={data?.items.map((team) => {
           return (
-            <Table.Tr key={team.id}>
-                <Table.Td>
-                  {/* The name is the way into the team page — a real link (the detail-link rule). */}
-                  <Anchor component={RouterLink} to={teamPath(team.id)} fw={500} size="sm" aria-label={t("teams.openAria", { name: team.name })}>
-                    {team.name}
-                  </Anchor>
-                </Table.Td>
-                <Table.Td>
-                  <Text size="sm" c={team.description ? undefined : "dimmed"} lineClamp={1}>
-                    {team.description ?? "—"}
-                  </Text>
-                </Table.Td>
-                <Table.Td>
-                  <Text size="sm" c={team.managerName ? undefined : "dimmed"}>
-                    {team.managerName ?? "—"}
-                  </Text>
-                </Table.Td>
-                <Table.Td style={{ width: 1 }} ta="right">
-                  {admin && (
-                    <RowActionsMenu label={t("common.table.operationsAria", { name: team.name })}>
-                      <Menu.Item
-                        leftSection={<IconPencil size={14} />}
-                        onClick={() => void openEditor(team)}
-                        aria-label={t("common.action.editAria", { name: team.name })}
-                      >
-                        {t("common.action.edit")}
-                      </Menu.Item>
-                      <Menu.Divider />
-                      <Menu.Item
-                        color="red"
-                        leftSection={<IconTrash size={14} />}
-                        onClick={() => remove.requestDelete(team)}
-                        aria-label={t("common.action.deleteAria", { name: team.name })}
-                      >
-                        {t("common.action.delete")}
-                      </Menu.Item>
-                    </RowActionsMenu>
-                  )}
-                </Table.Td>
+            <Table.Tr key={team.id} className={styles.tableRow}>
+              <Table.Td className={styles.primaryCell}>
+                {/* The name is the way into the team page — a real link (the detail-link rule). */}
+                <Anchor component={RouterLink} to={teamPath(team.id)} fw={600} size="sm" aria-label={t("teams.openAria", { name: team.name })}>
+                  {team.name}
+                </Anchor>
+              </Table.Td>
+              <Table.Td>
+                <Text size="sm" c={team.description ? undefined : "dimmed"} lineClamp={2} className={styles.secondaryText}>
+                  {team.description ?? "—"}
+                </Text>
+              </Table.Td>
+              <Table.Td>
+                <Text size="sm" c={team.managerName ? undefined : "dimmed"}>
+                  {team.managerName ?? "—"}
+                </Text>
+              </Table.Td>
+              <Table.Td style={{ width: 1 }} ta="right">
+                {admin && (
+                  <RowActionsMenu label={t("common.table.operationsAria", { name: team.name })}>
+                    <Menu.Item
+                      leftSection={<IconPencil size={14} />}
+                      onClick={() => void openEditor(team)}
+                      aria-label={t("common.action.editAria", { name: team.name })}
+                    >
+                      {t("common.action.edit")}
+                    </Menu.Item>
+                    <Menu.Divider />
+                    <Menu.Item
+                      color="red"
+                      leftSection={<IconTrash size={14} />}
+                      onClick={() => remove.requestDelete(team)}
+                      aria-label={t("common.action.deleteAria", { name: team.name })}
+                    >
+                      {t("common.action.delete")}
+                    </Menu.Item>
+                  </RowActionsMenu>
+                )}
+              </Table.Td>
             </Table.Tr>
           );
         })}
@@ -152,6 +153,7 @@ export default function Teams() {
         pageSize={pageSize}
         onPageChange={setPage}
         onPageSizeChange={setPageSize}
+        minWidth={760}
       />
 
       {editorTarget !== null && (

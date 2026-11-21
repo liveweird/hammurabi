@@ -1,0 +1,37 @@
+.viewport {
+  container-type: inline-size;
+  min-inline-size: 0;
+}
+
+.viewport .table {
+  overflow: visible;
+  border-radius: var(--mantine-radius-lg);
+  background: var(--mantine-color-default);
+}
+
+.table thead th:first-child {
+  border-start-start-radius: var(--mantine-radius-lg);
+}
+
+.table thead th:last-child {
+  border-start-end-radius: var(--mantine-radius-lg);
+}
+
+.table tbody tr + tr > :is(td, th) {
+  border-block-start: 1px solid var(--mantine-color-default-border);
+}
+
+.table tbody tr:last-child > :first-child {
+  border-end-start-radius: var(--mantine-radius-lg);
+}
+
+.table tbody tr:last-child > :last-child {
+  border-end-end-radius: var(--mantine-radius-lg);
+}
+
+/* Keep loading and empty states inside the visible portion of a wide table. */
+.table td:only-child[colspan] > * {
+  position: sticky;
+  inset-inline-start: var(--mantine-spacing-md);
+  max-inline-size: calc(100cqi - 2 * var(--mantine-spacing-md));
+}

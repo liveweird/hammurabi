@@ -1,0 +1,124 @@
+.listPage,
+.detailPage {
+  inline-size: 100%;
+  max-inline-size: 100rem;
+}
+
+.formPage {
+  inline-size: 100%;
+  max-inline-size: 90rem;
+}
+
+.listControls {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: var(--mantine-spacing-sm);
+}
+
+.searchField {
+  inline-size: 100%;
+  max-inline-size: 34rem;
+}
+
+.relevanceNote {
+  margin-block-start: calc(-1 * var(--mantine-spacing-sm));
+  padding-inline: var(--mantine-spacing-xs);
+}
+
+.adrRow > td {
+  vertical-align: top;
+}
+
+.adrKey,
+.adrUpdated {
+  color: var(--mantine-color-dimmed);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.adrName {
+  display: inline-block;
+  font-weight: 600;
+  line-height: 1.35;
+  text-wrap: pretty;
+}
+
+.adrStatus > :global(.mantine-Badge-root),
+.adrTags :global(.mantine-Badge-root) {
+  inline-size: max-content;
+}
+
+.formSurface,
+.mainPane,
+.sidePanel {
+  background: var(--mantine-color-default);
+  border-radius: var(--mantine-radius-lg);
+}
+
+.formSurface {
+  inline-size: 100%;
+}
+
+.form {
+  padding: clamp(var(--mantine-spacing-md), 3cqi, var(--mantine-spacing-xl));
+  container: adr-form / inline-size;
+}
+
+.formDocument {
+  min-inline-size: 0;
+}
+
+.moreButton {
+  block-size: auto;
+  max-inline-size: 100%;
+  margin-block-start: var(--mantine-spacing-md);
+}
+
+.moreButton :global(.mantine-Button-label) {
+  padding-block: 0.25rem;
+  overflow: visible;
+  line-height: 1.35;
+  text-align: start;
+  text-overflow: clip;
+  white-space: normal;
+}
+
+.formParticipants {
+  padding-block-start: var(--mantine-spacing-lg);
+  border-block-start: 1px solid var(--mantine-color-default-border);
+}
+
+.formActions {
+  padding-block-start: var(--mantine-spacing-md);
+  border-block-start: 1px solid var(--mantine-color-default-border);
+}
+
+.detailGrid > div {
+  min-inline-size: 0;
+}
+
+.mainPane,
+.sidePanel {
+  min-inline-size: 0;
+}
+
+.sidePanel > div > section + section {
+  padding-block-start: var(--mantine-spacing-lg);
+  border-block-start: 1px solid var(--mantine-color-default-border);
+}
+
+@container adr-form (max-width: 32rem) {
+  .formActions {
+    align-items: stretch;
+  }
+
+  .formActions > * {
+    flex: 1 1 10rem;
+  }
+}
+
+@media (pointer: coarse) {
+  .moreButton {
+    min-block-size: 2.75rem;
+  }
+}

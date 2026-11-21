@@ -26,6 +26,8 @@ import { refreshQueriesAfterMutation } from "../utils/queryRefresh";
 import { editUserPath, newUserPath, userFeaturesPath } from "../utils/userLinks";
 import ErrorAlert from "../components/ErrorAlert";
 import FormErrorAlert from "../components/FormErrorAlert";
+import WorkspaceTable from "../components/WorkspaceTable";
+import styles from "./RegistryViews.module.css";
 
 const SORT_FIELDS = ["name", "email"] as const;
 type SortField = (typeof SORT_FIELDS)[number];
@@ -81,7 +83,7 @@ export default function Users() {
   const columnCount = 4;
 
   return (
-    <Stack gap="md">
+    <Stack gap="lg" className={styles.page}>
       <PageHeader
         title={t("users.title")}
         actions={
@@ -122,7 +124,7 @@ export default function Users() {
 
       {isError && <ErrorAlert error={error} title={t("users.loadFailed")} />}
 
-      <Table aria-label={t("users.title")}>
+      <WorkspaceTable label={t("users.title")} minWidth={680}>
         <Table.Thead>
           <Table.Tr>
             <SortHeader
@@ -150,10 +152,10 @@ export default function Users() {
             data.items.map((user) => {
               const self = user.id === currentUserId;
               return (
-                <Table.Tr key={user.id}>
-                  <Table.Td>
-                    <Group gap={6} wrap="nowrap">
-                      <Text size="sm" fw={500}>
+                <Table.Tr key={user.id} className={styles.tableRow}>
+                  <Table.Td className={styles.identity}>
+                    <Group gap={6} wrap="wrap">
+                      <Text size="sm" fw={600} className={styles.identityName}>
                         {user.name}
                       </Text>
                       {self && (
@@ -164,7 +166,7 @@ export default function Users() {
                     </Group>
                   </Table.Td>
                   <Table.Td>
-                    <Text size="sm">{user.email}</Text>
+                    <Text size="sm" className={styles.identityEmail}>{user.email}</Text>
                   </Table.Td>
                   <Table.Td>
                     {user.roles.includes("ADMIN") ? (
@@ -233,7 +235,7 @@ export default function Users() {
             </Table.Tr>
           ) : null}
         </Table.Tbody>
-      </Table>
+      </WorkspaceTable>
 
       <PaginationBar
         total={total}

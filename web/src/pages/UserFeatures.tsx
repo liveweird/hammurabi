@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Link as RouterLink, Navigate, useNavigate, useParams } from "react-router-dom";
-import { Button, Group, Paper, Stack, Switch, Text } from "@mantine/core";
+import { Box, Button, Group, Stack, Switch, Text } from "@mantine/core";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { ApiError } from "../api/http";
 import { FEATURES, type Feature } from "../api/session";
@@ -14,6 +14,7 @@ import PageHeader from "../components/PageHeader";
 import { FORM_MAX_WIDTH } from "../utils/layout";
 import { usersPath } from "../utils/userLinks";
 import FormErrorAlert from "../components/FormErrorAlert";
+import styles from "./RegistryViews.module.css";
 
 /**
  * The per-user feature-flags editor (Lettuce's, ported): one switch per feature
@@ -77,9 +78,9 @@ export default function UserFeatures() {
   const notFound = isError && fetchError instanceof ApiError && fetchError.status === 404;
 
   return (
-    <Stack gap="md">
+    <Stack gap="lg" className={styles.page}>
       <PageHeader title={t("users.featuresTitle")} backTo={{ to: usersPath, label: t("users.title") }} />
-      <Paper withBorder p="xl" maw={FORM_MAX_WIDTH}>
+      <Box className={styles.detailPanel} maw={FORM_MAX_WIDTH}>
         <Stack>
           {isLoading || isError || enabled == null ? (
             <EditPageLoadState
@@ -95,24 +96,27 @@ export default function UserFeatures() {
                   {t("users.featuresHint", { name: data.name, email: data.email })}
                 </Text>
               )}
-              {FEATURES.map((f) => (
-                <Switch
-                  key={f}
-                  label={t(`common.feature.${f}`)}
-                  description={t(`common.featureHint.${f}`)}
-                  checked={enabled[f]}
-                  onChange={(e) => {
-                    const value = e.currentTarget.checked;
-                    setOverrides((prev) => ({ ...prev, [f]: value }));
-                  }}
-                />
-              ))}
+              <ul className={styles.featureList}>
+                {FEATURES.map((f) => (
+                  <li key={f} className={styles.featureRow}>
+                    <Switch
+                      label={t(`common.feature.${f}`)}
+                      description={t(`common.featureHint.${f}`)}
+                      checked={enabled[f]}
+                      onChange={(e) => {
+                        const value = e.currentTarget.checked;
+                        setOverrides((prev) => ({ ...prev, [f]: value }));
+                      }}
+                    />
+                  </li>
+                ))}
+              </ul>
               {error && (
                 <FormErrorAlert>
                   {error}
                 </FormErrorAlert>
               )}
-              <Group justify="flex-end" gap="sm">
+              <Group justify="flex-end" gap="sm" className={styles.featureActions}>
                 <Button component={RouterLink} to={usersPath} variant="default">
                   {t("common.action.cancel")}
                 </Button>
@@ -123,7 +127,7 @@ export default function UserFeatures() {
             </Stack>
           )}
         </Stack>
-      </Paper>
+      </Box>
     </Stack>
   );
 }

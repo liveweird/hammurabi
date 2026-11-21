@@ -1,0 +1,28 @@
+.preferences {
+  container-type: inline-size;
+}
+
+.kind {
+  font-weight: 400;
+  overflow-wrap: anywhere;
+}
+
+.channel {
+  inline-size: 6rem;
+  text-align: center;
+}
+
+.channel > div {
+  display: inline-flex;
+}
+
+@container (max-width: 32rem) {
+  .channel {
+    inline-size: auto;
+    padding-inline: 0.45rem;
+  }
+
+  .kind {
+    padding-inline: 0.625rem;
+  }
+}

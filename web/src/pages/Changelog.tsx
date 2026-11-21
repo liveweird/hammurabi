@@ -1,11 +1,11 @@
 import { useEffect } from "react";
-import { Box, Stack, Text, Timeline } from "@mantine/core";
+import { Stack, Text, Title } from "@mantine/core";
 import { useTranslation } from "react-i18next";
 import { CHANGELOG } from "../changelog/entries";
 import { markChangelogSeen } from "../hooks/useChangelogSeen";
 import MarkdownView from "../components/MarkdownView";
 import PageHeader from "../components/PageHeader";
-import { CONTENT_MAX_WIDTH } from "../utils/layout";
+import styles from "./Changelog.module.css";
 
 // Changelog bodies are authored release CONTENT, deliberately not tied to the UI language
 // set: entries carry hand-written EN + PL only, and any other shipped UI language reads the
@@ -21,22 +21,26 @@ export default function Changelog() {
   }, []);
 
   return (
-    <Stack gap="md">
+    <Stack gap="lg" className={styles.page}>
       <PageHeader title={t("changelog.title")} />
-      <Box maw={CONTENT_MAX_WIDTH}>
-        <Stack>
-          <Timeline bulletSize={12} lineWidth={2}>
-            {CHANGELOG.map((entry) => (
-              <Timeline.Item key={entry.version} title={`v${entry.version}`}>
-                <Text size="xs" c="dimmed">
-                  {entry.date}
-                </Text>
-                <MarkdownView>{entry[bodyLang]}</MarkdownView>
-              </Timeline.Item>
-            ))}
-          </Timeline>
-        </Stack>
-      </Box>
+      <ol className={styles.releaseList} role="list">
+        {CHANGELOG.map((entry) => {
+          const headingId = `release-${entry.version.replaceAll(".", "-")}`;
+          return (
+            <li key={entry.version}>
+              <article className={styles.release} aria-labelledby={headingId}>
+                <header className={styles.releaseHeader}>
+                  <Title order={3} size="h4" id={headingId}>v{entry.version}</Title>
+                  <Text component="time" dateTime={entry.date} size="sm" c="dimmed">{entry.date}</Text>
+                </header>
+                <div className={styles.releaseBody}>
+                  <MarkdownView>{entry[bodyLang]}</MarkdownView>
+                </div>
+              </article>
+            </li>
+          );
+        })}
+      </ol>
     </Stack>
   );
 }

@@ -85,17 +85,20 @@ and leads into them. Routes are lazy.
 - **Page chrome**: every page is a `Stack gap="md"` on the canvas starting with
   `components/PageHeader.tsx` (`title` → the `order={2}` heading tests locate, `description?`,
   `backTo?`, right-aligned `actions?` — the ONE place a page's primary "New …" button lives — and
-  a `toolbar?` row). `PageHeader` also titles the browser tab (`hooks/useDocumentTitle.ts`: "{title} · Hammurabi", `documentTitle?` when the tab needs more than the heading, e.g. an ADR's key; `AuthCard` does the same for the sign-in pages), so a new page gets its tab title from its header and never calls the hook itself.
+  a `toolbar?` row). `PageHeader` sets the shared title scale, wraps actions on narrow layouts and
+  titles the browser tab (`hooks/useDocumentTitle.ts`: "{title} · Hammurabi", `documentTitle?` when the tab needs more than the heading, e.g. an ADR's key; `AuthCard` does the same for the sign-in pages).
   No `Container` and no page-wrapping `Paper`; widths come from
   `utils/layout.ts`: full-bleed lists, `Box maw={CONTENT_MAX_WIDTH}` for registry tables and the
-  changelog, `Paper withBorder p="xl" maw={FORM_MAX_WIDTH}` (left-aligned) for the simple field
-  forms. The one spinner is `components/LoadingBlock.tsx` (`TableLoadingRow` wraps it);
+  changelog, and `Paper withBorder maw={FORM_MAX_WIDTH}` for the left-aligned field forms.
+  The one spinner is `components/LoadingBlock.tsx` (`TableLoadingRow` wraps it);
   `components/EditPageLoadState.tsx` is the edit pages' shared load-failure triage (centered
   loader, else a back-to-list alert); `EmptyState` takes the Tabler icon COMPONENT and sizes it
   itself (an optional `hint` is the next step under the label; `compact` is the same body for a card, a side panel or a drawer: the decision log's sections, the history, a discussion thread) and a sub-collection's pager is `components/CompactPagination.tsx` (icon-only controls named, nothing for one page) while a list's footer is `PaginationBar`. **One heading outline everywhere**: the `PageHeader` title is the h2, a page's cards/sections are h3
   (`<Title order={3} size="h4">` keeps the look), their inner blocks h4; and every `Table` has an accessible
-  name (`aria-label` — the words of the heading above it, or a `<area>.tableAria` key). Page tests pin the
-  outline with `test/headings.ts`'s `headingOutline()`.
+  name (`aria-label` — the words of the heading above it, or a `<area>.tableAria` key).
+  Registry and settings tables use `WorkspaceTable` for a native table inside a labelled,
+  keyboard-scrollable `ScrollRegion`. Give wide tables a `minWidth` that keeps columns readable.
+  Page tests pin the outline with `test/headings.ts`'s `headingOutline()`.
 
 ## The typed API layer (`src/api/`)
 
@@ -197,7 +200,7 @@ Every list page composes the same ported Lettuce blocks — copy `pages/Users.ts
 
 `pages/Adrs.tsx` (`/adrs`, the primary nav entry), `pages/CreateAdr.tsx` (`/adrs/new`) and `pages/AdrDetails.tsx` (`/adrs/:id`); routes in `utils/adrLinks.ts`, wrappers in `api/adrs.ts`, copy in `locales/*/adrs.json`.
 
-- **The decision log (0.9.0).** `pages/DecisionLog.tsx` (`/decision-log`, Overview between Home and ADRs; the Home page's "Open the decision log" button) is the read-only overview: ONE query `["adrs", "overview"]` (so any write that refreshes the `["adrs"]` prefix refreshes it) from `getAdrOverview()`, laid out as the count strip (`DecisionLogCounts`: each status's `AdrStatusBadge` and count, a link to the list in that status), three `DecisionLogCard`s (Astrolabe's `HomeCard` layout: Paper, icon, h3, one dimmed sentence) - Awaiting decision (the caller's rows `mine` tinted grape, badged "Needs your decision", `mineTotal` linked to `?status=IN_REVIEW&mine=1&participantRole=APPROVER`), Expiring soon (the last day, a red "Overdue" badge for a past date, "+N more" to `status=ACTIVE&expiresBefore=<today+days+1>`, "today" being the response's `generatedAt` day, not the browser clock), Recently decided - and `DecisionLogInForce` (category h4, tag h5, `LogList` of `AdrLogRow`s, "+N more" to `status=ACTIVE&tag=<name>`; "Untagged", whose link says "All active ADRs" because the list has no untagged filter; the hidden-tags sentence). A "+N more" link's visible text is "+N more" and a `VisuallyHidden` suffix says more of what (WCAG 2.5.3: never an `aria-label` that replaces the visible words). Lists are real `<ul>`s named for assistive technology; each row is ONE link (`key name`); empty sections say so through the shared compact `EmptyState`. Links to the list are built by `adrListPath(patch)` (`utils/adrListParams.ts`), never by hand. Copy: `locales/*/decisionLog.json`; the PL title is "Rejestr decyzji".
+- **Decision log.** `pages/DecisionLog.tsx` reads `["adrs", "overview"]` once. The responsive status grid links each count to the ADR list and uses the shared status colors. The activity panel groups Awaiting decision, Expiring soon and Recently decided. Awaiting decision highlights the caller's reviews and links their Approver queue. Expiring soon uses the response's UTC day (`generatedAt`) for overdue dates. In force groups active ADRs by category and tag, with a separate Untagged group. Each row is one link with the ADR key and name. Use `adrListPath(patch)` for filtered list links and keep a visible "+N more" label with a screen-reader suffix that identifies its destination.
 
 - **Export (0.8.0).** `components/AdrExportButton.tsx` (a `data-print="hide"` action; the failure is an inline red `role="alert"` line, `utils/adrExport.ts`) sits in both pages' `PageHeader` actions: **Export Markdown** on the detail page (everyone who can read the ADR) calls `exportAdr(id)`, **Export (ZIP)** on the list calls `exportAdrs(filters)` with the SAME `filters` object the list query uses (no paging or sort; disabled while a date range is inverted; the server's `400` over 500 matches reads "narrow the filters"). The download goes through `api/download.ts` (`downloadRequest`: `authedFetch`, so the bearer token and the silent refresh apply, the body as a Blob, the file name from `Content-Disposition` accepted only when it is a plain slug) and `utils/saveFile.ts` (an object URL on a throwaway `<a download>`); page tests mock `../utils/saveFile`.
 
@@ -270,8 +273,8 @@ server's own validation (`infra/validation/Text.kt`'s `requireNameAndDescription
   never a `useEffect`. Submit is a plain async fn with local `submitting`/`error` state wrapped by
   `form.onSubmit`; success → `invalidateQueries` (list + detail) → `showSuccessToast` →
   `navigate(list, { replace: true })`; failure → `saveErrorMessage` into an inline Alert.
-- **Widths**: `Paper withBorder p="xl" maw={FORM_MAX_WIDTH}` under a `PageHeader` (with `backTo`
-  to the list) for simple field forms — left-aligned, never a centred `Container`.
+- **Layout**: `AccountForm.module.css` sets responsive padding and separates settings and actions
+  with hairlines. Keep the field form left-aligned under `PageHeader` and use `backTo` for its list.
 
 ## User management and feature flags
 

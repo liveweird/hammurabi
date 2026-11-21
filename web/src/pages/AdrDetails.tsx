@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
 import { useNavigate, useParams } from "react-router-dom";
-import { Button, Grid, Stack } from "@mantine/core";
+import { Button, Grid, Paper, Stack } from "@mantine/core";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { IconPencil, IconTrash } from "@tabler/icons-react";
 import { deleteAdr, exportAdr, getAdr, type AdrResponse } from "../api/adrs";
@@ -20,6 +20,7 @@ import { useDeleteConfirm } from "../hooks/useDeleteConfirm";
 import { adrsPath } from "../utils/adrLinks";
 import { refreshQueriesAfterMutation } from "../utils/queryRefresh";
 import { loadErrorMessage, saveErrorMessage } from "../utils/saveError";
+import styles from "./AdrWorkspace.module.css";
 
 /**
  * One ADR (`/adrs/:id`). The main pane is four tabs - the five Markdown sections (or their editor while editing), the discussion, the
@@ -73,7 +74,7 @@ function AdrDetailsPage({ id }: { id: number }) {
   const mayEdit = data.canEditContent;
 
   return (
-    <Stack gap="md">
+    <Stack gap="lg" className={styles.detailPage}>
       <PageHeader
         title={data.name}
         documentTitle={`${data.key} · ${data.name}`}
@@ -99,14 +100,18 @@ function AdrDetailsPage({ id }: { id: number }) {
         }
       />
       <AdrSupersededBanner adr={data} />
-      <Grid gap="lg">
+      <Grid gap={{ base: "md", lg: "lg" }} align="flex-start" className={styles.detailGrid}>
         <Grid.Col span={{ base: 12, lg: 8 }}>
-          <AdrMainPane adr={data} tab={tab} onTabChange={setTab}>
-            {editing ? <AdrEditForm adr={data} onClose={() => setEditing(false)} /> : <AdrContentSections adr={data} />}
-          </AdrMainPane>
+          <Paper withBorder p={{ base: "sm", sm: "md" }} className={styles.mainPane}>
+            <AdrMainPane adr={data} tab={tab} onTabChange={setTab}>
+              {editing ? <AdrEditForm adr={data} onClose={() => setEditing(false)} /> : <AdrContentSections adr={data} />}
+            </AdrMainPane>
+          </Paper>
         </Grid.Col>
         <Grid.Col span={{ base: 12, lg: 4 }}>
-          <AdrSidePanel adr={data} />
+          <Paper withBorder p={{ base: "md", sm: "lg" }} className={styles.sidePanel}>
+            <AdrSidePanel adr={data} />
+          </Paper>
         </Grid.Col>
       </Grid>
       <ConfirmDeleteModal

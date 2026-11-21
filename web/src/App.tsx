@@ -123,8 +123,8 @@ function Shell() {
         <a href="#main-content" className="skip-link">
           {t("appShell.skipToContent")}
         </a>
-        <Group h={48} px="md" justify="space-between" wrap="nowrap">
-          <Group gap="sm" wrap="nowrap">
+        <Group h={48} px="var(--header-padding)" gap="var(--header-gap)" justify="space-between" wrap="nowrap">
+          <Group gap="var(--header-gap)" wrap="nowrap" className={classes.headerIdentity}>
             <Burger
               opened={opened}
               onClick={toggle}
@@ -154,7 +154,7 @@ function Shell() {
               {t("appShell.brand")}
             </Text>
           </Group>
-          <Group gap="sm" wrap="nowrap">
+          <Group gap="var(--header-gap)" wrap="nowrap" className={classes.headerActions}>
             <CommandPalette />
             <NotificationsButton />
             <UserMenu />

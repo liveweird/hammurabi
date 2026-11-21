@@ -1,19 +1,26 @@
-import { Button, Group, Paper, Stack, Text, Title } from "@mantine/core";
-import { IconGavel, IconPlus, IconScale, IconUser } from "@tabler/icons-react";
+import { Anchor, Button, Stack, Text, Title } from "@mantine/core";
+import { IconChevronRight, IconGavel, IconPlus, IconScale, IconUser } from "@tabler/icons-react";
 import { useTranslation } from "react-i18next";
 import { Link as RouterLink } from "react-router-dom";
 import PageHeader from "../components/PageHeader";
 import { adrsPath, decisionLogPath, myAdrsPath, newAdrPath } from "../utils/adrLinks";
-import { FORM_MAX_WIDTH } from "../utils/layout";
+import styles from "./Home.module.css";
+
+const destinations = [
+  { to: adrsPath, icon: IconGavel, label: "home.welcome.browse" },
+  { to: decisionLogPath, icon: IconScale, label: "home.welcome.log" },
+  { to: myAdrsPath, icon: IconUser, label: "home.welcome.mine" },
+] as const;
 
 /** The landing page: a welcome that says what Hammurabi is and leads into the decision log and the ADRs — all of them, the user's own, or a new one. */
 export default function Home() {
   const { t } = useTranslation();
   return (
-    <Stack gap="md">
+    <Stack gap="lg" className={styles.page}>
       <PageHeader title={t("home.title")} />
-      <Paper withBorder p="xl" maw={FORM_MAX_WIDTH} component="section" aria-labelledby="home-welcome">
-        <Stack gap="md">
+      <section className={styles.welcome} aria-labelledby="home-welcome">
+        <div className={styles.introduction}>
+          <div className={styles.copy}>
           <Title order={3} size="h4" id="home-welcome">
             {t("home.welcome.title")}
           </Title>
@@ -21,22 +28,23 @@ export default function Home() {
           <Text size="sm" c="dimmed">
             {t("home.welcome.daci")}
           </Text>
-          <Group gap="sm">
-            <Button component={RouterLink} to={adrsPath} leftSection={<IconGavel size={16} />}>
-              {t("home.welcome.browse")}
-            </Button>
-            <Button component={RouterLink} to={decisionLogPath} variant="default" leftSection={<IconScale size={16} />}>
-              {t("home.welcome.log")}
-            </Button>
-            <Button component={RouterLink} to={newAdrPath} variant="default" leftSection={<IconPlus size={16} />}>
+          </div>
+          <div className={styles.primaryAction}>
+            <Button component={RouterLink} to={newAdrPath} leftSection={<IconPlus size={16} />}>
               {t("home.welcome.raise")}
             </Button>
-            <Button component={RouterLink} to={myAdrsPath} variant="default" leftSection={<IconUser size={16} />}>
-              {t("home.welcome.mine")}
-            </Button>
-          </Group>
-        </Stack>
-      </Paper>
+          </div>
+        </div>
+        <nav className={styles.destinationList} aria-label={t("home.welcome.navigation")}>
+          {destinations.map(({ to, icon: Icon, label }) => (
+            <Anchor key={to} component={RouterLink} to={to} underline="never" className={styles.destination}>
+              <span className={styles.destinationIcon}><Icon size={18} stroke={1.7} aria-hidden /></span>
+              <span>{t(label)}</span>
+              <IconChevronRight size={16} stroke={1.7} aria-hidden className={styles.chevron} />
+            </Anchor>
+          ))}
+        </nav>
+      </section>
     </Stack>
   );
 }

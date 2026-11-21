@@ -20,6 +20,7 @@ import { EMPTY_PARTICIPANTS, type ParticipantsState } from "../utils/adrParticip
 import { CONTENT_MAX_WIDTH } from "../utils/layout";
 import { refreshQueriesAfterMutation } from "../utils/queryRefresh";
 import { showSuccessToast } from "../utils/toast";
+import styles from "./AdrWorkspace.module.css";
 
 /** Raising an ADR asks for the problem alone; the rest of the content is one click away and can also be written later. */
 const FIRST_FIELDS = ["problem"] as const;
@@ -61,23 +62,26 @@ export default function CreateAdr() {
   }
 
   return (
-    <Stack gap="md">
+    <Stack gap="lg" className={styles.formPage}>
       <PageHeader title={t("adrs.createTitle")} description={t("adrs.createIntro")} backTo={{ to: adrsPath, label: t("adrs.backToList") }} />
-      <Paper withBorder p="xl" maw={CONTENT_MAX_WIDTH}>
-        <form onSubmit={form.onSubmit(submit)} noValidate>
-          <Stack gap="lg">
-            <AdrContentFields form={form} fields={moreOpen ? ADR_TEXT_FIELDS : FIRST_FIELDS} nameRequired={false} />
-            <Button
-              variant="subtle"
-              size="xs"
-              style={{ alignSelf: "flex-start" }}
-              aria-expanded={moreOpen}
-              leftSection={moreOpen ? <IconChevronDown size={14} /> : <IconChevronRight size={14} />}
-              onClick={() => setMoreOpen((open) => !open)}
-            >
-              {t("adrs.createMore")}
-            </Button>
-            <Stack gap="xs">
+      <Paper withBorder p={0} maw={CONTENT_MAX_WIDTH} className={styles.formSurface}>
+        <form onSubmit={form.onSubmit(submit)} noValidate className={styles.form}>
+          <Stack gap="xl">
+            <div className={styles.formDocument}>
+              <AdrContentFields form={form} fields={moreOpen ? ADR_TEXT_FIELDS : FIRST_FIELDS} nameRequired={false} />
+              <Button
+                variant="subtle"
+                size="xs"
+                className={styles.moreButton}
+                style={{ alignSelf: "flex-start" }}
+                aria-expanded={moreOpen}
+                leftSection={moreOpen ? <IconChevronDown size={14} /> : <IconChevronRight size={14} />}
+                onClick={() => setMoreOpen((open) => !open)}
+              >
+                {t("adrs.createMore")}
+              </Button>
+            </div>
+            <Stack gap="md" className={styles.formParticipants}>
               <Title order={3} size="h4">
                 {t("adrs.side.daci")}
               </Title>
@@ -87,7 +91,7 @@ export default function CreateAdr() {
               <AdrParticipantsFields value={participants} onChange={setParticipants} withDriver={false} reserved={me === null ? [] : [String(me)]} />
             </Stack>
             {error && <FormErrorAlert>{error}</FormErrorAlert>}
-            <Group justify="flex-end" gap="sm">
+            <Group justify="flex-end" gap="sm" className={styles.formActions}>
               <Button component={RouterLink} to={adrsPath} variant="default">
                 {t("common.action.cancel")}
               </Button>

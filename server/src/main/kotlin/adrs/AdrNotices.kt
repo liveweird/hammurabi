@@ -13,6 +13,15 @@ package ch.nokillswit.adrs
 fun interface AdrNotices {
     suspend fun onEvents(adrId: UInt, byUserId: UInt?, events: List<AdrEventDescriptor>, at: Long)
 
+    /**
+     * Takes, as the FIRST lock of a write that can make notices (before any ADR row and before the numbering or link advisory lock), the
+     * lock the notices of that write will need: the budget account they are charged to, which is [byUserId] or, for the system (null),
+     * the Approver of [adrId] (null while the ADR does not exist yet). Idempotent inside one
+     * transaction, and FINAL: the notices of the transaction are charged to exactly the account (and UTC day) it chose, whatever
+     * changes before they are made. The default does nothing.
+     */
+    suspend fun reserve(byUserId: UInt?, adrId: UInt?) {}
+
     companion object {
         /** No notices: the default of a test that builds the history service by hand. */
         val NONE: AdrNotices = AdrNotices { _, _, _, _ -> }

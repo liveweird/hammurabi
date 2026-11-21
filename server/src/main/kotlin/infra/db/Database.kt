@@ -24,6 +24,8 @@ import ch.nokillswit.infra.config.requireConfigInt
 import ch.nokillswit.infra.config.requireConfigLong
 import ch.nokillswit.lenses.LensService
 import ch.nokillswit.lenses.LensServiceKey
+import ch.nokillswit.notifications.MAX_EMAIL_BUDGET_PER_ACTOR
+import ch.nokillswit.notifications.NotificationEmailBudget
 import ch.nokillswit.notifications.NotificationService
 import ch.nokillswit.notifications.NotificationServiceKey
 import ch.nokillswit.tags.TagCategoryService
@@ -275,7 +277,15 @@ suspend fun Application.configureDatabase() {
     // The ADR aggregate (V10-V14): the history service is shared by the writes and the expiry sweep (`adrs/AdrExpirySweep.kt`); the
     // discussion service (V12) writes its entries and serves the counts the ADR rows carry.
     // The notices (V17, `notifications/`) are offered every event the history records, in the write's own transaction (`AdrNotices`).
-    val notifications = NotificationService(database)
+    // Its per-actor mail budget (V21, boot-validated): the most email-eligible notices one actor's writes make in a UTC day; the bell
+    // is untouched.
+    val emailBudget = NotificationEmailBudget(
+        perDay = requireConfigInt(
+            environment.config, "notifications.email.maxNoticesPerActorPerDay", min = 1, max = MAX_EMAIL_BUDGET_PER_ACTOR,
+        ),
+        clock = ::nowMillis,
+    )
+    val notifications = NotificationService(database, emailBudget)
     attributes.put(NotificationServiceKey, notifications)
     val adrEvents = AdrEventService(database, notifications)
     attributes.put(AdrEventServiceKey, adrEvents)

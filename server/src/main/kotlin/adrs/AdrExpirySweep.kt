@@ -84,6 +84,9 @@ class AdrExpirySweep(
 
     private suspend fun expire(id: UInt, today: String): Boolean {
         val expired = suspendTransaction(database) {
+            // The notices of the expiry are charged to the ADR's Approver (null actor): their budget row is the first lock, as in a
+            // user write.
+            events.reserveNotices(null, id)
             val row = adrs.selectAll().where { (adrs.id eq id) and adrs.active() }
                 .forUpdate(ForUpdateOption.PostgreSQL.ForNoKeyUpdate).toList().singleOrNull()
                 ?: return@suspendTransaction null

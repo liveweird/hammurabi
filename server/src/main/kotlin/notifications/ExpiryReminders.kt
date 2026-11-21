@@ -5,6 +5,7 @@ import ch.nokillswit.adrs.AdrStatus
 import ch.nokillswit.audit.audit
 import ch.nokillswit.infra.db.active
 import ch.nokillswit.infra.db.nowMillis
+import ch.nokillswit.infra.time.MILLIS_PER_DAY
 import io.ktor.util.AttributeKey
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.flow.map
@@ -41,17 +42,20 @@ internal val ExpiryRemindersKey = AttributeKey<ExpiryReminders>("ExpiryReminders
 
 /**
  * Stamps the marker and answers whether THIS call made the ADR's reminder due: the first reminder for an ADR inserts, a reminder for a
- * date the marker already holds changes nothing (no row returned), and a CHANGED date overwrites it and re-arms the reminder.
+ * date the marker already holds changes nothing (no row returned), and a CHANGED date overwrites it and re-arms the reminder - but at
+ * most once per ADR per UTC day: the marker holds only the last date, so without the day gate an Approver toggling the date A, B, A
+ * would re-arm a reminder at every hourly pass. A date changed again on the day of the last reminder is reminded the next day.
  */
 private const val MARK_REMINDED = """
 INSERT INTO adr_expiry_reminders (adr_id, expires_on, sent_at) VALUES (CAST(? AS int4), CAST(? AS varchar), CAST(? AS int8))
 ON CONFLICT (adr_id) DO UPDATE SET expires_on = EXCLUDED.expires_on, sent_at = EXCLUDED.sent_at
-WHERE adr_expiry_reminders.expires_on <> EXCLUDED.expires_on
+WHERE adr_expiry_reminders.expires_on <> EXCLUDED.expires_on AND adr_expiry_reminders.sent_at < CAST(? AS int8)
 RETURNING adr_id"""
 
 /**
  * The expiry reminder (`adr-model.md` "Notifications"; Covenant's `ReleaseLineReminders` shape): an `ACTIVE` ADR whose expiry date falls
- * within the next [reminderDays] days (today up to the last day in force, UTC) notifies its Driver and Approver ONCE per expiry date. The
+ * within the next [reminderDays] days (today up to the last day in force, UTC) notifies its Driver and Approver ONCE per expiry date
+ * (a re-armed one at most once a UTC day, [MARK_REMINDED]). The
  * dedupe is the marker `adr_expiry_reminders` (V18, one row per ADR holding the date it was reminded for), stamped in the same
  * transaction as the notices, so a changed date re-arms the reminder and a crash between the two repeats nothing. [reminderDays] 0
  * disables the pass. Idempotent and safe on several replicas: the candidate scan is only a filter, each ADR is re-read under its row lock
@@ -107,6 +111,8 @@ internal class ExpiryReminders(
 
     private suspend fun remind(id: UInt, first: String, last: String): Boolean {
         val done = suspendTransaction(database) {
+            // The notices are charged to the ADR's Approver (no actor): their budget row is the first lock, as in a user write.
+            notices.reserve(null, id)
             val row = adrs.selectAll().where { (adrs.id eq id) and adrs.active() }
                 .forUpdate(ForUpdateOption.PostgreSQL.ForNoKeyUpdate).toList().singleOrNull() ?: return@suspendTransaction null
             val expiresOn = row[adrs.expiresOn]
@@ -116,7 +122,10 @@ internal class ExpiryReminders(
             val stamp = nowMillis()
             val marked = TransactionManager.current().exec(
                 MARK_REMINDED,
-                listOf(IntegerColumnType() to id.toInt(), TextColumnType() to expiresOn, LongColumnType() to stamp),
+                listOf(
+                    IntegerColumnType() to id.toInt(), TextColumnType() to expiresOn, LongColumnType() to stamp,
+                    LongColumnType() to stamp - stamp % MILLIS_PER_DAY,
+                ),
                 explicitStatementType = StatementType.SELECT,
             ) { it.get(0, Int::class.javaObjectType) }?.toList().orEmpty().isNotEmpty()
             if (!marked) return@suspendTransaction null

@@ -54,7 +54,7 @@ internal const val ADR_NUMBER_LOCK_KEY = 0x4144524E554D4252L
 class AdrService(
     internal val database: R2dbcDatabase,
     private val participants: AdrParticipantService,
-    private val events: AdrEventService,
+    internal val events: AdrEventService,
     private val discussion: AdrDiscussionService,
     private val tags: AdrTagService,
     internal val successors: AdrSuccessorService,
@@ -188,6 +188,8 @@ class AdrService(
         request.expiresOn?.let(::requireNotPast)
         return suspendTransaction(database) {
             val names = participants.requireActiveUsers(request.participants.map { it.userId })
+            // The mail budget row first, before the numbering lock: the wait for the caller's other writes never holds the global lock.
+            if (request.participants.isNotEmpty()) events.reserveNotices(caller.userId, null)
             val number = nextNumber()
             val stamp = nowMillis()
             // `insertReturning(id)`, not `insert`: a plain insert answers `RETURNING *`, which would send the generated `search` vector
@@ -225,6 +227,7 @@ class AdrService(
         val request = sanitizedAdrUpdate(raw)
         validateAdrUpdate(request)
         return suspendTransaction(database) {
+            events.reserveNotices(caller.userId, id) // the budget row first, then the ADR row (security.md "Notices")
             val (before, standing) = lockedActive(id, caller)
             requireMayEdit(standing)
             before.status.requireWritable()
@@ -287,6 +290,7 @@ class AdrService(
         suspendTransaction(database) {
             // An activation also moves the ADR it replaces, so both rows are locked together (the peek is a plain read: the revision
             // check below catches a link changed in between, since every link change bumps the revision).
+            events.reserveNotices(caller.userId, id)
             val peeked = if (to == AdrStatus.ACTIVE) successors.predecessorIdOf(id) else null
             val (before, standing) = lockedActive(id, caller, alsoLock = peeked)
             requireMayTransition(standing)
@@ -342,6 +346,7 @@ class AdrService(
     ): AdrParticipantsChange? {
         validateParticipantSet(request.participants)
         return suspendTransaction(database) {
+            events.reserveNotices(caller.userId, id)
             val (before, standing) = lockedActive(id, caller)
             requireMayManage(standing)
             requireNotSelfApproval(standing, request.participants)

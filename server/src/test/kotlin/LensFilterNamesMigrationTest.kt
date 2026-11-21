@@ -88,7 +88,8 @@ class LensFilterNamesMigrationTest {
             val migrated = flywayFor(database, target = "20").migrate()
             assertTrue(migrated.success)
             assertEquals(1, migrated.migrationsExecuted, "exactly V20 ran on the populated database")
-            flywayFor(database).validate()
+            // Stopped at V20, like the migrate above: a later migration is pending here by design (it has its own test).
+            flywayFor(database, target = "20").validate()
 
             val after = stored(database)
             fun doc(name: String): JsonObject = json.parseToJsonElement(after.getValue(name)).jsonObject

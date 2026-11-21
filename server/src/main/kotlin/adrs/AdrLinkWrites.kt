@@ -47,6 +47,7 @@ suspend fun AdrService.setSupersedes(
     request: AdrSupersedesRequest,
 ): AdrSupersedesChange? =
     suspendTransaction(database) {
+        events.reserveNotices(caller.userId, id) // the budget row before the link advisory lock
         successors.lockLinkWrites(this)
         val (before, standing) = lockedActive(id, caller)
         requireMayOrganise(standing)
@@ -68,6 +69,7 @@ suspend fun AdrService.setSupersedes(
  */
 suspend fun AdrService.detachSuccessor(id: UInt, caller: CallerPrincipal): AdrDetachChange =
     suspendTransaction(database) {
+        events.reserveNotices(caller.userId, id) // the budget row before the link advisory lock
         successors.lockLinkWrites(this)
         val (predecessor, standing) = lockedActive(id, caller, alsoLock = successors.pendingSuccessorIdOf(id))
         requireMayOrganise(standing)
@@ -95,6 +97,7 @@ suspend fun AdrService.detachSuccessor(id: UInt, caller: CallerPrincipal): AdrDe
  */
 suspend fun AdrService.acceptSuccessor(id: UInt, caller: CallerPrincipal, successorId: UInt): AdrAcceptChange? =
     suspendTransaction(database) {
+        events.reserveNotices(caller.userId, id) // the budget row before the link advisory lock
         successors.lockLinkWrites(this)
         val (predecessor, standing) = lockedActive(id, caller, alsoLock = successors.pendingSuccessorIdOf(id))
         requireMayAcceptSuccessor(standing)

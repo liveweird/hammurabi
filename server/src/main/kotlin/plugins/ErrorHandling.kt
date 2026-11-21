@@ -186,7 +186,7 @@ private fun ApplicationCall.hasNegativeIdSegment(): Boolean {
 fun Application.configureErrorHandling() {
     val rateLimitAudit = RateLimitAuditThrottle()
     install(StatusPages) {
-        // The RateLimit plugin (per-IP buckets and the per-USER telemetry, directory, read-state, export and password-change
+        // The RateLimit plugin (per-IP buckets and the per-USER telemetry, directory, read-state, export, password-change and adr-write
         // buckets) rejects with a bodiless 429;
         // give it the same RFC 7807 body every other error carries. NOTE: this status handler intercepts EVERY 429 that
         // StatusPages itself didn't produce — so caller-specific 429s (the login lockout) must
@@ -196,8 +196,8 @@ fun Application.configureErrorHandling() {
             // A rate-limit rejection leaves the security trail too (checkup 2C15): the bucket (stamped by the
             // bucket's own requestKey, plugins/RateLimits.kt) and the path — never the client address
             // (X-Forwarded-For-derived, so attacker-chosen text) or the query string. Coalesced to one event per
-            // bucket per minute (per bucket AND user for the per-user telemetry, directory, read-state, export and
-            // password-change buckets, which also name `byUserId`)
+            // bucket per minute (per bucket AND user for the per-user telemetry, directory, read-state, export,
+            // password-change and adr-write buckets, which also name `byUserId`)
             // carrying `suppressed` (the rejections folded in since the previous one), so a flood cannot write a
             // line per request.
             val bucket = call.attributes.getOrNull(RateLimitBucketKey) ?: "unknown"

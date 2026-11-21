@@ -245,6 +245,9 @@ class AdrEventService(database: R2dbcDatabase, private val notices: AdrNotices =
         return ids
     }
 
+    /** Takes the notices' budget lock first thing in a write that can make notices ([AdrNotices.reserve]); in the caller's transaction. */
+    suspend fun reserveNotices(byUserId: UInt?, adrId: UInt?) = notices.reserve(byUserId, adrId)
+
     /**
      * Whether the ADR has ever been moved into `IN_REVIEW` (a `TRANSITIONED` event with `to` = `IN_REVIEW`), read in the caller's
      * transaction as ONE bounded probe (`LIMIT 1`): the send back / send to review loop is unbounded, so no event row is read into

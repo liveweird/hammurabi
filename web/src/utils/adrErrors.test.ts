@@ -48,6 +48,11 @@ describe("ADR write errors", () => {
     expect(adrWriteError(problem(404), t, "save")).toBe("This ADR no longer exists.");
   });
 
+  test("a 429 (the adr-write bucket) says to wait, for every kind of write", () => {
+    expect(adrWriteError(problem(429), t, "save")).toBe("Too many requests. Wait a minute and try again.");
+    expect(adrWriteError(problem(429), t, "discussion")).toBe("Too many requests. Wait a minute and try again.");
+  });
+
   test("a 400 says what to check for the write that failed", () => {
     expect(adrWriteError(problem(400), t, "create")).toMatch(/problem is required/);
     expect(adrWriteError(problem(400), t, "save")).toMatch(/expiry date must not be in the past/);

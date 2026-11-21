@@ -9,11 +9,14 @@ import ch.nokillswit.infra.paging.optionalEnum
 import ch.nokillswit.infra.paging.parsePaging
 import ch.nokillswit.infra.paging.repeatedStrings
 import ch.nokillswit.infra.paging.toPage
+import ch.nokillswit.plugins.RateLimits
 import io.ktor.http.HttpHeaders
 import io.ktor.http.HttpStatusCode
 import io.ktor.server.application.*
 import io.ktor.server.auth.authenticate
 import io.ktor.server.plugins.BadRequestException
+import io.ktor.server.plugins.ratelimit.RateLimitName
+import io.ktor.server.plugins.ratelimit.rateLimit
 import io.ktor.server.request.receive
 import io.ktor.server.resources.delete
 import io.ktor.server.resources.get
@@ -43,9 +46,12 @@ fun Application.configureAdrDiscussionRoutes() {
     routing {
         authenticate {
             discussionReads(discussion)
-            discussionPost(adrService, discussion)
-            discussionEdit(discussion)
-            discussionState(discussion)
+            // The four writes ride the same per-user `adr-write` bucket as the ADR writes (checkup C-SEC-4), before every guard.
+            rateLimit(RateLimitName(RateLimits.ADR_WRITE)) {
+                discussionPost(adrService, discussion)
+                discussionEdit(discussion)
+                discussionState(discussion)
+            }
         }
     }
 }

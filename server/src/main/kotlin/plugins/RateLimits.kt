@@ -59,8 +59,8 @@ internal class RateLimitAuditThrottle(
 }
 
 /**
- * Every token bucket the routes ride (per client IP, except [TELEMETRY], [DIRECTORY], [READ_STATE], [EXPORT] and [PASSWORD_CHANGE]: per
- * signed-in user), named in one place so a
+ * Every token bucket the routes ride (per client IP, except [TELEMETRY], [DIRECTORY], [READ_STATE], [EXPORT], [PASSWORD_CHANGE] and
+ * [ADR_WRITE]: per signed-in user), named in one place so a
  * feature module never has to know another's constant (the auth module used to import the try-it bucket's name — a layering
  * inversion the checkup removed). Route files reference these names; only this plugin installs them.
  */
@@ -111,6 +111,14 @@ object RateLimits {
      * change spends a token too.
      */
     const val PASSWORD_CHANGE = "password-change"
+    /**
+     * The 13 writes under `/api/v1/adrs` (checkup C-SEC-4; the document PUT and DELETE, the creation, the transitions, the participants,
+     * tags and successor writes and the four discussion writes) share ONE per-USER bucket, 120/min in every mode (the [DIRECTORY] idiom).
+     * A person drafts, moves and discusses a few times a minute; the bound is for a runaway client or a script, since every write takes the
+     * ADR's row lock and a pooled connection and makes history rows and notices. It sits INSIDE `authenticate {}` and BEFORE every guard,
+     * so a refused or invalid write spends a token too; reads stay outside it.
+     */
+    const val ADR_WRITE = "adr-write"
 
     const val DEFAULT_REFRESH_PER_MINUTE = 30
     /**
@@ -125,6 +133,7 @@ object RateLimits {
     private const val READ_STATE_PER_MINUTE = 240
     private const val EXPORT_PER_MINUTE = 20
     private const val PASSWORD_CHANGE_PER_MINUTE = 5
+    private const val ADR_WRITE_PER_MINUTE = 120
     private const val MFA_PER_MINUTE = 10
     private const val PASSWORD_RESET_CONFIRM_PER_MINUTE = 10
     private const val LOGIN_PER_MINUTE_PRODUCTION = 10
@@ -156,13 +165,14 @@ object RateLimits {
     internal fun readStateLimit() = READ_STATE_PER_MINUTE
     internal fun exportLimit() = EXPORT_PER_MINUTE
     internal fun passwordChangeLimit() = PASSWORD_CHANGE_PER_MINUTE
+    internal fun adrWriteLimit() = ADR_WRITE_PER_MINUTE
     internal fun mfaLimit() = MFA_PER_MINUTE
     internal fun passwordResetConfirmLimit() = PASSWORD_RESET_CONFIRM_PER_MINUTE
 }
 
 /**
  * The buckets (see application.yaml `security.rateLimit` and security.md): per IP, except the per-USER telemetry, directory,
- * read-state, export and password-change buckets.
+ * read-state, export, password-change and adr-write buckets.
  * Login and password-reset follow the mode — production keeps them tight, development lifts them so one host
  * driving the e2e suite is not throttled (the per-account lockout and the per-email throttle are the
  * abuse defences in both modes); refresh, ready, MFA and the password-reset confirm are the same in every mode. Installed here, before
@@ -186,6 +196,7 @@ fun Application.configureRateLimits() {
             READ_STATE to readStateLimit(),
             EXPORT to exportLimit(),
             PASSWORD_CHANGE to passwordChangeLimit(),
+            ADR_WRITE to adrWriteLimit(),
         )
     }
     install(RateLimit) {
@@ -200,11 +211,11 @@ fun Application.configureRateLimits() {
                 }
             }
         }
-        // The per-USER buckets (telemetry, directory, read-state, export, password-change). The routes mount them INSIDE `authenticate {}`
-        // (telemetry/TelemetryRoutes.kt,
-        // users/UserRoutes.kt), so this key runs only for a verified token: an anonymous call is a 401 that never reaches it
-        // and never creates a limiter. The plugin keeps one limiter per key and drops it after its refill period, so memory is
-        // bounded by the accounts active within a minute.
+        // The per-USER buckets (telemetry, directory, read-state, export, password-change, adr-write). The routes mount them INSIDE
+        // `authenticate {}` (telemetry/TelemetryRoutes.kt, users/UserRoutes.kt, adrs/AdrRoutes.kt, ...), so this key runs only for a
+        // verified token: an anonymous call is a 401 that never reaches it and never creates a limiter.
+        // The plugin keeps one limiter per key and drops it after its refill period, so memory is bounded by the accounts active
+        // within a minute.
         perUserBuckets.forEach { (name, limit) ->
             register(RateLimitName(name)) {
                 rateLimiter(limit = limit, refillPeriod = 60.seconds)

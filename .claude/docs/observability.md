@@ -126,6 +126,7 @@ with `hasKeyValue` from `TestEnvironment.kt`). Emitted today:
   change),
 - `user.notification_preferences_changed` (byUserId/targetUserId/`from`/`to` as sorted `TYPE:CHANNEL` lists; only on an actual change; the bell and digest switches, V17; `NotificationRoutesTest`),
 - `notification.email_sent` (userId/count - one digest left; the count is the notices it lists) and `notification.email_failed` (userId/errorType - the class name only, never the provider's message; the notices stay claimed and are not retried): emitted by `notifications/NotificationDigest.kt` per recipient, never a subject, body or address,
+- `notification.email_budget_exceeded` (byUserId/adrId/budget/withheld - a write's notices went past the per-account mail budget of V21 (`notifications.email.maxNoticesPerActorPerDay`, default 200): `withheld` of them got the bell notice but will never be mailed. Emitted by EVERY write that withholds something, not only the first of the day (a silencer leaves a line per write; the `adr-write` bucket caps it at 120 lines a minute per account), and never by a write that withholds nothing; `byUserId` is the CHARGED account: the actor, or for a notice the system makes (the expiry sweep's, the reminders) the ADR's current Approver; emitted from `notifications/NotificationEmailBudget.kt` inside the write's transaction, so a rolled-back write may repeat it; ids and counts only. An ADMIN actor is not exempt; an ADR with no active Approver, charged to nobody, never emits it; `NotificationEmailBudgetTest`),
 - `adr.expiry_reminded` (adrId/number/expiresOn/recipients - NO `byUserId`: the system; the reminder pass made the Driver's and Approver's notices for that expiry date, once per date; `ExpiryRemindersTest`),
 - `user.language_changed` (the per-user language — byUserId/targetUserId + `from`/`to` codes;
   emitted only on an actual change; `user.created` additionally carries `language` when
@@ -157,13 +158,13 @@ with `hasKeyValue` from `TestEnvironment.kt`). Emitted today:
   (Flow's `crypto.reencrypted` boot-backfill event comes back with `EncryptedAtRest`/`Reencrypt`, `security.md` "Encryption at rest"),
 - `authz.denied` (every 403, from the `ForbiddenException` handler in `plugins/ErrorHandling.kt`,
   with method/path/byUserId/detail — `path` is the request path only, never the query string),
-- `rate_limit.exceeded` (bucket/method/path/suppressed, plus `byUserId` on the per-USER `telemetry`, `directory`, `read-state`, `export` and `password-change` buckets — a token bucket (`plugins/RateLimits.kt`: per-IP login, refresh,
-  password-reset, password-reset-confirm, mfa, ready; per-user telemetry, directory, read-state, export and password-change) rejected the request with a 429, emitted from the 429 status handler in
+- `rate_limit.exceeded` (bucket/method/path/suppressed, plus `byUserId` on the per-USER `telemetry`, `directory`, `read-state`, `export`, `password-change` and `adr-write` buckets — a token bucket (`plugins/RateLimits.kt`: per-IP login, refresh,
+  password-reset, password-reset-confirm, mfa, ready; per-user telemetry, directory, read-state, export, password-change and adr-write) rejected the request with a 429, emitted from the 429 status handler in
   `plugins/ErrorHandling.kt`; `bucket` is stamped by the bucket's own `requestKey`. **Coalesced**
   (`RateLimitAuditThrottle`): at most ONE event per bucket per 60 s, `suppressed` counting the rejections folded into it
   since the previous event (0 on the first), so an unauthenticated flood writes a line a minute per bucket instead of one
-  per request; keyed by bucket only (per-IP buckets), so memory is bounded whoever floods. The per-USER `telemetry`, `directory`, `read-state`, `export` and `password-change` buckets are keyed by
-  `telemetry:<userId>` / `directory:<userId>` / `read-state:<userId>` / `export:<userId>` / `password-change:<userId>` instead and carry `byUserId` -- the server-minted claim of a verified token, never client text; only a signed-in
+  per request; keyed by bucket only (per-IP buckets), so memory is bounded whoever floods. The per-USER `telemetry`, `directory`, `read-state`, `export`, `password-change` and `adr-write` buckets are keyed by
+  `telemetry:<userId>` / `directory:<userId>` / `read-state:<userId>` / `export:<userId>` / `password-change:<userId>` / `adr-write:<userId>` instead and carry `byUserId` -- the server-minted claim of a verified token, never client text; only a signed-in
   account reaches that key, so the key space is the account count. The client address is deliberately NOT a field
   (it is `X-Forwarded-For`-derived behind a proxy, i.e. attacker-chosen text; the ingress log has it), and neither is the
   query string. The per-account lockout's 429s are their own `login.lockout`/`login.rejected_locked` events and do not

@@ -74,6 +74,8 @@ export function adrWriteError(err: unknown, t: TFunction, kind: AdrWriteKind): s
   const conflict = adrConflict(err);
   if (conflict) return t(CONFLICT_KEY[conflict]);
   return saveErrorMessage(err, t, {
+    // The per-user `adr-write` bucket (120/min): say what to do, not just the status.
+    tooManyRequests: "common.error.tooManyRequests",
     forbidden: kind === "participants" ? "adrs.error.participantsForbidden" : "adrs.error.forbidden",
     notFound: NOT_FOUND[kind],
     // The untyped 409s: a name clash (create, save), a successor link that closes a cycle / meets a rival successor, or an accept on an

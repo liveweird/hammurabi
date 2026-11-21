@@ -4,9 +4,12 @@ import ch.nokillswit.adrs.AdrDiscussionService
 import ch.nokillswit.adrs.AdrEventDescriptor
 import ch.nokillswit.adrs.AdrNotices
 import ch.nokillswit.adrs.AdrParticipantService
+import ch.nokillswit.adrs.AdrRole
 import ch.nokillswit.adrs.AdrService
 import ch.nokillswit.adrs.adrKey
 import ch.nokillswit.infra.db.active
+import ch.nokillswit.infra.catchingFailures
+import ch.nokillswit.infra.db.nowMillis
 import ch.nokillswit.infra.paging.PageRequest
 import ch.nokillswit.infra.paging.applyPaging
 import ch.nokillswit.users.UserService
@@ -38,6 +41,9 @@ import org.jetbrains.exposed.v1.r2dbc.select
 import org.jetbrains.exposed.v1.r2dbc.transactions.TransactionManager
 import org.jetbrains.exposed.v1.r2dbc.transactions.suspendTransaction
 import org.jetbrains.exposed.v1.r2dbc.update
+import org.slf4j.LoggerFactory
+
+private val log = LoggerFactory.getLogger("ch.nokillswit.notifications.NotificationService")
 
 internal val NotificationServiceKey = AttributeKey<NotificationService>("NotificationService")
 
@@ -73,7 +79,14 @@ WHERE EXISTS (SELECT 1 FROM users x WHERE x.id = u.r AND x.marked_as_deleted = f
   AND NOT EXISTS (SELECT 1 FROM user_notification_preferences p
                   WHERE p.user_id = u.r AND p.channel = 'IN_APP' AND p.notification_type = u.t)
 ORDER BY u.n
-RETURNING recipient_id"""
+RETURNING recipient_id, id"""
+
+/**
+ * The email of these notices is withheld (the per-actor mail budget, V21): `emailed_at` is stamped with the notice's own instant,
+ * "settled, never mailed" (the digest's claim and settle skip a stamped row). It never touches `seen_at`: the bell is unchanged.
+ */
+private const val WITHHOLD_EMAIL = """
+UPDATE notifications SET emailed_at = created_at WHERE id = ANY(CAST(? AS int4[]))"""
 
 /** The ONE sortable whitelist of the notification list: `id` (time order) and `createdAt`. */
 val NOTIFICATION_SORT_FIELDS: Set<String> = SORTABLE_COLUMNS.keys
@@ -88,7 +101,11 @@ val NOTIFICATION_SORT_FIELDS: Set<String> = SORTABLE_COLUMNS.keys
  * from `users`, soft-deleted accounts included; the ADR's key and name and the second ADR's key from `adrs`), in the list's own
  * transaction. No name or text is stored and none is ever logged.
  */
-internal class NotificationService(private val database: R2dbcDatabase) : AdrNotices {
+internal class NotificationService(
+    private val database: R2dbcDatabase,
+    /** The per-actor mail budget (V21); the default is the config default, the composition root and a test pass their own. */
+    private val emailBudget: NotificationEmailBudget = NotificationEmailBudget(DEFAULT_EMAIL_BUDGET_PER_ACTOR, ::nowMillis),
+) : AdrNotices {
     /** The notices. Ids and one short detail: there is no text column and no soft delete. */
     object Notifications : UIntIdTable("notifications") {
         val recipientId = uinteger("recipient_id")
@@ -113,13 +130,38 @@ internal class NotificationService(private val database: R2dbcDatabase) : AdrNot
         if (plans.isNotEmpty()) makeAll(plans, byUserId, at)
     }
 
+    /** The first lock of a write that can make notices: the budget row of the account its notices are charged to ([chargedTo]). */
+    override suspend fun reserve(byUserId: UInt?, adrId: UInt?) {
+        emailBudget.reserve(chargedTo(byUserId, adrId))
+    }
+
+    /**
+     * The account whose mail budget a write's notices spend: the actor, or for a write with no actor (the system: the expiry sweep, the
+     * reminder pass) the CURRENT Approver of [chargeAdrId] at the moment [reserve] looks, the person who decides when a decision in force
+     * ends, so that people cannot arm the system into an unbudgeted flood (the sweep mails every participant of an ADR whose date they
+     * set). Null = exempt: no actor and no active Approver (or no ADR yet).
+     */
+    private suspend fun chargedTo(byUserId: UInt?, chargeAdrId: UInt?): UInt? {
+        if (byUserId != null || chargeAdrId == null) return byUserId
+        val p = AdrParticipantService.AdrParticipants
+        val u = UserService.Users
+        return p.join(u, JoinType.INNER, onColumn = p.userId, otherColumn = u.id).select(p.userId)
+            .where { (p.adrId eq chargeAdrId) and (p.role eq AdrRole.APPROVER.name) and u.active() }
+            .map { it[p.userId].value }.toList().singleOrNull()
+    }
+
     /** Makes the notices of [plan] for its audience minus [byUserId] (an actor never notifies themself); answers who was reached. */
     suspend fun make(plan: NoticePlan, byUserId: UInt?, at: Long): List<UInt> = makeAll(listOf(plan), byUserId, at)
 
     /**
      * Makes the notices of every plan of ONE write in a single multi-row `INSERT`, each for its audience minus [byUserId] (an actor never
      * notifies themself), in the caller's transaction. Answers the recipient of every row that was really inserted (a deleted account or
-     * a switched-off kind makes none), one entry per notice.
+     * a switched-off kind makes none), one entry per notice. Every notice is made (the bell), but the ones past [byUserId]'s daily mail
+     * budget ([NotificationEmailBudget]) are stamped `emailed_at` at once, so the digest never mails them. WHO is charged was decided by
+     * [reserve], first thing in the write (the actor, or for a write with no actor the Approver of the ADR the write is about, whoever it
+     * was then; exempt when it had none), and the budget uses that reservation, not a fresh look: a notice about one ADR can thus be
+     * charged to another ADR's Approver (the successor notice of an ended predecessor reserves the predecessor's). Only a transaction
+     * that reserved nothing falls back to [chargedTo] now, with a WARN.
      */
     suspend fun makeAll(plans: List<NoticePlan>, byUserId: UInt?, at: Long): List<UInt> {
         val recipients = ArrayList<Long>()
@@ -146,9 +188,16 @@ internal class NotificationService(private val database: R2dbcDatabase) : AdrNot
             ArrayColumnType<Int, List<Int>>(IntegerColumnType()) to otherIds,
             ArrayColumnType<String, List<String>>(TextColumnType()) to details,
         )
-        return TransactionManager.current().exec(INSERT_NOTICES, arguments, explicitStatementType = StatementType.SELECT) { row ->
-            row.get(0, Long::class.javaObjectType)!!.toUInt()
+        val transaction = TransactionManager.current()
+        val rows = transaction.exec(INSERT_NOTICES, arguments, explicitStatementType = StatementType.SELECT) { row ->
+            row.get(0, Long::class.javaObjectType)!!.toUInt() to row.get(1, Int::class.javaObjectType)!!
         }?.toList().orEmpty().filterNotNull()
+        // The ids ascend in plan order (the statement's `ORDER BY u.n`), so the budget admits the first notices that were made.
+        val over = emailBudget.withheld(plans.first().adrId, rows.map { it.second }.sorted()) { chargedTo(byUserId, plans.first().adrId) }
+        if (over.isNotEmpty()) {
+            transaction.exec(WITHHOLD_EMAIL, listOf(ArrayColumnType<Int, List<Int>>(IntegerColumnType()) to over.toList()))
+        }
+        return rows.map { it.first }
     }
 
     /** The people an [audience] names right now, in the caller's transaction (the participants as the write left them). */
@@ -161,8 +210,11 @@ internal class NotificationService(private val database: R2dbcDatabase) : AdrNot
             val inStatus: Op<Boolean> = audience.onlyWhile
                 ?.let { status -> exists(adrs.select(adrs.id).where { (adrs.id eq audience.adrId) and (adrs.status eq status.name) }) }
                 ?: Op.TRUE
-            p.select(p.userId).where { (p.adrId eq audience.adrId) and (p.role inList audience.roles.map { it.name }) and inStatus }
-                .map { it[p.userId].value }.toList()
+            // Driver, Approver, Contributors, Informed (the enum's order), then user id: the leads come first, so they are the ones the
+            // actor's mail budget admits when it runs out in the middle of an audience.
+            p.select(p.userId, p.role).where { (p.adrId eq audience.adrId) and (p.role inList audience.roles.map { it.name }) and inStatus }
+                .map { it[p.userId].value to AdrRole.valueOf(it[p.role]) }.toList()
+                .sortedWith(compareBy({ it.second.ordinal }, { it.first })).map { it.first }
         }
         is Audience.EntryAuthor -> {
             val d = AdrDiscussionService.AdrDiscussion
@@ -296,6 +348,12 @@ internal class NotificationService(private val database: R2dbcDatabase) : AdrNot
             total += deleted
             if (deleted > 0) onBatch(deleted)
         } while (deleted == batchSize)
+        // The mail budget's days before the cutoff's (V21): a tiny row per actor and day, one short transaction. Its own failure is logged
+        // and never fails the pass that deleted the notices (the count above stays true).
+        catchingFailures(
+            { suspendTransaction(database) { emailBudget.purgeBefore(cutoffMillis) } },
+            { log.warn("notification mail budget retention failed, the rows stay until the next pass: {}", it.javaClass.name) },
+        )
         return total
     }
 

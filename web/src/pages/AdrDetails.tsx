@@ -111,7 +111,7 @@ export default function AdrDetails() {
         confirm={remove}
         title={t("adrs.deleteTitle")}
         errorTitle={t("adrs.deleteFailed")}
-        errorMessage={(err) => saveErrorMessage(err, t, { forbidden: "adrs.error.forbidden", notFound: "adrs.error.gone", failedStatus: "common.error.actionFailedStatus", failed: "common.error.actionFailed" })}
+        errorMessage={(err) => saveErrorMessage(err, t, { tooManyRequests: "common.error.tooManyRequests", forbidden: "adrs.error.forbidden", notFound: "adrs.error.gone", failedStatus: "common.error.actionFailedStatus", failed: "common.error.actionFailed" })}
         body={(target) => t("adrs.deleteBody", { key: target.key, name: target.name })}
       />
     </Stack>

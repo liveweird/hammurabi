@@ -259,6 +259,14 @@ notifications:
     # released). The digest shares the mailer with MFA codes and password resets, and this budget is what keeps a flood of notices from
     # exhausting the provider's quota for them. 1..1000.
     maxPerRun: "$NOTIFICATIONS_EMAIL_MAX_PER_RUN:100"
+    # The most notices one account's ADR writes can make eligible for the email digest in a UTC day (`notifications/
+    # NotificationEmailBudget.kt`, V21, checkup C-SEC-4; every notice made counts, whatever kind its recipient switched off, and the
+    # first N of the day stay eligible, in the order they were made). Over it the bell notice is still made and only its email is
+    # withheld for good, with one `notification.email_budget_exceeded` audit line per write that withholds. The notices the system makes
+    # (the expiry sweep, the expiry reminders) are charged to the ADR's current Approver; an ADR without one spends nothing. Without it a
+    # Driver adding 99 people to ADR after ADR could make the digest mail a flood of notices naming the actor. An ADMIN is not exempt.
+    # 1..10000.
+    maxNoticesPerActorPerDay: "$NOTIFICATIONS_EMAIL_MAX_NOTICES_PER_ACTOR_PER_DAY:200"
 
 search:
   # The budget of a full-text search REQUEST (`infra/db/SearchBudget.kt`, one deadline for all its statements: each statement's

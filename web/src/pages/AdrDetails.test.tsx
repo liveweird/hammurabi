@@ -291,6 +291,16 @@ describe("AdrDetails page", () => {
     expect(await within(screen.getByRole("dialog")).findByRole("alert")).toHaveTextContent("This ADR no longer exists.");
   });
 
+  test("a delete refused by the adr-write bucket says to wait", async () => {
+    localStorage.setItem("hammurabi.auth.roles", JSON.stringify(["ADMIN"]));
+    serve({ adr: adrFixture() }, (method) => (method === "DELETE" ? problem(429) : null));
+    const user = userEvent.setup();
+    renderDetails();
+    await user.click(await screen.findByRole("button", { name: "Delete" }));
+    await user.click(within(await screen.findByRole("dialog")).getByRole("button", { name: "Delete" }));
+    expect(await within(screen.getByRole("dialog")).findByRole("alert")).toHaveTextContent("Too many requests. Wait a minute and try again.");
+  });
+
   test("a missing ADR, a malformed id and a failed load are each a back-to-list state", async () => {
     stubFetch(() => null);
     const { unmount } = renderDetails();

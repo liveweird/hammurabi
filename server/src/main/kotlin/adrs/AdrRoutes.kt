@@ -16,6 +16,7 @@ import ch.nokillswit.infra.paging.parsePaging
 import ch.nokillswit.infra.paging.repeatedStrings
 import ch.nokillswit.infra.paging.toPage
 import ch.nokillswit.infra.revision.expectedRevision
+import ch.nokillswit.plugins.RateLimits
 import io.ktor.http.HttpHeaders
 import io.ktor.http.HttpStatusCode
 import io.ktor.http.Parameters
@@ -23,6 +24,8 @@ import io.ktor.resources.Resource
 import io.ktor.server.application.*
 import io.ktor.server.auth.authenticate
 import io.ktor.server.plugins.BadRequestException
+import io.ktor.server.plugins.ratelimit.RateLimitName
+import io.ktor.server.plugins.ratelimit.rateLimit
 import io.ktor.server.request.receive
 import io.ktor.server.resources.delete
 import io.ktor.server.resources.get
@@ -114,12 +117,16 @@ fun Application.configureAdrRoutes() {
     routing {
         authenticate {
             adrReads(adrService, listService)
-            adrCreate(adrService)
-            adrDocument(adrService)
-            adrLifecycle(adrService)
-            adrParticipants(adrService)
-            adrOrganise(adrService)
-            adrAcceptSuccessor(adrService)
+            // Every write rides the per-user `adr-write` bucket (checkup C-SEC-4), mounted before every guard so a refused write spends a
+            // token too; the reads and the history stay outside it.
+            rateLimit(RateLimitName(RateLimits.ADR_WRITE)) {
+                adrCreate(adrService)
+                adrDocument(adrService)
+                adrLifecycle(adrService)
+                adrParticipants(adrService)
+                adrOrganise(adrService)
+                adrAcceptSuccessor(adrService)
+            }
             adrHistory(adrService, eventService)
         }
     }

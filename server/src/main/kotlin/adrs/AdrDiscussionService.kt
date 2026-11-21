@@ -213,6 +213,7 @@ class AdrDiscussionService(
         val request = sanitizedDiscussionCreate(raw)
         validateDiscussionBody(request.body)
         return suspendTransaction(database) {
+            events.reserveNotices(caller.userId, adrId) // the budget row before the ADR row
             val (number, status) = lockedAdr(adrId)
             request.kind.requireAcceptedIn(status)
             val stamp = nowMillis()
@@ -280,6 +281,7 @@ class AdrDiscussionService(
     suspend fun setState(adrId: UInt, entryId: UInt, caller: CallerPrincipal, raw: DiscussionStateRequest): DiscussionStateChanged? {
         val request = sanitizedDiscussionState(raw)
         return suspendTransaction(database) {
+            events.reserveNotices(caller.userId, adrId)
             val (number, _) = lockedAdr(adrId)
             val row = liveEntry(adrId, entryId)
             val kind = DiscussionKind.valueOf(row[entries.kind])

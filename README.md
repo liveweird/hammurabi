@@ -231,6 +231,7 @@ class-data-sharing (AppCDS) archive, and setting it drops the archive. Build-tim
 | `NOTIFICATIONS_EMAIL_DELAY_SECONDS` | `300` | A notice still unseen after this many seconds is mailed in the digest, 0..86400 (0 = at the next tick); with `MAIL_TRANSPORT=disabled` no digest is sent and the bell is unaffected. |
 | `NOTIFICATIONS_EMAIL_MIN_INTERVAL_SECONDS` | `900` | At most one digest email per person per this many seconds, per process, 0..86400 (0 = no spacing). |
 | `NOTIFICATIONS_EMAIL_MAX_PER_RUN` | `100` | The most digest emails one sweep tick sends (the mailer is shared with MFA codes and password resets), 1..1000. |
+| `NOTIFICATIONS_EMAIL_MAX_NOTICES_PER_ACTOR_PER_DAY` | `200` | The most notices one account's ADR writes make eligible for the email digest in a UTC day, 1..10000 (every notice counts; the expiry sweep's and the reminders' are charged to the ADR's Approver); over it the bell notice is still made and only its email is withheld for good (one audit line per write that withholds). |
 | `SEARCH_TIMEOUT_SECONDS` | `5` | The deadline of one full-text search request, 1..30; past it the search answers the typed `429` `search-timeout` (`.claude/docs/security.md` "Search"). |
 | `SEARCH_MAX_CONCURRENT` | `4` | The most full-text searches one process runs at once, 1..16 (production boot refuses a value that reaches the pool size); past it the typed `429` `search-busy`. |
 | `WEB_STATIC_DIR` | *(blank)* | Directory of the built SPA to serve; blank in local dev (Vite serves it). The image sets `/app/web`. |

@@ -65,6 +65,11 @@ class ExpiryRemindersTest {
         remindersAt(today).run()
         forceAdrExpiry(adr.id, today.plusDays(9).toString())
         remindersAt(today).run()
+        assertEquals(1, cast.approver.client.noticesOf(NotificationType.EXPIRY_REMINDER, adr.id).size,
+            "changed on the UTC day of the last reminder: re-armed at most once a day, so not yet")
+        // The next UTC day (the marker's stamp moved back a day): the changed date re-arms it.
+        execRaw("UPDATE adr_expiry_reminders SET sent_at = sent_at - 86400000 WHERE adr_id = ${adr.id}")
+        remindersAt(today).run()
         assertEquals(
             listOf(today.plusDays(9).toString(), today.plusDays(5).toString()),
             cast.approver.client.noticesOf(NotificationType.EXPIRY_REMINDER, adr.id).map { it.detail },

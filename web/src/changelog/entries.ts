@@ -17,6 +17,20 @@ interface ChangelogEntry {
 
 export const CHANGELOG: readonly ChangelogEntry[] = [
   {
+    version: "0.8.0",
+    date: "2026-11-21",
+    en: `**Hammurabi 0.8.0: Markdown export.**
+
+- The Export Markdown button on an ADR downloads it as one Markdown file in the adr-tools layout (status, context, decision, consequences), with the alternatives, the people by role and the tags added, and links to the ADR it replaces or is replaced by. Anyone who can read an ADR can export it.
+- The Export (ZIP) button on the ADR list downloads every ADR the current search and filters select (up to 500) as one file each, plus an index.md listing them in number order. Narrow the filters if you hit the limit.
+- File names are plain ASCII (ADR-0042-use-postgresql.md), so they travel safely between systems.`,
+    pl: `**Hammurabi 0.8.0: eksport do Markdown.**
+
+- Przycisk Eksportuj Markdown przy ADR-ze pobiera go jako jeden plik Markdown w układzie adr-tools (status, kontekst, decyzja, konsekwencje), z dodanymi rozważanymi alternatywami, osobami według ról i tagami oraz z odnośnikami do ADR-a, który zastępuje lub przez który został zastąpiony. Każdy, kto może przeczytać ADR, może go wyeksportować.
+- Przycisk Eksportuj (ZIP) na liście ADR-ów pobiera wszystkie ADR-y wybrane przez bieżące wyszukiwanie i filtry (do 500), każdy jako osobny plik, wraz z plikiem index.md z listą w kolejności numerów. Jeśli trafisz na limit, zawęź filtry.
+- Nazwy plików składają się wyłącznie ze znaków ASCII (ADR-0042-use-postgresql.md), więc bezpiecznie wędrują między systemami.`,
+  },
+  {
     version: "0.7.0",
     date: "2026-11-21",
     en: `**Hammurabi 0.7.0: send back and withdraw.**

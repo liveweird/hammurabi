@@ -26,6 +26,8 @@ Mechanism and narrative text kept out of `web/CLAUDE.md` so that file stays a le
   `TimeoutError` DOMException instead of pending forever; new `fetch` call sites in `api/` must
   attach it.
 
+- **Downloads** (`api/download.ts`, 0.8.0): a file is fetched with `downloadRequest(path, fallbackName)` - `authedFetch` (a plain `<a href>` cannot send the bearer header), a non-2xx answer an `ApiError` with its problem body, the body a Blob, the name from `Content-Disposition` only when it is a plain `[A-Za-z0-9._-]` slug (else the fallback) - and handed to the browser by `utils/saveFile.ts`. It carries the transport's 30 s `timeoutSignal`.
+
 ### `session.ts`
 
 - **`session.ts`**: token/roles/userId storage under the `hammurabi.auth.*` localStorage keys, written

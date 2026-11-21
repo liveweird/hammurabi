@@ -7,9 +7,9 @@ the decision, the alternatives considered and the accepted consequences; every c
 they are active (comments and questions) and challenged after (issues and escalations). The name is Hammurabi of Babylon, whose stele carried one of the oldest written codes:
 decisions written down so that they bind and can be looked up.
 
-## What's here today (0.7.0 — send back and withdraw)
+## What's here today (0.8.0 — Markdown export)
 
-Hammurabi's repository started as an exact copy of [Flow](https://github.com/liveweird/flow) (1.57.1, `4e43e480`), trimmed to its generic foundation (0.1.0); 0.2.0 built the ADR core on it, 0.3.0 added the discussion, 0.4.0 the tags and successors, 0.5.0 the search, 0.6.0 the notifications and 0.7.0 the send back and the withdrawal of a decision:
+Hammurabi's repository started as an exact copy of [Flow](https://github.com/liveweird/flow) (1.57.1, `4e43e480`), trimmed to its generic foundation (0.1.0); 0.2.0 built the ADR core on it, 0.3.0 added the discussion, 0.4.0 the tags and successors, 0.5.0 the search, 0.6.0 the notifications, 0.7.0 the send back and the withdrawal of a decision and 0.8.0 the Markdown export:
 
 - **ADRs** (`/api/v1/adrs`; the list, create and detail pages): a gapless `ADR-0001` key, a name, the problem, context, decision, alternatives and consequences in Markdown, an expiry date, and the
   lifecycle `PROBLEM_RAISED` → `SOLUTION_DRAFT` → `IN_REVIEW` → `ACTIVE` (or `CANCELLED`, `WITHDRAWN`, and `EXPIRED` by a daily sweep). **DACI** decides who may do what — one Driver, one
@@ -26,6 +26,10 @@ Hammurabi's repository started as an exact copy of [Flow](https://github.com/liv
   answer or resolution, an expiry or a supersede, a successor linked or detached, and an **expiry reminder** (`ADRS_EXPIRY_REMINDER_DAYS`, 14 by default, `0` off) reach the people it concerns, never
   the person who caused it. Every notice is made in the same transaction as the change; an **email digest** (`NOTIFICATIONS_EMAIL_*`) in the recipient's language follows what stays unseen, through
   the configured mailer, and each kind can be switched off for the bell and for email.
+
+- **Export** (`GET /api/v1/adrs/{id}/export`, `GET /api/v1/adrs/export`; the Export Markdown button of the ADR page and the Export (ZIP) button of the list): any signed-in user downloads an ADR as one
+  Markdown file in the [adr-tools](https://github.com/npryce/adr-tools) layout (status, context, decision, consequences, plus the alternatives, the DACI roles and the tags), named
+  `ADR-0042-use-postgresql.md`, or a ZIP of every ADR the list's current search and filters select (at most 500) with an `index.md` in number order.
 
 - **Sign-in** with a JWT access/refresh pair, a server-side revocation blocklist, per-account lockout and per-IP rate limits; opt-in **email MFA**; **self-service password reset** by an
   emailed single-use link.

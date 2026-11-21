@@ -73,6 +73,7 @@ stele of the Code of Hammurabi on a lapis disc — the sun disc of Shamash crown
 - **Notify (0.6.0; change on request):** every notice derives from a history event of its own transaction and never reaches its actor; the email digest cadence is the deployment's (Adder's `delaySeconds` 300 / `minIntervalSeconds` 900), not a per-user frequency, and "email off" is the EMAIL switches; a comment reaches the Driver, Approver and Contributors, an issue or escalation the Driver and Approver; the expiry reminder is `adrs.expiry.reminderDays` (14, `0` off) days before the last day in force, once per ADR per expiry date (a changed date re-arms it); mail names the ADR by its KEY only, never its name or text; the bell is polled once a minute (no live channel). Details: `adr-model.md` "Notifications".
 - **Send back and withdraw (0.7.0, approved by the user 2026-11-21; the who is assumed, change on request):** `IN_REVIEW → SOLUTION_DRAFT` ("send back") may be requested by the **Approver** (returning it for rework), the **Driver** (pulling it back) or ADMIN; `ACTIVE → WITHDRAWN` by the **Approver** or ADMIN only, since the Approver decides (the Driver cannot revoke a decision). A **reason** is optional on every transition (the UI asks for it on send back, withdraw and cancel): free text up to 1000 code points, kept in the history, **never in a notice or an email** (notices say "sent back" / the new status; mail names the ADR by its key only). A send back clears nothing; the next "Send to review" re-validates the required fields. A withdrawn decision is terminal; a pending successor of it cannot be activated until its Driver removes the link (as for an expired predecessor), and a predecessor a withdrawn successor had already superseded stays superseded. Details: `adr-model.md` "Lifecycle", "DACI roles and verdicts".
 - **The Approver seat (0.7.0, decided in the review of the withdraw; change on request):** nobody but ADMIN can make themselves the Approver, at any status (no self-approval), and once the ADR has ever been in review (also after a send back to draft) only the current Approver or ADMIN can add, remove or replace the Approver; the Driver still hands the Driver seat over, sends back to fix the text and edits every other seat. The Driver could otherwise take the seat through the participants PUT and approve or withdraw their own ADR. Until its first review the Driver may still name someone else as Approver; if the Approver's account is deleted, ADMIN fixes the seat. Details: `adr-model.md` "Participants", `authorization.md`.
+- **Markdown export (0.8.0, approved by the user 2026-11-21; the details are assumed, change on request):** any signed-in user can export any ADR (every ADR is readable). One ADR is an adr-tools Markdown file (`# 42. Name`, `Date:`, `## Status`, `## Context`, `## Decision`, `## Consequences`) plus Hammurabi's alternatives, DACI roles and tags; `Date` is the day it first became `ACTIVE`, else the day it was created; the Markdown fields go out verbatim; the file is English whatever the exporter's language; the footer names the export date only. The ZIP exports what the list's filters select (full-text `text` included), at most 500 (more is `400`, never a silent truncation), with an `index.md`, one rate bucket (20/min per user) for both exports, two bulk exports streaming per process at most (`429 export-busy`), audited with ids and counts only. Details: `adr-model.md` "Export".
 - **User directory:** any signed-in user may look up `{id, name, email}` of active users (`GET /users/directory`, Adder's, for the DACI pickers); the
   name+email disclosure to every signed-in user that Adder's owner accepted is carried over (`security.md` "What the user directory discloses"). Collapse it to `{id, name}` if that changes.
 - Flow's integration service tokens are not ported: nothing external writes ADRs yet.
@@ -80,7 +81,7 @@ stele of the Code of Hammurabi on a lapis disc — the sun disc of Shamash crown
 
 ## Roadmap
 
-Each increment is built and gated on its own. **Current version: 0.7.0.**
+Each increment is built and gated on its own. **Current version: 0.8.0.**
 
 | Ver | Scope |
 |---|---|
@@ -91,7 +92,8 @@ Each increment is built and gated on its own. **Current version: 0.7.0.**
 | **0.5.0 Find** | The remaining multi-criteria filters, full-text search (Adder), URL-synced filters, saved lenses (Toadie), released |
 | **0.6.0 Notify** | The bell, email digest and preferences (Adder's `notifications/`) for DACI participants, notices derived from the history events, expiry reminders (`adrs.expiry.reminderDays`), released |
 | **0.7.0 Send back and withdraw** (extra, approved by the user 2026-11-21) | `IN_REVIEW` → `SOLUTION_DRAFT` and `ACTIVE` → `WITHDRAWN` with an optional reason in the history, released |
-| **0.8.0–0.9.0 Extras** (approved by the user 2026-11-21) | 0.8.0 Markdown export (adr-tools format), 0.9.0 the ADR log/overview page |
+| **0.8.0 Markdown export** (extra, approved by the user 2026-11-21) | `GET /adrs/{id}/export` (one adr-tools Markdown file) and `GET /adrs/export` (a ZIP over the list's filters, at most 500, with an `index.md`), the buttons on the ADR page and the list, released |
+| **0.9.0 ADR log page** (extra, approved by the user 2026-11-21) | The read-only decision-log overview page |
 | **1.0.0 Checkup** | The family's technical checkup (docs, DRY/SRP, tests, UI consistency, security, guardrails, infra) |
 
 ## Donors
@@ -117,6 +119,10 @@ Left in Flow on purpose: `ingest/`, `fetch/`, `jira/`, `gitlab/`, `norm/`, `iden
 `infra/outbound/` (the SSRF guard — port it with the first server-initiated call other than SMTP), `plugins/Role.kt`, `EncryptedAtRest`/`Reencrypt`.
 
 ## Release history
+
+### v0.8.0 — Markdown export (2026-11-21)
+
+Server (`adrs/`; no migration): `GET /api/v1/adrs/{id}/export` (`text/markdown`, an attachment named `ADR-0042-<ascii-slug>.md`) and `GET /api/v1/adrs/export` (`application/zip`: a file per ADR the list's filters select, plus `index.md`; the list's own filter parsing and validation, `text` included; at most 500, else `400`; streamed 25 ADRs at a time with `java.util.zip`), the pure renderer `AdrMarkdown.kt` (adr-tools layout plus alternatives, DACI roles and tags), the per-user `export` rate bucket (20/min) and the audit events `adr.exported` / `adr.exported_bulk`. The spec's list filters became shared parameter components. Web: Export Markdown on the ADR page and Export (ZIP) on the list (authenticated download through `api/download.ts`). E2E: `adr-export`.
 
 ### v0.7.0 — send back and withdraw (2026-11-21)
 

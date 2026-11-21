@@ -8,6 +8,7 @@ import { RedirectIfAuthed, RequireAdmin, RequireAuth, useAdmin } from "./auth";
 import BrandLogo from "./components/BrandLogo";
 import CommandPalette from "./components/CommandPalette";
 import LoadingBlock from "./components/LoadingBlock";
+import NotificationsButton from "./components/NotificationsButton";
 import TelemetryPanelCrash from "./components/TelemetryPanelCrash";
 import UserMenu from "./components/UserMenu";
 import VersionStamp from "./components/VersionStamp";
@@ -35,6 +36,7 @@ const UserFeatures = lazy(() => import("./pages/UserFeatures"));
 const FeatureFlags = lazy(() => import("./pages/FeatureFlags"));
 const CreateUser = lazy(() => import("./pages/CreateUser"));
 const EditUser = lazy(() => import("./pages/EditUser"));
+const NotificationPreferences = lazy(() => import("./pages/NotificationPreferences"));
 const ChangePassword = lazy(() => import("./pages/ChangePassword"));
 const Changelog = lazy(() => import("./pages/Changelog"));
 const NotFound = lazy(() => import("./pages/NotFound"));
@@ -152,6 +154,7 @@ function Shell() {
           </Group>
           <Group gap="sm" wrap="nowrap">
             <CommandPalette />
+            <NotificationsButton />
             <UserMenu />
           </Group>
         </Group>
@@ -245,6 +248,7 @@ export default function App() {
               <Route path="feature-flags" element={<FeatureFlags />} />
             </Route>
             <Route path="change-password" element={<ChangePassword />} />
+            <Route path="notification-preferences" element={<NotificationPreferences />} />
             <Route path="changelog" element={<Changelog />} />
             {/* The authenticated catch-all — LAST child, never feature-gated. */}
             <Route path="*" element={<NotFound />} />

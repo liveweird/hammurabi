@@ -6,6 +6,7 @@
   "nav": {
     "home": "Home",
     "users": "Users",
+    "notificationPreferences": "Notification preferences",
     "changePassword": "Change password",
     "featureFlags": "Feature flags",
     "changelog": "Changelog",

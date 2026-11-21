@@ -40,6 +40,7 @@ describe("CommandPalette", () => {
     await user.click(screen.getByRole("button", { name: /^Search or jump to a page…/ }));
     expect(await screen.findByRole("button", { name: /Home/ })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: /Change password/ })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /^Notification preferences$/ })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: /^Teams$/ })).toBeInTheDocument();
     // A regular session never sees the admin pages.
     expect(screen.queryByRole("button", { name: /^Users$/ })).not.toBeInTheDocument();
@@ -95,6 +96,15 @@ describe("CommandPalette", () => {
     palette.open();
     await user.click(await screen.findByRole("button", { name: /Raise an ADR/ }));
     expect(await screen.findByText("at /adrs/new")).toBeInTheDocument();
+  });
+
+  test("the notification preferences page is a palette entry that navigates", async () => {
+    vi.stubGlobal("fetch", vi.fn());
+    const user = userEvent.setup();
+    renderPalette();
+    palette.open();
+    await user.click(await screen.findByRole("button", { name: /^Notification preferences$/ }));
+    expect(await screen.findByText("at /notification-preferences")).toBeInTheDocument();
   });
 
   test("a regular session's palette has no telemetry action", async () => {

@@ -1,0 +1,88 @@
+{
+  "title": "Notifications",
+  "listAria": "Your notifications",
+  "empty": "You have no notifications.",
+  "markAllSeen": "Mark all as seen",
+  "markAllFailed": "Could not mark the notifications as seen.",
+  "loadFailed": "Could not load the notifications.",
+  "unseenRow": "Unseen",
+  "unseenMany": "999+ unseen",
+  "unseen_one": "{{count}} unseen",
+  "unseen_other": "{{count}} unseen",
+  "system": "The system",
+  "subline": "{{key}} · {{name}} · {{when}}",
+  "event": {
+    "ROLE_ASSIGNED": "{{actor}} gave you a role on {{key}}: {{role}}",
+    "ROLE_REMOVED": "{{actor}} took your role on {{key}} away: {{role}}",
+    "STATUS_CHANGED": "{{actor}} changed the status of {{key}} to {{status}}",
+    "DISCUSSION_POSTED": "{{actor}} posted on {{key}}: {{kind}}",
+    "DISCUSSION_ANSWERED": "{{actor}} marked your question on {{key}} as answered",
+    "DISCUSSION_RESOLVED": "{{actor}} resolved your entry on {{key}}: {{kind}}",
+    "ADR_EXPIRED": "{{key}} expired: its expiry date {{date}} has passed",
+    "ADR_SUPERSEDED": "{{key}} was superseded by {{other}}",
+    "SUCCESSOR_LINKED": "{{actor}} set {{other}} to replace {{key}}",
+    "SUCCESSOR_UNLINKED": "{{actor}} detached {{other}}: it no longer replaces {{key}}",
+    "EXPIRY_REMINDER": "{{key}} expires on {{date}}"
+  },
+  "toast": {
+    "preferencesSaved": "Notification preferences saved"
+  },
+  "preferences": {
+    "title": "Notification preferences",
+    "description": "Choose which notifications reach you in the bell and which of them are also emailed to you.",
+    "tableAria": "Notification preferences",
+    "column": {
+      "kind": "Notification",
+      "bell": "Bell",
+      "email": "Email"
+    },
+    "bellAria": "Bell: {{kind}}",
+    "emailAria": "Email: {{kind}}",
+    "emailOff": "Email is not set up on this deployment, so no notification emails are sent. The bell still works and your email choices are kept.",
+    "emailNeedsBell": "A notification arrives by email only when it also arrives in the bell, so the email switch of a row is off while its bell switch is off.",
+    "saveFailedStatus": "Saving the preferences failed ({{status}})",
+    "saveFailedNetwork": "Saving the preferences failed. Check your connection and try again.",
+    "kind": {
+      "ROLE_ASSIGNED": {
+        "label": "You are given a role",
+        "description": "Someone gives you a DACI role on an ADR."
+      },
+      "ROLE_REMOVED": {
+        "label": "Your role is taken away",
+        "description": "Someone takes your DACI role on an ADR away."
+      },
+      "STATUS_CHANGED": {
+        "label": "An ADR changes status",
+        "description": "An ADR you take part in moves to another status. Everyone on it hears about this, the Informed included."
+      },
+      "DISCUSSION_POSTED": {
+        "label": "Something is posted",
+        "description": "A comment, question, issue or escalation is posted on an ADR you take part in. The Driver and the Approver hear about every entry, Contributors only about comments and questions."
+      },
+      "DISCUSSION_SETTLED": {
+        "label": "Your entry is settled",
+        "description": "Someone answers your question or resolves your issue or escalation."
+      },
+      "ADR_EXPIRED": {
+        "label": "An ADR expires",
+        "description": "The expiry date of an ADR you take part in has passed."
+      },
+      "ADR_SUPERSEDED": {
+        "label": "An ADR is superseded",
+        "description": "A successor takes over an ADR you take part in."
+      },
+      "SUCCESSOR_LINKED": {
+        "label": "A successor is linked",
+        "description": "Someone names a successor for an ADR you drive or approve."
+      },
+      "SUCCESSOR_UNLINKED": {
+        "label": "A successor is detached",
+        "description": "Someone detaches the successor of an ADR you drive or approve."
+      },
+      "EXPIRY_REMINDER": {
+        "label": "An expiry is coming up",
+        "description": "The system reminds you that an ADR you drive or approve is about to expire."
+      }
+    }
+  }
+}

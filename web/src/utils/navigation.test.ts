@@ -17,7 +17,7 @@ describe("visibleSections", () => {
   test("the account leaves never sit in a section", () => {
     const sectionPaths = visibleSections(true).flatMap((s) => s.items.map((l) => l.to));
     for (const leaf of ACCOUNT_NAV) expect(sectionPaths).not.toContain(leaf.to);
-    expect(ACCOUNT_NAV.map((l) => l.to)).toEqual(["/change-password", "/changelog"]);
+    expect(ACCOUNT_NAV.map((l) => l.to)).toEqual(["/change-password", "/notification-preferences", "/changelog"]);
   });
 });
 

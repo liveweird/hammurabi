@@ -68,6 +68,7 @@ describe("UserMenu", () => {
     expect(screen.getAllByText("Alice Admin").length).toBeGreaterThan(0);
     expect(screen.getByText("Admin")).toBeInTheDocument();
     expect(screen.getByRole("menuitem", { name: "Change password" })).toHaveAttribute("href", "/change-password");
+    expect(screen.getByRole("menuitem", { name: "Notification preferences" })).toHaveAttribute("href", "/notification-preferences");
     expect(screen.getByRole("menuitem", { name: /Changelog/ })).toHaveAttribute("href", "/changelog");
   });
 

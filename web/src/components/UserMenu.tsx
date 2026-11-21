@@ -14,12 +14,13 @@ import {
   useMantineColorScheme,
   VisuallyHidden,
 } from "@mantine/core";
-import { IconActivity, IconCheck, IconChevronDown, IconHistory, IconKey, IconLogout } from "@tabler/icons-react";
+import { IconActivity, IconBell, IconCheck, IconChevronDown, IconHistory, IconKey, IconLogout } from "@tabler/icons-react";
 import { logout } from "../api/auth";
 import { getUserId } from "../api/session";
 import { getUser, setUserLanguage } from "../api/users";
 import { flagSignedOut, useAdmin } from "../auth";
 import { asSupportedLanguage, NATIVE_LANGUAGE_NAMES, SUPPORTED_LANGUAGES } from "../i18n";
+import { notificationPreferencesPath } from "../utils/notificationLinks";
 import { useChangelogUnseen } from "../hooks/useChangelogSeen";
 import { setTelemetryPanelOpen, useTelemetryPanelOpen } from "../hooks/useTelemetryPanel";
 
@@ -161,6 +162,9 @@ export default function UserMenu() {
         <Menu.Divider />
         <Menu.Item component={RouterLink} to="/change-password" leftSection={<IconKey size={14} />}>
           {t("appShell.nav.changePassword")}
+        </Menu.Item>
+        <Menu.Item component={RouterLink} to={notificationPreferencesPath} leftSection={<IconBell size={14} />}>
+          {t("appShell.nav.notificationPreferences")}
         </Menu.Item>
         <Menu.Item
           component={RouterLink}

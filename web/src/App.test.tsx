@@ -202,6 +202,41 @@ describe("App shell", () => {
       expect(await screen.findByRole("menuitem", { name: /Changelog/ })).toHaveAttribute("href", "/changelog");
     });
 
+    test("the header carries the notifications bell between the palette and the account menu, polling the unseen count", async () => {
+      localStorage.setItem("hammurabi.auth.userId", "7");
+      const fetchMock = vi.fn((url: string) =>
+        Promise.resolve(url.startsWith("/api/v1/notifications?") ? jsonResponse(200, { items: [], page: 1, pageSize: 1, total: 3 }) : jsonResponse(404, {})),
+      );
+      vi.stubGlobal("fetch", fetchMock);
+      renderApp("/");
+      const bell = await screen.findByRole("button", { name: "Notifications (3 unseen)" });
+      const palette = screen.getByRole("button", { name: /^Search or jump to a page…/ });
+      const account = screen.getByRole("button", { name: /account menu/i });
+      expect(palette.compareDocumentPosition(bell) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+      expect(bell.compareDocumentPosition(account) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+      expect(fetchMock).toHaveBeenCalledWith("/api/v1/notifications?page=1&pageSize=1&seen=false", expect.anything());
+    });
+
+    test("the account menu leads to the lazy notification preferences page", async () => {
+      localStorage.setItem("hammurabi.auth.userId", "7");
+      vi.stubGlobal(
+        "fetch",
+        vi.fn((url: string) =>
+          Promise.resolve(
+            url === "/api/v1/users/7/notification-preferences"
+              ? jsonResponse(200, { emailAvailable: true, kinds: [{ type: "ROLE_ASSIGNED", inApp: true, email: true }] })
+              : jsonResponse(404, {}),
+          ),
+        ),
+      );
+      const user = userEvent.setup();
+      renderApp("/");
+      await user.click(await screen.findByRole("button", { name: /account menu/i }));
+      await user.click(await screen.findByRole("menuitem", { name: "Notification preferences" }));
+      expect(await screen.findByRole("heading", { level: 2, name: "Notification preferences" }, { timeout: 5000 })).toBeInTheDocument();
+      expect(await screen.findByRole("switch", { name: "Bell: You are given a role" })).toBeChecked();
+    });
+
     test("opening the changelog clears the what's-new dot immediately", async () => {
       const user = userEvent.setup();
       renderApp("/");

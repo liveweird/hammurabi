@@ -9,6 +9,10 @@ export const DISCUSSION_VARIANT_KINDS: Record<DiscussionVariant, readonly Discus
   issues: ["ISSUE", "ESCALATION"],
 };
 
+/** Type guard for a kind that arrives as a plain string (a notification's `detail`). */
+export const isDiscussionKind = (value: string | null | undefined): value is DiscussionKind =>
+  Object.values(DISCUSSION_VARIANT_KINDS).some((kinds) => (kinds as readonly (string | null | undefined)[]).includes(value));
+
 /** The server's bounds (`MAX_DISCUSSION_BODY_LENGTH`, `MAX_DISCUSSION_RESOLUTION_LENGTH`). */
 export const DISCUSSION_BODY_MAX = 10_000;
 export const DISCUSSION_RESOLUTION_MAX = 2_000;

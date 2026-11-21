@@ -64,7 +64,7 @@ and leads into them. Routes are lazy.
   `utils/navigation.ts`**, shared by the sidebar and the command palette: `NAV_SECTIONS` —
   labelled, always-open sections (currently Overview: Home, ADRs; and Administration: Teams, Users, Feature flags) of `NavLeaf`s (the
   `label` is a typed i18n key; `adminOnly?` gates admin leaves, `keywords?` adds raw palette search terms for a renamed page's old name, and `visibleSections(isAdmin())`
-  drops an emptied section) — plus `ACCOUNT_NAV` (Change password, Changelog), which the header
+  drops an emptied section) — plus `ACCOUNT_NAV` (Change password, Notification preferences, Changelog), which the header
   `UserMenu` and the palette render and the sidebar never does. Sections are static captions
   (`role="group"` + `aria-label`), never toggles: every leaf is always in the DOM, so tests and
   e2e address the links directly; leaf clicks close the mobile drawer; `activeNavPath` is the
@@ -75,9 +75,9 @@ and leads into them. Routes are lazy.
   (`classes.railLink`) whose `aria-label` IS the label (so every by-name locator keeps working)
   inside a right-hand `Tooltip`, section captions become hairline `Divider`s. The mobile overlay
   always shows full labels.
-- **The shell header** is 48px: brand, the `CommandPalette` trigger, and the `UserMenu` (avatar →
+- **The shell header** is 48px: brand, the `CommandPalette` trigger, the notifications bell (`NotificationsButton`, "Notifications (0.6.0)" below), and the `UserMenu` (avatar →
   identity from `GET /users/{id}` under the `["user", id]` key, language, theme as a three-state
-  SegmentedControl, Change password, Changelog with the what's-new badge, for an ADMIN a "Telemetry panel" toggle, Sign out). The version
+  SegmentedControl, Change password, Notification preferences, Changelog with the what's-new badge, for an ADMIN a "Telemetry panel" toggle, Sign out). The version
   stamp stays in the sidebar footer. **`components/CommandPalette.tsx`** wraps
   `@mantine/spotlight` (pinned to the core version — keep every `@mantine/*` on one version) over
   a module-level store (`utils/commandPalette.ts`): the session's pages, plus the "Raise an ADR" action (everyone) and an ADMIN-only show/hide action for the telemetry panel. No
@@ -223,6 +223,10 @@ Every list page composes the same ported Lettuce blocks — copy `pages/Users.ts
   `adr-frozen`, `illegal-transition`; `utils/adrErrors.ts`) renders through `AdrWriteError` as an orange notice with a reload button; every other failure is a red alert in fixed words.
 - **One status colour map** (`utils/adrStatus.ts`: gray, grape, cyan, teal, orange, red) feeds `AdrStatusBadge` everywhere; a new status colour goes through the vocabulary above.
 
+## Notifications (0.6.0)
+
+Adder's bell, ported without its live channel, rooms and threads: **there is no push, the bell polls.** `components/NotificationsButton.tsx` sits in the shell header between the palette trigger and the `UserMenu`: a labelled `ActionIcon` ("Notifications (N unseen)", "Notifications (999+ unseen)" once the server's capped `total` reaches `NOTIFICATION_TOTAL_CAP` = 1000) with a red count `Indicator` (the same red as the account menu's what's-new dot) and a right-hand `Drawer` that lists the caller's notices newest first, 20 a page (Mantine `Pagination` with the `common.table.*Page` control names, as the discussion threads), read only while it is open. The count is `hooks/useUnseenNotifications.ts`: `GET /notifications?seen=false&page=1&pageSize=1`, only `total` read, `refetchInterval` 60 s (not in a background tab), enabled only with a token. Every key sits under the `["notifications"]` prefix (`utils/notificationKeys.ts`), so a write refreshes badge and list together via `refreshQueriesAfterMutation`; the session boundary needs nothing extra (`queryClient.clear()` on an identity change drops them, and the bell closes its drawer and stops reading when the token goes). A row is a `RouterLink` to `/adrs/{adrId}` (`adrPath`) with an unseen dot plus a visually hidden "Unseen"; a plain click marks it seen (fire-and-forget POST, re-read on settle) and closes the drawer, a modifier-click opens a new tab and changes nothing but the seen mark. "Mark all as seen" shows while anything is unseen. **The sentences** live in `locales/*/notifications.json` (`notifications.event.*`) and are chosen by `utils/notificationText.ts` (`describeNotification`): one per type, the actor's name or "the system" (null actor), the ADR key in the sentence and the ADR name + date/time in the subline; the role, status and entry-kind WORDS come from `adrs.role.*`, `adrs.status.*` and `adrs.discussion.kind.*` and are never copied (the PL sentences put them after a colon or in quotes, since the locale holds only the nominative); an unknown type shows its raw name and an unknown detail shows as sent. **Preferences:** `pages/NotificationPreferences.tsx` (`/notification-preferences`, lazy; the `UserMenu` item and the palette entry via `ACCOUNT_NAV`) is one table of the ten kinds with a Bell and an Email `Switch` per row (`aria-label`s "Bell: <kind>" / "Email: <kind>"); email needs the bell (a row whose bell is off has its email switch off and disabled), every email switch is disabled with a gray note when `emailAvailable` is false, and Save is the wholesale `PUT` of the SWITCHED-OFF `(type, channel)` pairs (a kind this build does not know is hidden but its stored pairs are sent back; the email choice of a bell-off row is stored as it was). Wrappers: `api/notifications.ts`.
+
 ## Registries (the Teams.tsx template)
 
 The small ADMIN-curated registries (Teams and, since 0.4.0, the tag categories on `/tags`) compose
@@ -270,7 +274,7 @@ are English (THE default and fallback everywhere) and Polish. All user-facing st
 `const { t } = useTranslation()` / `<Trans>` — **no hardcoded UI text**. Conventions:
 
 - **Resources** live in `src/locales/{en,pl}/<area>.json`, one file per area (`adrs`, `appShell`, `auth`,
-  `changelog`, `common`, `home`, `lenses`, `tags`, `teams`, `telemetry`, `users`); `i18n.ts` merges them into a single
+  `changelog`, `common`, `home`, `lenses`, `notifications`, `tags`, `teams`, `telemetry`, `users`); `i18n.ts` merges them into a single
   `translation` namespace, so keys read `area.key` (e.g. `t("auth.signIn")`). Only EN is
   statically imported — its typed `en` tree is the key canon AND the runtime fallback; every other
   language is auto-discovered from `locales/<lang>/` via `import.meta.glob`. Bundles are eager on

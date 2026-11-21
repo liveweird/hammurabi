@@ -90,7 +90,7 @@ stele of the Code of Hammurabi on a lapis disc — the sun disc of Shamash crown
 
 ## Roadmap
 
-Each increment is built and gated on its own. **Current version: 1.2.0** (safety net; the release commit bumps `APP_VERSION`).
+Each increment is built and gated on its own. **Current version: 1.2.1** (safety net, tidied; the release commit bumps `APP_VERSION`).
 
 | Ver | Scope |
 |---|---|
@@ -130,6 +130,10 @@ Left in Flow on purpose: `ingest/`, `fetch/`, `jira/`, `gitlab/`, `norm/`, `iden
 `infra/outbound/` (the SSRF guard — port it with the first server-initiated call other than SMTP), `plugins/Role.kt`, `EncryptedAtRest`/`Reencrypt`.
 
 ## Release history
+
+### v1.2.1 — tidy-up (2026-11-21)
+
+The user's "do the cleanup items": the parked 1.0.0 checkup findings C-DRY-5, C-SMELL-2, C-ARCH-5, C-UI-6 and C-TEST-6, fixed (`audit-status.md` "Fixed so far"). User-visible: one compact pager, one empty state, the unread cues on the brand accent, the identity error in the user menu, the PL working-set labels. API: the last-administrator `409` now carries `urn:hammurabi:problem:last-administrator` (was `about:blank`; the body is unchanged otherwise). Structure: password hashing in `infra/crypto/`, the password change in `auth/`, no import cycle between the domain packages (`PackageBoundaryTest`), one status-word source, the ZIP streaming in `AdrExportArchive.kt`, `security.md` "Per-process state". Tests: the e2e console-error guard, the `global-readers` phase, the axe spec in the scenario check. No migration. Released.
 
 ### v1.2.0 — safety net (2026-11-21)
 

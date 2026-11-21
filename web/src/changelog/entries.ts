@@ -17,6 +17,26 @@ interface ChangelogEntry {
 
 export const CHANGELOG: readonly ChangelogEntry[] = [
   {
+    version: "1.2.1",
+    date: "2026-11-21",
+    en: `**Hammurabi 1.2.1: tidy-up.**
+
+- The history, the discussion and the notification list share one compact page switcher, and empty lists look the same everywhere.
+- New notifications and what's new are marked in the app's own colour instead of red, which stays reserved for things that block you.
+- If the app cannot load your account details, the account menu now says so instead of staying silent.
+- Removing or demoting the last administrator is explained more reliably.
+- Behind the scenes: tidier code and stricter automated checks, so mistakes are caught before a release.
+- The memory labels of the telemetry panel are now translated into Polish.`,
+    pl: `**Hammurabi 1.2.1: porządki.**
+
+- Historia, dyskusja i lista powiadomień mają jeden wspólny, zwarty przełącznik stron, a puste listy wyglądają wszędzie tak samo.
+- Nowe powiadomienia i nowości są oznaczone kolorem aplikacji zamiast czerwieni, która pozostaje zarezerwowana dla tego, co Cię blokuje.
+- Jeśli aplikacja nie może wczytać danych Twojego konta, menu konta mówi o tym, zamiast milczeć.
+- Usunięcie albo odebranie uprawnień ostatniemu administratorowi/ostatniej administratorce jest wyjaśniane bardziej niezawodnie.
+- Za kulisami: uporządkowany kod i surowsze automatyczne kontrole, które wyłapują błędy przed wydaniem.
+- Etykiety pamięci w panelu telemetrii są przetłumaczone.`,
+  },
+  {
     version: "1.2.0",
     date: "2026-11-21",
     en: `**Hammurabi 1.2.0: safety net.**

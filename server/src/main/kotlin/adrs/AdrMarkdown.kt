@@ -38,6 +38,8 @@ data class AdrExportDocument(
     val tags: List<ExportTag>,
     val supersedes: AdrRef?,
     val supersededBy: AdrRef?,
+    /** [supersededBy] was accepted by this ADR's Approver (or ADMIN); an unaccepted one is only a proposal. */
+    val supersededByAccepted: Boolean,
 )
 
 /** One line of the bulk export's `index.md`. */
@@ -110,9 +112,16 @@ private fun statusLines(doc: AdrExportDocument): String = buildList {
     add(statusWords(doc.status))
     doc.expiresOn?.let { add("Expires on $it (the last day the decision is in force)") }
     doc.supersedes?.let { add("Supersedes ${link(it)}") }
-    // A successor that has not taken effect yet is only planned: the status line must not claim a supersession that has not happened.
-    doc.supersededBy?.let { add((if (doc.status == AdrStatus.SUPERSEDED) "Superseded by " else "To be superseded by ") + link(it)) }
+    // A successor that has not taken effect yet is only planned (and, while this decision's Approver has not accepted it, only proposed):
+    // the status line must not claim a supersession that has not happened.
+    doc.supersededBy?.let { add(supersededByLine(doc, it)) }
 }.joinToString("\n\n")
+
+private fun supersededByLine(doc: AdrExportDocument, successor: AdrRef): String = when {
+    doc.status == AdrStatus.SUPERSEDED -> "Superseded by ${link(successor)}"
+    doc.supersededByAccepted -> "To be superseded by ${link(successor)}"
+    else -> "Successor proposed: ${link(successor)}"
+}
 
 private fun contextText(doc: AdrExportDocument): String {
     val problem = body(doc.problem)

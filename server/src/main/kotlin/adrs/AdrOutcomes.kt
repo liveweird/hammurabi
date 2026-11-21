@@ -32,3 +32,6 @@ data class AdrSupersedesChange(val id: UInt, val number: Int, val revision: Long
 
 /** What a detach did: the predecessor (route id) and the successor it was freed of, with the successor's new revision. */
 data class AdrDetachChange(val id: UInt, val number: Int, val successor: AdrRef, val successorNumber: Int, val successorRevision: Long)
+
+/** What an acceptance did: the predecessor (route id) and the pending successor its Approver accepted (no revision moves). */
+data class AdrAcceptChange(val id: UInt, val number: Int, val successor: AdrRef, val successorNumber: Int)

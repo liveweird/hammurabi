@@ -7,12 +7,14 @@ import ch.nokillswit.adrs.AdrStatus
 import ch.nokillswit.adrs.AdrUpdateRequest
 import ch.nokillswit.adrs.allowedTransitions
 import ch.nokillswit.adrs.canChangeApprover
-import ch.nokillswit.adrs.canEdit
 import ch.nokillswit.adrs.canEditContent
 import ch.nokillswit.adrs.canEditExpiry
 import ch.nokillswit.adrs.canManageParticipants
 import ch.nokillswit.authz.CallerPrincipal
+import ch.nokillswit.infra.ProblemTypes
+import ch.nokillswit.plugins.ProblemDetail
 import ch.nokillswit.users.UserRole
+import io.ktor.client.call.body
 import io.ktor.client.request.delete
 import io.ktor.client.request.get
 import io.ktor.client.request.header
@@ -25,6 +27,8 @@ import io.ktor.http.contentType
 import io.ktor.server.testing.testApplication
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertNotNull
+import kotlin.test.assertTrue
 
 /**
  * The DACI verdict rows (`adrs/AdrAccess.kt`, `adr-model.md` "DACI roles and verdicts"), pure and over HTTP: for every caller (ADMIN,
@@ -48,10 +52,15 @@ class AdrAccessTest {
                     val content = status in pre && (admin || role == AdrRole.DRIVER || role == AdrRole.CONTRIBUTOR)
                     val lead = admin || role == AdrRole.DRIVER || role == AdrRole.APPROVER
                     val terminal = status !in pre && status != AdrStatus.ACTIVE
+                    // The expiry date of a decision in force is the Approver's (ADMIN's): the Driver may date a draft, not a live decision.
+                    val expiry = when {
+                        terminal -> false
+                        status == AdrStatus.ACTIVE -> admin || role == AdrRole.APPROVER
+                        else -> lead
+                    }
                     assertEquals(content, canEditContent(s, status), "content $status admin=$admin role=$role")
-                    assertEquals(lead && !terminal, canEditExpiry(s, status), "expiry $status admin=$admin role=$role")
+                    assertEquals(expiry, canEditExpiry(s, status), "expiry $status admin=$admin role=$role")
                     assertEquals(lead && !terminal, canManageParticipants(s, status), "manage $status admin=$admin role=$role")
-                    assertEquals(canEditContent(s, status) || canEditExpiry(s, status), canEdit(s, status))
                     // The Approver seat: the leads until the ADR has been in review, only the Approver (and ADMIN) from then on
                     // (in review, in force, or a draft again after a send back), nobody once terminal.
                     for (reviewed in listOf(true, false)) {
@@ -142,14 +151,24 @@ class AdrAccessTest {
         assertEquals(forward, seen("driver").getAdr(adr.id).allowedTransitions)
         assertEquals(emptyList(), seen("approver").getAdr(adr.id).allowedTransitions)
         assertEquals(emptyList(), seen("informed").getAdr(adr.id).allowedTransitions)
+        // The content, the expiry date and the participants, per caller, on a draft.
         val expectations = mapOf(
-            "admin" to (true to true), "driver" to (true to true), "approver" to (true to true),
-            "contributor" to (true to false), "informed" to (false to false), "stranger" to (false to false),
+            "admin" to Triple(true, true, true), "driver" to Triple(true, true, true), "approver" to Triple(false, true, true),
+            "contributor" to Triple(true, false, false), "informed" to Triple(false, false, false),
+            "stranger" to Triple(false, false, false),
         )
         for ((who, flags) in expectations) {
             val view = seen(who).getAdr(adr.id)
-            assertEquals(flags.first, view.canEdit, "$who canEdit")
-            assertEquals(flags.second, view.canManageParticipants, "$who canManageParticipants")
+            assertEquals(flags.first, view.canEditContent, "$who canEditContent")
+            assertEquals(flags.second, view.canEditExpiry, "$who canEditExpiry")
+            assertEquals(flags.third, view.canManageParticipants, "$who canManageParticipants")
+        }
+        // Once in force the date is the Approver's (and ADMIN's): the Driver's flag turns off, the content's is off for everyone.
+        cast.activate(adr)
+        for ((who, expiry) in mapOf("admin" to true, "driver" to false, "approver" to true, "contributor" to false)) {
+            val view = seen(who).getAdr(adr.id)
+            assertEquals(expiry, view.canEditExpiry, "$who canEditExpiry once ACTIVE")
+            assertEquals(false, view.canEditContent, "$who canEditContent once ACTIVE")
         }
     }
 
@@ -169,6 +188,58 @@ class AdrAccessTest {
             val allowedExpiry = who in expiryEditors
             assertEquals(if (allowedExpiry) HttpStatusCode.NoContent else HttpStatusCode.Forbidden, expiry.status, "$who edits expiry")
         }
+    }
+
+    @Test
+    fun `the Driver cannot change the expiry of an ACTIVE ADR - the Approver and ADMIN can, a stale revision is still 409 first`() =
+        testApplication {
+            usePostgresTestcontainer()
+            val cast = adrCast()
+            val adr = cast.raise(complete = true)
+            cast.activate(adr)
+            val live = cast.admin.client.getAdr(adr.id)
+            withAuditCapture { capture ->
+                val refused = cast.driver.client.saveAdr(adr.id, live.revision, live.asUpdate().copy(expiresOn = "2099-01-01"))
+                assertEquals(HttpStatusCode.Forbidden, refused.status)
+                assertNotNull(refused.body<ProblemDetail>().detail)
+                val denied = capture.awaitEvent { it.message == "authz.denied" && it.hasKeyValue("path", "/api/v1/adrs/${adr.id}") }
+                assertNotNull(denied, "the 403 leaves the denial trail")
+                assertTrue(denied.hasKeyValue("byUserId", cast.driver.id.toLong()))
+            }
+            val untouched = cast.admin.client.getAdr(adr.id)
+            assertEquals(live.expiresOn, untouched.expiresOn, "the date is unchanged")
+            assertEquals(live.revision, untouched.revision, "a refused write bumps nothing")
+
+            // A stale revision is judged before the per-field verdict: the Driver's stale save is a 409, never a false 403.
+            val stale = cast.driver.client.saveAdr(adr.id, live.revision - 1, live.asUpdate().copy(expiresOn = "2099-01-01"))
+            assertEquals(HttpStatusCode.Conflict, stale.status)
+            assertEquals(ProblemTypes.REVISION_CONFLICT, stale.body<ProblemDetail>().type)
+
+            // A save that changes nothing is a no-op for the Driver: 204, nothing written.
+            assertEquals(HttpStatusCode.NoContent, cast.driver.client.saveAdr(adr.id, live.revision, live.asUpdate()).status)
+            assertEquals(live.revision, cast.admin.client.getAdr(adr.id).revision)
+
+            val set = cast.approver.client.saveAdr(adr.id, live.revision, live.asUpdate().copy(expiresOn = "2099-01-01"))
+            assertEquals(HttpStatusCode.NoContent, set.status)
+            val dated = cast.admin.client.getAdr(adr.id)
+            assertEquals("2099-01-01", dated.expiresOn)
+            val moved = cast.admin.client.saveAdr(adr.id, dated.revision, dated.asUpdate().copy(expiresOn = "2099-02-02"))
+            assertEquals(HttpStatusCode.NoContent, moved.status, "ADMIN changes it too")
+            assertEquals("2099-02-02", cast.admin.client.getAdr(adr.id).expiresOn)
+        }
+
+    @Test
+    fun `the Driver still changes the expiry date while the ADR is not in force`() = testApplication {
+        usePostgresTestcontainer()
+        val cast = adrCast()
+        val adr = cast.raise(complete = true)
+        val dated = cast.driver.client.saveAdr(adr.id, adr.revision, adr.asUpdate().copy(expiresOn = "2099-01-01"))
+        assertEquals(HttpStatusCode.NoContent, dated.status)
+        cast.driver.client.moveAdrNow(adr.id, AdrStatus.IN_REVIEW)
+        val inReview = cast.driver.client.getAdr(adr.id)
+        val again = cast.driver.client.saveAdr(adr.id, inReview.revision, inReview.asUpdate().copy(expiresOn = "2099-03-03"))
+        assertEquals(HttpStatusCode.NoContent, again.status, "in review the Driver still dates it")
+        assertEquals("2099-03-03", cast.admin.client.getAdr(adr.id).expiresOn)
     }
 
     @Test

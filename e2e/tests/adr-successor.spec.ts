@@ -1,6 +1,6 @@
 // Successor links in the browser: a Driver links a draft successor to an ACTIVE ADR from the picker, the Approver activates the
-// successor, and the predecessor reads SUPERSEDED with the banner and the history line; a link that would close a loop is refused in
-// words. The rules (cycles, rival successors, the activation's one transaction, the locks) are the server's (`AdrSuccessorTest`,
+// successor once the predecessor's Approver accepted the link, and the predecessor reads SUPERSEDED with the banner and the history line;
+// a successor's Approver with no role on the predecessor is refused in words until then; a link that would close a loop is refused in words. The rules (cycles, rival successors, the activation's one transaction, the locks) are the server's (`AdrSuccessorTest`,
 // `SuccessorGraphTest`); this asserts what a person SEES. The predecessor's Driver also detaches a pending successor somebody else parked on it. Owns: its throwaway users (unique `e2e-*` names) and the ADRs they raise
 // (unique `e2e-adr-*` names) - deleted through the API in afterEach (the ADRs first, then the users).
 import type { APIRequestContext } from "@playwright/test";
@@ -66,17 +66,25 @@ test.describe("ADR successors", () => {
     await expect(successor.getByRole("link", { name: `${old.key} ${oldName}` })).toBeVisible();
     await expect(successor.getByRole("button", { name: "Remove the link" })).toBeVisible();
     await expect(page.getByRole("region", { name: "History" }).getByText(`Set to replace ${old.key}`)).toBeVisible();
-    // The predecessor is still in force, with a quiet note about the successor on its way.
+    // The predecessor is still in force, with a note that a successor is only proposed until its Approver accepts it.
     await page.goto(`/adrs/${old.id}`);
-    await expect(page.getByText("A successor is on its way")).toBeVisible();
+    await expect(page.getByText("A successor is proposed")).toBeVisible();
+    await expect(page.getByRole("button", { name: "Accept" })).toHaveCount(0);
     await expect(page.getByRole("region", { name: "Status" }).getByText("Active")).toBeVisible();
     await page.goto(`/adrs/${next.id}`);
     await page.getByRole("region", { name: "Status" }).getByRole("button", { name: "Send to review" }).click();
     await expect(page.getByRole("region", { name: "Status" }).getByText("In review")).toBeVisible();
     await signOut(page);
 
-    // The Approver activates the successor: the predecessor is superseded in the same step.
+    // The predecessor's Approver accepts the link; only then is it on its way.
     await login(page, approver.email, approver.password);
+    await page.goto(`/adrs/${old.id}`);
+    await page.getByRole("button", { name: "Accept", exact: true }).click();
+    await page.getByRole("dialog", { name: `Accept ${next.key}?` }).getByRole("button", { name: "Accept", exact: true }).click();
+    await expect(page.getByText("A successor is on its way")).toBeVisible();
+    await expect(page.getByRole("region", { name: "History" }).getByText(`Accepted ${next.key} as its successor`)).toBeVisible();
+
+    // The Approver activates the successor: the predecessor is superseded in the same step.
     await page.goto(`/adrs/${next.id}`);
     await page.getByRole("region", { name: "Status" }).getByRole("button", { name: "Activate" }).click();
     await expect(page.getByRole("region", { name: "Status" }).getByText("Active")).toBeVisible();
@@ -121,7 +129,7 @@ test.describe("ADR successors", () => {
 
     await login(page, driver.email, driver.password);
     await page.goto(`/adrs/${old.id}`);
-    const banner = page.getByText("A successor is on its way").locator("xpath=ancestor::div[@role='status']");
+    const banner = page.getByText("A successor is proposed").locator("xpath=ancestor::div[@role='status']");
     await expect(banner.getByRole("link", { name: `${parked.key} ${parkedName}` })).toBeVisible();
     // Detach asks first; keeping it changes nothing.
     await banner.getByRole("button", { name: "Detach" }).click();
@@ -131,13 +139,62 @@ test.describe("ADR successors", () => {
     await expect(banner).toBeVisible();
     await banner.getByRole("button", { name: "Detach" }).click();
     await page.getByRole("dialog", { name: `Detach ${parked.key}?` }).getByRole("button", { name: "Detach" }).click();
-    await expect(page.getByText("A successor is on its way")).toHaveCount(0);
+    await expect(page.getByText("A successor is proposed")).toHaveCount(0);
     await expect(page.getByRole("region", { name: "History" }).getByText(`Pending successor ${parked.key} detached`)).toBeVisible();
     await expect(page.getByRole("region", { name: "Status" }).getByText("Active")).toBeVisible();
     // The parked draft is free of the link, and its own history records the unlink.
     await page.goto(`/adrs/${parked.id}`);
     await expect(page.getByRole("region", { name: "Successor" }).getByText("Replaces no ADR.")).toBeVisible();
     await expect(page.getByRole("region", { name: "History" }).getByText(`No longer replaces ${old.key}`)).toBeVisible();
+  });
+
+  test("the successor's Approver cannot activate over a decision in force until its Approver accepts the link", async ({ page }) => {
+    const old = await raise(uniqueText("e2e-adr-old"));
+    await transitionViaApi(driverApi, old.id, "IN_REVIEW");
+    await transitionViaApi(approverApi, old.id, "ACTIVE");
+    // A second team: its Driver and Approver hold no role on the decision in force.
+    const otherDriver = await createUserViaApi(admin, "E2E Other Driver");
+    const otherApprover = await createUserViaApi(admin, "E2E Other Approver");
+    cleanup.push(`/api/v1/users/${otherApprover.id}`, `/api/v1/users/${otherDriver.id}`);
+    const { api: otherDriverApi } = await apiAs(otherDriver.email, otherDriver.password);
+    const { api: otherApproverApi } = await apiAs(otherApprover.email, otherApprover.password);
+    let next: { id: number; key: string };
+    try {
+      next = await createAdrViaApi(otherDriverApi, {
+        name: uniqueText("e2e-adr-next"),
+        problem: "Which queue do we run?",
+        context: "The team already runs PostgreSQL.",
+        decision: "Use a PostgreSQL-backed queue.",
+        consequences: "No new infrastructure to run.",
+        participants: [{ userId: otherApprover.id, role: "APPROVER" }],
+      });
+      cleanup.unshift(`/api/v1/adrs/${next.id}`);
+      const linked = await otherDriverApi.put(`/api/v1/adrs/${next.id}/supersedes`, {
+        data: { supersedesId: old.id },
+        headers: { "X-Expected-Revision": String(await adrRevision(otherDriverApi, next.id)) },
+      });
+      expect(linked.status()).toBe(204);
+      await transitionViaApi(otherDriverApi, next.id, "IN_REVIEW");
+    } finally {
+      await otherDriverApi.dispose();
+    }
+
+    // Their Approver is told why it waits, and the activation is refused in words; the decision in force is untouched.
+    await login(page, otherApprover.email, otherApprover.password);
+    await page.goto(`/adrs/${next.id}`);
+    const status = page.getByRole("region", { name: "Status" });
+    await expect(status.getByText(`Waiting for ${old.key}'s Approver to accept this ADR as its successor`)).toBeVisible();
+    await status.getByRole("button", { name: "Activate" }).click();
+    await expect(status.getByRole("alert")).toContainText("has to accept it first");
+    await expect(status.getByText("In review")).toBeVisible();
+
+    // The decision's own Approver accepts; the same click then goes through.
+    const accepted = await approverApi.post(`/api/v1/adrs/${old.id}/successor/accept`, { data: { successorId: next.id } });
+    expect(accepted.status()).toBe(204);
+    await page.reload();
+    await page.getByRole("region", { name: "Status" }).getByRole("button", { name: "Activate" }).click();
+    await expect(page.getByRole("region", { name: "Status" }).getByText("Active")).toBeVisible();
+    await otherApproverApi.dispose();
   });
 
   test("a link that would close a loop of successors is refused in words and changes nothing", async ({ page }) => {

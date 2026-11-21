@@ -153,6 +153,15 @@ export async function detachAdrSuccessor(id: number): Promise<void> {
   await voidRequest(`/api/v1/adrs/${id}/successor`, { method: "DELETE" });
 }
 
+/**
+ * The PREDECESSOR's Approver (or an administrator) accepts its pending successor, which the successor's activation needs while this
+ * decision is in force. It names the successor so a link re-pointed since the page loaded is never accepted blind; no revision header (the
+ * server bumps no revision for it).
+ */
+export async function acceptAdrSuccessor(id: number, successorId: number): Promise<void> {
+  await voidRequest(`/api/v1/adrs/${id}/successor/accept`, { method: "POST", body: JSON.stringify({ successorId }) });
+}
+
 export async function deleteAdr(id: number): Promise<void> {
   await voidRequest(`/api/v1/adrs/${id}`, { method: "DELETE" });
 }

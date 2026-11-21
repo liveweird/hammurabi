@@ -85,7 +85,7 @@ describe("AdrDetails page", () => {
   test("Export Markdown downloads this ADR's file - for a reader with no role on it too - under the server's name", async () => {
     // A stranger: no edit verdicts, no role - exporting is open to every signed-in user.
     const stub = serve(
-      { adr: adrFixture({ participants: PEOPLE, allowedTransitions: [], canEdit: false, canEditTags: false, canEditSuccessor: false }) },
+      { adr: adrFixture({ participants: PEOPLE, allowedTransitions: [], canEditContent: false, canEditExpiry: false, canEditTags: false, canEditSuccessor: false }) },
       (method, url) =>
         method === "GET" && url === "/api/v1/adrs/1/export"
           ? new Response("# 1. Use PostgreSQL\n", { headers: { "Content-Disposition": 'attachment; filename="ADR-0001-use-postgresql.md"' } })
@@ -115,7 +115,8 @@ describe("AdrDetails page", () => {
       adr: adrFixture({
         status: "SUPERSEDED",
         allowedTransitions: [],
-        canEdit: false,
+        canEditContent: false,
+        canEditExpiry: false,
         canEditTags: false,
         canEditSuccessor: false,
         supersedes: { id: 3, key: "ADR-0003", name: "Use MySQL", status: "SUPERSEDED" },
@@ -170,7 +171,7 @@ describe("AdrDetails page", () => {
 
   test("a non-participant reads everything but is offered no Edit, no moves and no participant editing", async () => {
     serve({
-      adr: adrFixture({ participants: PEOPLE, allowedTransitions: [], canEdit: false, canManageParticipants: false }),
+      adr: adrFixture({ participants: PEOPLE, allowedTransitions: [], canEditContent: false, canEditExpiry: false, canManageParticipants: false }),
     });
     localStorage.setItem("hammurabi.auth.userId", "99");
     renderDetails();
@@ -192,7 +193,9 @@ describe("AdrDetails page", () => {
 
   test("an Approver may move it and set the date but not edit the content", async () => {
     localStorage.setItem("hammurabi.auth.userId", "6");
-    serve({ adr: adrFixture({ participants: PEOPLE, status: "IN_REVIEW", allowedTransitions: ["ACTIVE", "WITHDRAWN"] }) });
+    serve({
+      adr: adrFixture({ participants: PEOPLE, status: "IN_REVIEW", allowedTransitions: ["ACTIVE", "WITHDRAWN"], canEditContent: false }),
+    });
     renderDetails();
     expect(await screen.findByRole("button", { name: "Activate" })).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Edit" })).not.toBeInTheDocument();
@@ -231,7 +234,7 @@ describe("AdrDetails page", () => {
     const state = { adr: adrFixture({ participants: PEOPLE }) };
     serve(state, (method, url) => {
       if (method === "POST" && url.endsWith("/transitions")) {
-        state.adr = adrFixture({ participants: PEOPLE, status: "ACTIVE", revision: 4, allowedTransitions: [] });
+        state.adr = adrFixture({ participants: PEOPLE, status: "ACTIVE", revision: 4, allowedTransitions: [], canEditContent: false });
         return jsonResponse(200, state.adr);
       }
       return null;

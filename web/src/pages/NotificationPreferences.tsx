@@ -31,6 +31,8 @@ const KNOWN_TYPES: ReadonlySet<string> = new Set<NotificationType>([
   "SUCCESSOR_LINKED",
   "SUCCESSOR_UNLINKED",
   "EXPIRY_REMINDER",
+  "EXPIRY_CHANGED",
+  "SUCCESSOR_ACCEPTED",
 ]);
 
 type Overrides = Partial<Record<NotificationType, boolean>>;

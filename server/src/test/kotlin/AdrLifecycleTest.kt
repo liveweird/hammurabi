@@ -177,7 +177,8 @@ class AdrLifecycleTest {
         assertEquals(AdrStatus.WITHDRAWN, cast.approver.client.moveAdrNow(adr.id, AdrStatus.WITHDRAWN).status)
         val none = cast.admin.client.getAdr(adr.id)
         assertEquals(emptyList(), none.allowedTransitions, "a terminal ADR offers no move")
-        assertFalse(none.canEdit)
+        assertFalse(none.canEditContent)
+        assertFalse(none.canEditExpiry)
         assertFalse(none.canManageParticipants)
     }
 

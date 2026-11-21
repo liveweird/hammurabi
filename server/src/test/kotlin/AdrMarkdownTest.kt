@@ -48,6 +48,7 @@ class AdrMarkdownTest {
         tags = listOf(ExportTag("Scope", "team", false), ExportTag("Domain", "data", false), ExportTag("Domain", "old", true)),
         supersedes = AdrRef(7u, "ADR-0007", "Use MySQL", AdrStatus.SUPERSEDED),
         supersededBy = null,
+        supersededByAccepted = false,
     )
 
     @Test
@@ -135,8 +136,19 @@ class AdrMarkdownTest {
         val expiry = "Expires on 2027-06-30 (the last day the decision is in force)"
         val link = "[ADR-0050: Use \\[Cockroach\\] DB](ADR-0050-use-cockroach-db.md)"
         assertTrue("## Status\n\nSuperseded\n\n$expiry\n\nSuperseded by $link\n" in superseded, superseded)
-        val planned = renderAdrMarkdown(full.copy(supersedes = null, supersededBy = replacement), exportedOn)
-        assertTrue("\nTo be superseded by [ADR-0050" in planned)
+        val accepted = full.copy(supersedes = null, supersededBy = replacement, supersededByAccepted = true)
+        assertTrue("\nTo be superseded by [ADR-0050" in renderAdrMarkdown(accepted, exportedOn))
+    }
+
+    @Test
+    fun `a successor its Approver has not accepted is only proposed, never claimed`() {
+        val replacement = AdrRef(50u, "ADR-0050", "Use CockroachDB", AdrStatus.IN_REVIEW)
+        val proposed = renderAdrMarkdown(full.copy(supersedes = null, supersededBy = replacement), exportedOn)
+        assertTrue("\nSuccessor proposed: [ADR-0050: Use CockroachDB](ADR-0050-use-cockroachdb.md)\n" in proposed, proposed)
+        assertFalse("superseded by" in proposed.lowercase(), "a proposal is not a supersession")
+        // Once the replacement took effect the unaccepted flag is moot: the history says what happened.
+        val done = renderAdrMarkdown(full.copy(status = AdrStatus.SUPERSEDED, supersedes = null, supersededBy = replacement), exportedOn)
+        assertTrue("\nSuperseded by [ADR-0050" in done)
     }
 
     @Test

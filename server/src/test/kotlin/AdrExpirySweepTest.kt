@@ -43,7 +43,8 @@ class AdrExpirySweepTest {
         cast.approver.client.moveAdrNow(adr.id, AdrStatus.ACTIVE)
         val last = LocalDate.now(ZoneOffset.UTC).plusDays(30)
         val active = cast.driver.client.getAdr(adr.id)
-        val dated = cast.driver.client.saveAdr(adr.id, active.revision, active.asUpdate().copy(expiresOn = last.toString()))
+        // The date of a decision in force is the Approver's.
+        val dated = cast.approver.client.saveAdr(adr.id, active.revision, active.asUpdate().copy(expiresOn = last.toString()))
         assertEquals(HttpStatusCode.NoContent, dated.status)
 
         sweepAt(last.minusDays(1)).sweep()

@@ -21,8 +21,8 @@ function Row({ label, children }: { label: string; children: ReactNode }) {
 
 /**
  * The Details section: the key, when the ADR was raised, last changed and last moved, and the expiry date (the last day the decision
- * is in force). The date has an editor for whoever may manage the ADR on a non-terminal one — the server serves that as
- * `canManageParticipants`, the same verdict it applies to the date.
+ * is in force). The date has an editor for whoever the server says may change it (`canEditExpiry`: before the decision is in force the
+ * Driver, the Approver or an administrator, once it is the Approver or an administrator), the verdict it applies to the write.
  */
 export default function AdrDetailsSection({ adr }: { adr: AdrResponse }) {
   const { t } = useTranslation();
@@ -38,7 +38,7 @@ export default function AdrDetailsSection({ adr }: { adr: AdrResponse }) {
       ) : (
         <Group justify="space-between" align="flex-end" wrap="nowrap" gap="xs">
           <Row label={t("adrs.details.expiresOn")}>{adr.expiresOn ?? <Text span c="dimmed">{t("adrs.details.noExpiry")}</Text>}</Row>
-          {adr.canManageParticipants && (
+          {adr.canEditExpiry && (
             <Button
               size="compact-xs"
               variant="default"

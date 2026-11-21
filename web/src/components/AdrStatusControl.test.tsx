@@ -137,6 +137,15 @@ describe("AdrStatusControl", () => {
     await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
   });
 
+  test("activating over a decision in force that has not accepted the link says it is waiting", () => {
+    const OLD = { id: 3, key: "ADR-0003", name: "Use MySQL", status: "ACTIVE" as const };
+    const { unmount } = renderWithProviders(<AdrStatusControl adr={adrFixture({ status: "IN_REVIEW", allowedTransitions: ["ACTIVE"], supersedes: OLD })} />);
+    expect(screen.getByText(/Waiting for ADR-0003's Approver to accept this ADR as its successor/)).toBeInTheDocument();
+    unmount();
+    renderWithProviders(<AdrStatusControl adr={adrFixture({ status: "IN_REVIEW", allowedTransitions: ["ACTIVE"], supersedes: OLD, supersedesAccepted: true })} />);
+    expect(screen.queryByText(/Waiting for/)).not.toBeInTheDocument();
+  });
+
   test("an ACTIVE decision is withdrawn in red after a confirmation with an optional reason", async () => {
     const stub = stubFetch((r) => (r.method === "POST" ? jsonResponse(200, adrFixture({ status: "WITHDRAWN" })) : jsonResponse(200, { items: [] })));
     const user = userEvent.setup();

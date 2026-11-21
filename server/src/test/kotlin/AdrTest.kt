@@ -248,8 +248,11 @@ class AdrTest {
             assertEquals(HttpStatusCode.Conflict, frozen.status)
             assertEquals(ProblemTypes.ADR_FROZEN, frozen.body<ProblemDetail>().type)
         }
-        // ... the expiry date still moves, and so do the participants.
-        val dated = cast.driver.client.saveAdr(adr.id, active.revision, active.asUpdate().copy(expiresOn = "2099-06-30"))
+        // ... the expiry date still moves (the Approver's to move once the decision is in force, not the Driver's), and so do the
+        // participants.
+        val refused = cast.driver.client.saveAdr(adr.id, active.revision, active.asUpdate().copy(expiresOn = "2099-06-30"))
+        assertEquals(HttpStatusCode.Forbidden, refused.status)
+        val dated = cast.approver.client.saveAdr(adr.id, active.revision, active.asUpdate().copy(expiresOn = "2099-06-30"))
         assertEquals(HttpStatusCode.NoContent, dated.status)
         val extended = cast.driver.client.getAdr(adr.id)
         assertEquals("2099-06-30", extended.expiresOn)
@@ -259,7 +262,7 @@ class AdrTest {
         assertEquals(HttpStatusCode.NoContent, cast.approver.client.setParticipants(adr.id, alone).status)
         // A date in the past is a 400 even when the actor may change it.
         val now = cast.driver.client.getAdr(adr.id)
-        val past = cast.driver.client.saveAdr(adr.id, now.revision, now.asUpdate().copy(expiresOn = "2000-01-01"))
+        val past = cast.admin.client.saveAdr(adr.id, now.revision, now.asUpdate().copy(expiresOn = "2000-01-01"))
         assertEquals(HttpStatusCode.BadRequest, past.status)
     }
 

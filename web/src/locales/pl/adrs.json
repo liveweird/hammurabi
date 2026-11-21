@@ -67,7 +67,8 @@
     "SUPERSEDED": "Zastąpiony",
     "missing": "Do kontynuowania brakuje jeszcze: {{list}}.",
     "closed": "Ten ADR jest zamknięty: można go tylko czytać.",
-    "noMoves": "Nie możesz zmienić statusu tego ADR-a."
+    "noMoves": "Nie możesz zmienić statusu tego ADR-a.",
+    "waitingAcceptance": "Czeka, aż osoba zatwierdzająca {{key}} zaakceptuje ten ADR jako następcę; wcześniej nie można go aktywować."
   },
   "transition": {
     "PROBLEM_RAISED": "Wróć do problemu",
@@ -205,7 +206,9 @@
       "SUCCESSOR_LINKED": "Ustawiono jako zastępujący {{key}}",
       "SUCCESSOR_UNLINKED": "Już nie zastępuje {{key}}",
       "SUCCESSOR_DETACHED": "Odłączono oczekującego następcę {{key}}",
-      "SUCCESSOR_ACTIVATED": "Aktywowano i zastąpiono {{key}}"
+      "SUCCESSOR_ACTIVATED": "Aktywowano i zastąpiono {{key}}",
+      "SUCCESSOR_ACCEPTED": "Zaakceptowano jako zastępujący {{key}}",
+      "SUCCESSOR_ACCEPTED_FOR": "Zaakceptowano następcę {{key}}"
     },
     "line": {
       "created": "{{key}} „{{name}}”",
@@ -244,7 +247,10 @@
     "tagsInvalid": "Sprawdź tagi: używaj tylko tagów z rejestru (wycofany trzeba usunąć), każdy raz, najwyżej 20.",
     "supersedesInvalid": "Sprawdź powiązanie: wybierz inny ADR, który jest aktywny albo jeszcze powstaje.",
     "supersedesConflict": "To powiązanie jest niemożliwe: zamknęłoby pętlę następców albo ten ADR ma już następcę w drodze.",
-    "detachGone": "Ten ADR nie ma już oczekującego następcy. Odśwież, aby zobaczyć aktualny stan."
+    "detachGone": "Ten ADR nie ma już oczekującego następcy. Odśwież, aby zobaczyć aktualny stan.",
+    "successorNotAccepted": "Tego ADR-a nie można jeszcze aktywować: osoba zatwierdzająca zastępowaną decyzję musi go najpierw zaakceptować. Poproś ją o otwarcie tamtego ADR-a i akceptację.",
+    "acceptGone": "Ten następca już nie oczekuje. Odśwież, aby zobaczyć aktualny stan tego ADR-a.",
+    "acceptConflict": "Ten ADR jeszcze nie obowiązuje, więc nie można zaakceptować jego następcy. Odśwież, aby zobaczyć aktualny stan."
   },
   "toast": {
     "created": "ADR zgłoszony",
@@ -258,7 +264,8 @@
     "tagsSaved": "Zapisano tagi",
     "linked": "Zapisano powiązanie z poprzednikiem",
     "unlinked": "Usunięto powiązanie z poprzednikiem",
-    "detached": "Odłączono następcę"
+    "detached": "Odłączono następcę",
+    "accepted": "Zaakceptowano następcę"
   },
   "openIssuesAria": "Otwarte zgłoszenia: {{count}}",
   "tab": {
@@ -366,9 +373,21 @@
     "pickerClear": "Wyczyść ADR",
     "noMatch": "Brak pasujących ADR-ów",
     "link": "Powiąż",
-    "unlink": "Usuń powiązanie"
+    "unlink": "Usuń powiązanie",
+    "accepted": "Zaakceptowane przez osobę zatwierdzającą {{key}}.",
+    "waiting": "Czeka na akceptację osoby zatwierdzającej {{key}}; do tego czasu tego ADR-a nie można aktywować.",
+    "notYet": "{{key}} jeszcze nie obowiązuje; osoba zatwierdzająca zaakceptuje powiązanie, gdy to nastąpi."
   },
   "banner": {
+    "proposed": {
+      "title": "Zaproponowano następcę",
+      "body": "ma zastąpić ten ADR. Gdy ta decyzja zacznie obowiązywać, osoba zatwierdzająca musi zaakceptować powiązanie, zanim następca zacznie działać.",
+      "accept": "Zaakceptuj",
+      "acceptTitle": "Zaakceptować {{key}}?",
+      "acceptMessage": "{{key}} będzie mógł zastąpić tę decyzję: gdy stanie się aktywny, ten ADR zostanie zastąpiony. Do tego czasu nadal możesz go odłączyć.",
+      "acceptConfirm": "Zaakceptuj",
+      "cancel": "Jeszcze nie"
+    },
     "superseded": {
       "title": "Ten ADR został zastąpiony",
       "body": "Decyzję z tego ADR-a zastąpił"

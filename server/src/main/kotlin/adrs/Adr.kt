@@ -91,6 +91,10 @@ data class AdrTagsRequest(val tags: List<String>)
 @Serializable
 data class AdrSupersedesRequest(val supersedesId: UInt? = null)
 
+/** The acceptance of a pending successor (`POST .../successor/accept`): names it, so a re-pointed link is never accepted blind. */
+@Serializable
+data class AdrSuccessorAcceptRequest(val successorId: UInt)
+
 /** The other end of a successor link: enough to show and open it (`ADR-0007 Use PostgreSQL`, its status). */
 @Serializable
 data class AdrRef(val id: UInt, val key: String, val name: String, val status: AdrStatus)
@@ -120,12 +124,18 @@ data class AdrResponse(
     val tags: List<AdrTag>,
     /** The ADR this one replaces (set while it is pre-active; takes effect when this one becomes `ACTIVE`), or null. */
     val supersedes: AdrRef?,
+    /** The predecessor's Approver (or ADMIN) accepted the link in `supersedes`: needed to activate over an `ACTIVE` predecessor. */
+    val supersedesAccepted: Boolean,
     /** The ADR replacing this one: its pending successor, or - once this one is `SUPERSEDED` - the one that replaced it; or null. */
     val supersededBy: AdrRef?,
+    /** The link to `supersededBy` was accepted (always true once it took effect). */
+    val supersededByAccepted: Boolean,
     /** The moves THIS caller may request now (the lifecycle map, minus the system's, filtered by the DACI verdict): the buttons. */
     val allowedTransitions: List<AdrStatus>,
-    /** This caller may PUT the document now (content in a pre-active status, or the expiry date in any non-terminal one). */
-    val canEdit: Boolean,
+    /** This caller may change the content (the name, the Markdown fields) now: pre-active, as the Driver, a Contributor or ADMIN. */
+    val canEditContent: Boolean,
+    /** This caller may change the expiry date now: the Driver, Approver or ADMIN until it is in force, the Approver or ADMIN after. */
+    val canEditExpiry: Boolean,
     /** This caller may replace the participants now (the Driver, the Approver or an ADMIN, on a non-terminal ADR). */
     val canManageParticipants: Boolean,
     /**
@@ -140,6 +150,8 @@ data class AdrResponse(
     val canEditSuccessor: Boolean,
     /** This caller may detach the pending successor now (Driver, Approver or ADMIN of THIS ADR, which has a successor still pre-active). */
     val canDetachSuccessor: Boolean,
+    /** This caller may accept the pending successor now (the Approver or ADMIN of THIS `ACTIVE` ADR, the link not yet accepted). */
+    val canAcceptSuccessor: Boolean,
     /** The discussion takes a comment or a question now (a pre-active status): the composer. Anyone authenticated may post. */
     val canComment: Boolean,
     /** The discussion takes an issue or an escalation now (`ACTIVE`): the composer. Anyone authenticated may post. */
@@ -194,7 +206,12 @@ data class AdrRecord(
     val statusChangedAt: Long,
     /** The ADR this one replaces (`supersedes_id`), whatever its state: the row id, resolved to a live [AdrRef] by the reader. */
     val supersedesId: UInt? = null,
-)
+    /** The predecessor the link was accepted for (`supersedes_accepted_id`, V19): the link is accepted when it equals [supersedesId]. */
+    val supersedesAcceptedId: UInt? = null,
+) {
+    /** The link to [supersedesId] was accepted by that predecessor's Approver (or ADMIN): an acceptance belongs to ONE link. */
+    val supersedesAccepted: Boolean get() = supersedesId != null && supersedesAcceptedId == supersedesId
+}
 
 /** A record with its participants (driver first, then approver, contributors, informed), its tags and its successor link's two ends. */
 data class AdrView(
@@ -203,13 +220,15 @@ data class AdrView(
     val tags: List<AdrTag>,
     val supersedes: AdrRef?,
     val supersededBy: AdrRef?,
+    /** [supersededBy] accepted the link (the successor's own marker, read with it). */
+    val supersededByAccepted: Boolean,
     /** The ADR has been `IN_REVIEW` at some point (it guards the Approver seat, `AdrAccess.kt`). */
     val everInReview: Boolean,
 )
 
 /**
- * The response as [standing]'s caller sees it; its verdicts (`allowedTransitions`, `canEdit`, ...) come from `AdrAccess.kt`, the counts
- * from the discussion.
+ * The response as [standing]'s caller sees it; its verdicts (`allowedTransitions`, `canEditContent`, ...) come from `AdrAccess.kt`,
+ * the counts from the discussion.
  */
 fun AdrView.toResponse(standing: AdrStanding, counts: DiscussionCounts): AdrResponse = AdrResponse(
     id = record.id,
@@ -231,14 +250,18 @@ fun AdrView.toResponse(standing: AdrStanding, counts: DiscussionCounts): AdrResp
     participants = participants,
     tags = tags,
     supersedes = supersedes,
+    supersedesAccepted = supersedes != null && record.supersedesAccepted,
     supersededBy = supersededBy,
+    supersededByAccepted = supersededBy != null && supersededByAccepted,
     allowedTransitions = allowedTransitions(standing, record.status),
-    canEdit = canEdit(standing, record.status),
+    canEditContent = canEditContent(standing, record.status),
+    canEditExpiry = canEditExpiry(standing, record.status),
     canManageParticipants = canManageParticipants(standing, record.status),
     canChangeApprover = canChangeApprover(standing, record.status, everInReview),
     canEditTags = canEditTags(standing, record.status),
     canEditSuccessor = canEditSuccessor(standing, record.status),
     canDetachSuccessor = canDetachSuccessor(standing, record.status, supersededBy),
+    canAcceptSuccessor = canAcceptSuccessor(standing, record.status, supersededBy, supersededByAccepted),
     canComment = DiscussionKind.COMMENT.acceptedIn(record.status),
     canRaiseIssue = DiscussionKind.ISSUE.acceptedIn(record.status),
     openIssueCount = counts.openIssues,

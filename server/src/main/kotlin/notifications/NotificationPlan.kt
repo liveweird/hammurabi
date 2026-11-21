@@ -10,8 +10,11 @@ internal sealed interface Audience {
     /** One named person (the participant a role was given to or taken from). */
     data class Person(val userId: UInt) : Audience
 
-    /** The holders of [roles] on [adrId] as the participants stand when the event is recorded. */
-    data class Roles(val adrId: UInt, val roles: Set<AdrRole>) : Audience
+    /**
+     * The holders of [roles] on [adrId] as the participants stand when the event is recorded; with [onlyWhile] set, only while the ADR is
+     * in that status (an expiry change tells people of a decision in force, not of a draft's date).
+     */
+    data class Roles(val adrId: UInt, val roles: Set<AdrRole>, val onlyWhile: AdrStatus? = null) : Audience
 
     /** The author of a discussion entry. */
     data class EntryAuthor(val entryId: UInt) : Audience
@@ -52,6 +55,16 @@ internal fun noticeFor(adrId: UInt, event: AdrEventDescriptor): NoticePlan? {
             NoticePlan(NotificationType.STATUS_CHANGED, adrId, Audience.Roles(adrId, EVERY_ROLE), detail = statusDetail(params))
         AdrEventType.EXPIRED ->
             NoticePlan(NotificationType.ADR_EXPIRED, adrId, Audience.Roles(adrId, EVERY_ROLE), detail = params["expiresOn"])
+        // A date on a draft is nobody's news; the date of a decision in force is (the Driver can no longer change it, the Approver can).
+        AdrEventType.UPDATED ->
+            if ("expiresOn" in params["changed"].orEmpty().split(',')) {
+                NoticePlan(
+                    NotificationType.EXPIRY_CHANGED, adrId, Audience.Roles(adrId, EVERY_ROLE, onlyWhile = AdrStatus.ACTIVE),
+                    detail = params["expiresOn.to"],
+                )
+            } else {
+                null
+            }
         AdrEventType.SUPERSEDED -> id("successorId")?.let {
             NoticePlan(NotificationType.ADR_SUPERSEDED, adrId, Audience.Roles(adrId, EVERY_ROLE), otherAdrId = it)
         }
@@ -59,6 +72,11 @@ internal fun noticeFor(adrId: UInt, event: AdrEventDescriptor): NoticePlan? {
         // event, on the predecessor, carries `successorId` instead and is the same fact: it makes no second notice.
         AdrEventType.SUCCESSOR_LINKED -> successorNotice(NotificationType.SUCCESSOR_LINKED, adrId, id("predecessorId"))
         AdrEventType.SUCCESSOR_UNLINKED -> successorNotice(NotificationType.SUCCESSOR_UNLINKED, adrId, id("predecessorId"))
+        // Written on the SUCCESSOR (`adrId`): its Driver and Approver learn that the decision it replaces is theirs to replace. The
+        // predecessor-side mirror event carries `successorId` instead and makes no notice (the actor is the predecessor's Approver).
+        AdrEventType.SUCCESSOR_ACCEPTED -> id("predecessorId")?.let {
+            NoticePlan(NotificationType.SUCCESSOR_ACCEPTED, adrId, Audience.Roles(adrId, LEADS), otherAdrId = it)
+        }
         AdrEventType.COMMENTED, AdrEventType.QUESTION_ASKED, AdrEventType.ISSUE_RAISED, AdrEventType.ESCALATED -> {
             val kind = params["kind"]
             val reach = if (kind == "COMMENT" || kind == "QUESTION") LEADS_AND_CONTRIBUTORS else LEADS

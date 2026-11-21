@@ -81,6 +81,12 @@ class AdrService(
 
         /** The ADR this one replaces (V14); set while pre-active, takes effect on activation. A self-reference. */
         val supersedesId = optReference("supersedes_id", this)
+
+        /**
+         * The predecessor the successor's Approver-side acceptance was given FOR (V19): the link is accepted when this equals
+         * [supersedesId] (`ck_adrs_supersedes_accepted`). Written only by `AdrLinkWrites.kt`, which nulls it with every link change.
+         */
+        val supersedesAcceptedId = optReference("supersedes_accepted_id", this)
         override val markedAsDeleted = bool("marked_as_deleted").default(false)
     }
 
@@ -103,6 +109,7 @@ class AdrService(
         updatedAt = this[Adrs.updatedAt],
         statusChangedAt = this[Adrs.statusChangedAt],
         supersedesId = this[Adrs.supersedesId]?.value,
+        supersedesAcceptedId = this[Adrs.supersedesAcceptedId]?.value,
     )
 
     private suspend fun activeRow(id: UInt): ResultRow? =
@@ -147,9 +154,10 @@ class AdrService(
     /** The ADR as [caller] sees it, or null when missing/deleted. */
     suspend fun read(id: UInt, caller: CallerPrincipal): AdrResponse? = suspendTransaction(database) {
         val record = activeRow(id)?.toRecord() ?: return@suspendTransaction null
+        val successor = successors.successorOf(id)
         val view = AdrView(
             record, participants.forAdr(id), tags.forAdrs(listOf(id))[id].orEmpty(),
-            successors.refOf(record.supersedesId), successors.successorOf(id), everInReview(id, record.status),
+            successors.refOf(record.supersedesId), successor?.ref, successor?.accepted == true, everInReview(id, record.status),
         )
         val counts = discussion.countsOf(listOf(id))[id] ?: DiscussionCounts()
         view.toResponse(AdrStanding(caller, view.participants.firstOrNull { it.userId == caller.userId }?.role), counts)
@@ -209,7 +217,8 @@ class AdrService(
      * The document PUT under `X-Expected-Revision`. Under the lock, in order: the coarse guard again (403), a terminal ADR (409
      * `adr-frozen`), the stale revision (409 - before any per-field judgement, so a stale save never reads as a false 403 or 400), then per
      * field what changed: content in a status that froze it (409 `adr-frozen`) or by someone who may not edit it (403), the expiry date by
-     * someone who may not (403) or into the past (400). Nothing changed answers null and writes nothing (no revision bump, no event).
+     * someone who may not (403; once `ACTIVE` only the Approver or ADMIN) or into the past (400). Nothing changed answers null and
+     * writes nothing (no revision bump, no event).
      * Otherwise one `UPDATED` event lists the changed fields.
      */
     suspend fun update(id: UInt, caller: CallerPrincipal, expectedRevision: Long, raw: AdrUpdateRequest): AdrChange? {
@@ -230,7 +239,13 @@ class AdrService(
             }
             if (expiry != null) {
                 if (!canEditExpiry(standing, before.status)) {
-                    throw ForbiddenException("Your role on this ADR does not allow changing its expiry date")
+                    throw ForbiddenException(
+                        if (before.status == AdrStatus.ACTIVE) {
+                            "Only the Approver or an administrator may change the expiry date of a decision in force"
+                        } else {
+                            "Your role on this ADR does not allow changing its expiry date"
+                        },
+                    )
                 }
                 request.expiresOn?.let(::requireNotPast)
             }
@@ -257,9 +272,10 @@ class AdrService(
     /**
      * A lifecycle move under `X-Expected-Revision`. Under the lock, in order: the coarse guard (403), the per-target verdict (403: the
      * Driver moves forward and cancels, the Approver activates or withdraws, either sends back, ADMIN any), the lifecycle map (409
-     * `illegal-transition`, including a target only the system moves into), the stale revision (409), the optional [reason] (400:
-     * control characters, over 1000 code points) and the target's requirements (400 naming the missing fields); then the status, its
-     * stamp and the revision are written and one `TRANSITIONED` event recorded (carrying the reason).
+     * `illegal-transition`, including a target only the system moves into), the stale revision (409), a successor over a decision in
+     * force that was not accepted (409 `successor-not-accepted`), the optional [reason] (400: control characters, over 1000 code points)
+     * and the target's requirements (400 naming the missing fields); then the status, its stamp and the revision are written and one
+     * `TRANSITIONED` event recorded (carrying the reason).
      */
     suspend fun transition(
         id: UInt,
@@ -277,8 +293,10 @@ class AdrService(
             requireMayRequest(standing, before.status, to)
             before.status.requireTransitionTo(to)
             requireRevision(expectedRevision, before.revision)
-            val note = sanitizedTransitionReason(reason)
             val predecessor = if (to == AdrStatus.ACTIVE) successors.refOf(before.supersedesId) else null
+            // The acceptance is read from the row locked above (never a peek), right after the revision, before the 400s.
+            requireSuccessorAccepted(before, predecessor)
+            val note = sanitizedTransitionReason(reason)
             requireTransitionRequirements(to, before, participants.hasApprover(id), today(), predecessor)
             val stamp = nowMillis()
             val revision = bumpRevision(id, before.revision, stamp, moveTo = to)

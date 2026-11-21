@@ -153,7 +153,7 @@ class AdrDiscussionTest {
             // The sweep expires the ADR (an injected clock a day past its last day in force); the open issues are still counted.
             val active = cast.driver.client.getAdr(adr.id)
             val last = LocalDate.now(ZoneOffset.UTC).plusDays(30)
-            val dated = cast.driver.client.saveAdr(adr.id, active.revision, active.asUpdate().copy(expiresOn = last.toString()))
+            val dated = cast.approver.client.saveAdr(adr.id, active.revision, active.asUpdate().copy(expiresOn = last.toString()))
             assertEquals(HttpStatusCode.NoContent, dated.status)
             val day = last.plusDays(1).atTime(13, 30).toInstant(ZoneOffset.UTC)
             AdrExpirySweep(sharedDatabaseForTests(), AdrEventService(sharedDatabaseForTests()), Clock.fixed(day, ZoneOffset.UTC)).sweep()

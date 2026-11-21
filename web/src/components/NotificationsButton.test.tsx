@@ -193,7 +193,7 @@ describe("NotificationsButton", () => {
       "Ada resolved your entry on ADR-0042: Issue",
       "ADR-0042 expired: its expiry date 2026-11-30 has passed",
       "ADR-0042 was superseded by ADR-0043",
-      "Ada set ADR-0043 to replace ADR-0042",
+      "Ada proposed ADR-0043 to replace ADR-0042",
       "Ada detached ADR-0043: it no longer replaces ADR-0042",
       "ADR-0042 expires on 2026-12-01",
       "The system gave you a role on ADR-0042: Approver",

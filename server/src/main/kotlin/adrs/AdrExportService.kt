@@ -60,7 +60,8 @@ open class AdrExportService(
                     participants = people[id].orEmpty(),
                     tags = labels[id].orEmpty(),
                     supersedes = row[adrs.supersedesId]?.let { predecessors[it.value] },
-                    supersededBy = replacements[id],
+                    supersededBy = replacements[id]?.ref,
+                    supersededByAccepted = replacements[id]?.accepted == true,
                 )
             }
         }

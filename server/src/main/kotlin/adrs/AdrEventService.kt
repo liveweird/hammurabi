@@ -74,6 +74,13 @@ enum class AdrEventType {
     SUCCESSOR_ACTIVATED,
 
     /**
+     * `{predecessorId, key, name}` on the SUCCESSOR and `{successorId, key, name}` on the PREDECESSOR (the SPA tells the two sides apart by
+     * the param, as for a detach): the predecessor's Approver, or ADMIN, accepted the pending successor (1.0.0), so it may replace the
+     * decision in force. The actor is the person who accepted.
+     */
+    SUCCESSOR_ACCEPTED,
+
+    /**
      * The discussion (0.3.0, `adr-model.md` "Discussion"), each `{entryId, kind}` (never the text; the entry is read through the discussion
      * endpoint): a comment, a question asked, an issue raised, an escalation raised; a question answered or reopened; an issue or
      * escalation resolved or reopened. Edits and deletes of an entry are audit-only (the entry carries `editedAt` / the tombstone).
@@ -144,6 +151,13 @@ fun adrSuccessorUnlinkedEvent(predecessor: AdrRef) = successorEvent(AdrEventType
 
 /** The event on the PREDECESSOR when its owner detached [successor], the pending ADR that was set to replace it. */
 fun adrSuccessorDetachedEvent(successor: AdrRef) = successorEvent(AdrEventType.SUCCESSOR_UNLINKED, successor, otherIsSuccessor = true)
+
+/** The event on the SUCCESSOR when the [predecessor]'s Approver accepted it. */
+fun adrSuccessorAcceptedEvent(predecessor: AdrRef) = successorEvent(AdrEventType.SUCCESSOR_ACCEPTED, predecessor)
+
+/** The event on the PREDECESSOR when its Approver accepted [successor], the pending ADR that was set to replace it. */
+fun adrSuccessorAcceptedOnPredecessorEvent(successor: AdrRef) =
+    successorEvent(AdrEventType.SUCCESSOR_ACCEPTED, successor, otherIsSuccessor = true)
 
 fun adrSuccessorActivatedEvent(predecessor: AdrRef) = successorEvent(AdrEventType.SUCCESSOR_ACTIVATED, predecessor)
 

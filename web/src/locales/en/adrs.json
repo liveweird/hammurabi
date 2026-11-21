@@ -67,7 +67,8 @@
     "SUPERSEDED": "Superseded",
     "missing": "Still needed to continue: {{list}}.",
     "closed": "This ADR is closed: it is read-only.",
-    "noMoves": "No status change is available to you."
+    "noMoves": "No status change is available to you.",
+    "waitingAcceptance": "Waiting for {{key}}'s Approver to accept this ADR as its successor; it cannot be activated before."
   },
   "transition": {
     "PROBLEM_RAISED": "Reopen the problem",
@@ -205,7 +206,9 @@
       "SUCCESSOR_LINKED": "Set to replace {{key}}",
       "SUCCESSOR_UNLINKED": "No longer replaces {{key}}",
       "SUCCESSOR_DETACHED": "Pending successor {{key}} detached",
-      "SUCCESSOR_ACTIVATED": "Activated and superseded {{key}}"
+      "SUCCESSOR_ACTIVATED": "Activated and superseded {{key}}",
+      "SUCCESSOR_ACCEPTED": "Accepted to replace {{key}}",
+      "SUCCESSOR_ACCEPTED_FOR": "Accepted {{key}} as its successor"
     },
     "line": {
       "created": "{{key}} \"{{name}}\"",
@@ -244,7 +247,10 @@
     "tagsInvalid": "Check the tags: use only tags from the registry (remove a retired one), each once, at most 20.",
     "supersedesInvalid": "Check the link: pick another ADR that is active or still being drafted.",
     "supersedesConflict": "That link is not possible: it would close a loop of successors, or that ADR already has a successor on its way.",
-    "detachGone": "This ADR has no pending successor any more. Reload to see its latest state."
+    "detachGone": "This ADR has no pending successor any more. Reload to see its latest state.",
+    "successorNotAccepted": "This ADR cannot be activated yet: the Approver of the decision it replaces has to accept it first. Ask them to open that ADR and accept it.",
+    "acceptGone": "That successor is not pending any more. Reload to see this ADR's latest state.",
+    "acceptConflict": "This ADR is not in force yet, so its successor cannot be accepted. Reload to see its latest state."
   },
   "toast": {
     "created": "ADR raised",
@@ -258,7 +264,8 @@
     "tagsSaved": "Tags saved",
     "linked": "Successor link saved",
     "unlinked": "Successor link removed",
-    "detached": "Successor detached"
+    "detached": "Successor detached",
+    "accepted": "Successor accepted"
   },
   "openIssuesAria": "Open issues: {{count}}",
   "tab": {
@@ -366,9 +373,21 @@
     "pickerClear": "Clear the ADR",
     "noMatch": "No matching ADRs",
     "link": "Link",
-    "unlink": "Remove the link"
+    "unlink": "Remove the link",
+    "accepted": "Accepted by the Approver of {{key}}.",
+    "waiting": "Waiting for the Approver of {{key}} to accept it; this ADR cannot be activated until then.",
+    "notYet": "{{key}} is not in force yet; its Approver accepts the link once it is."
   },
   "banner": {
+    "proposed": {
+      "title": "A successor is proposed",
+      "body": "is proposed to replace this ADR. Once this decision is in force, its Approver has to accept the link before the successor can take effect.",
+      "accept": "Accept",
+      "acceptTitle": "Accept {{key}}?",
+      "acceptMessage": "{{key}} may then replace this decision: when it becomes active, this ADR is superseded. You can still detach it before that.",
+      "acceptConfirm": "Accept",
+      "cancel": "Not now"
+    },
     "superseded": {
       "title": "This ADR is superseded",
       "body": "The decision in this ADR was replaced by"

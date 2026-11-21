@@ -23,9 +23,12 @@
     "DISCUSSION_RESOLVED": "{{actor}} rozwiązał/a Twój wpis w {{key}}: {{kind}}",
     "ADR_EXPIRED": "{{key}} wygasł: minęła data wygaśnięcia {{date}}",
     "ADR_SUPERSEDED": "{{key}} został zastąpiony przez {{other}}",
-    "SUCCESSOR_LINKED": "{{actor}} ustawił/a {{other}} jako zastępujący {{key}}",
+    "SUCCESSOR_LINKED": "{{actor}} zaproponował/a {{other}} jako zastępujący {{key}}",
     "SUCCESSOR_UNLINKED": "{{actor}} odłączył/a {{other}}: już nie zastępuje {{key}}",
-    "EXPIRY_REMINDER": "{{key}} wygasa {{date}}"
+    "EXPIRY_REMINDER": "{{key}} wygasa {{date}}",
+    "EXPIRY_CHANGED": "{{actor}} zmienił/a datę wygaśnięcia {{key}} na {{date}}",
+    "EXPIRY_REMOVED": "{{actor}} usunął/usunęła datę wygaśnięcia {{key}}",
+    "SUCCESSOR_ACCEPTED": "{{actor}} zaakceptował/a {{key}} jako zastępujący {{other}}"
   },
   "toast": {
     "preferencesSaved": "Zapisano preferencje powiadomień"
@@ -75,8 +78,8 @@
         "description": "Następca przejmuje ADR, w którym uczestniczysz."
       },
       "SUCCESSOR_LINKED": {
-        "label": "Ustawiono następcę",
-        "description": "Ktoś wskazuje następcę ADR-a, który prowadzisz lub zatwierdzasz."
+        "label": "Zaproponowano następcę",
+        "description": "Ktoś proponuje następcę ADR-a, który prowadzisz lub zatwierdzasz."
       },
       "SUCCESSOR_UNLINKED": {
         "label": "Odłączono następcę",
@@ -85,6 +88,14 @@
       "EXPIRY_REMINDER": {
         "label": "Zbliża się wygaśnięcie",
         "description": "System przypomina, że ADR, który prowadzisz lub zatwierdzasz, niedługo wygaśnie."
+      },
+      "EXPIRY_CHANGED": {
+        "label": "Zmienia się data wygaśnięcia obowiązującej decyzji",
+        "description": "Ktoś zmienia lub usuwa datę wygaśnięcia obowiązującego ADR-a, w którym bierzesz udział. Może to zrobić tylko Zatwierdzający lub administrator."
+      },
+      "SUCCESSOR_ACCEPTED": {
+        "label": "Następca zostaje zaakceptowany",
+        "description": "Zatwierdzający obowiązującej decyzji akceptuje następcę, którego prowadzisz lub zatwierdzasz; bez tego nie zajmie on jej miejsca."
       }
     }
   }

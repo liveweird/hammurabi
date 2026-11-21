@@ -40,8 +40,20 @@ enum class NotificationType {
     /** A pending successor was detached from (or dropped its link to) the recipient's ADR; `otherAdr` is the successor. */
     SUCCESSOR_UNLINKED,
 
+    /**
+     * The predecessor's Approver (or an administrator) accepted a successor so it can replace a decision in force; the notice is about the
+     * SUCCESSOR (`adr`) the recipient drives or approves, `otherAdr` is the predecessor it replaces.
+     */
+    SUCCESSOR_ACCEPTED,
+
     /** The recipient's ADR expires soon (`adrs.expiry.reminderDays`); `detail` is the expiry date. A system notice. */
     EXPIRY_REMINDER,
+
+    /**
+     * The expiry date of a decision in force (an `ACTIVE` ADR) the recipient takes part in was changed or removed; `detail` is the new
+     * date, absent = removed.
+     */
+    EXPIRY_CHANGED,
 }
 
 /**

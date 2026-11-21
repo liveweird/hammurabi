@@ -204,7 +204,7 @@ class AdrOverviewTest {
         cast.driver.client.getAdr(far.id).let {
             assertEquals(
                 HttpStatusCode.NoContent,
-                cast.driver.client.saveAdr(far.id, it.revision, it.asUpdate().copy(expiresOn = "2999-01-01")).status,
+                cast.approver.client.saveAdr(far.id, it.revision, it.asUpdate().copy(expiresOn = "2999-01-01")).status,
             )
         }
 
@@ -273,6 +273,7 @@ class AdrOverviewTest {
         assertTrue(predecessor.id in cast.stranger.client.overview().recentlyDecided.items.map { it.id })
         val successor = cast.raise()
         assertEquals(HttpStatusCode.NoContent, cast.driver.client.setSupersedes(successor.id, predecessor.id).status)
+        cast.approver.client.acceptSuccessorOk(predecessor.id, successor.id)
         cast.activate(successor)
         assertEquals(AdrStatus.SUPERSEDED, cast.driver.client.getAdr(predecessor.id).status)
 

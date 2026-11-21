@@ -51,6 +51,17 @@ describe("AdrSuccessorPanel", () => {
     expect(screen.queryByText(/no longer in force/)).not.toBeInTheDocument();
   });
 
+  test("the link's acceptance is told under the predecessor: accepted, awaited, or not yet in force", () => {
+    const accepted = renderWithProviders(<AdrSuccessorPanel adr={adrFixture({ status: "IN_REVIEW", supersedes: OLD, supersedesAccepted: true })} />);
+    expect(screen.getByText("Accepted by the Approver of ADR-0003.")).toBeInTheDocument();
+    accepted.unmount();
+    const waiting = renderWithProviders(<AdrSuccessorPanel adr={adrFixture({ status: "IN_REVIEW", supersedes: OLD })} />);
+    expect(screen.getByText(/Waiting for the Approver of ADR-0003 to accept it/)).toBeInTheDocument();
+    waiting.unmount();
+    renderWithProviders(<AdrSuccessorPanel adr={adrFixture({ status: "IN_REVIEW", supersedes: { ...OLD, status: "IN_REVIEW" } })} />);
+    expect(screen.getByText(/ADR-0003 is not in force yet/)).toBeInTheDocument();
+  });
+
   test("a superseded ADR names its successor as the one that replaced it", () => {
     renderWithProviders(
       <AdrSuccessorPanel adr={adrFixture({ status: "SUPERSEDED", canEditSuccessor: false, supersededBy: { id: 9, key: "ADR-0009", name: "Next", status: "ACTIVE" } })} />,

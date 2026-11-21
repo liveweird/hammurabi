@@ -34,8 +34,15 @@ object ProblemTypes {
     /** The process already runs its maximum of concurrent bulk exports (429 + `Retry-After`; `adrs/AdrExportRoutes.kt`): retry shortly. */
     const val EXPORT_BUSY = "urn:hammurabi:problem:export-busy"
 
+    /**
+     * A successor cannot replace a decision in force until that decision's Approver (or an administrator) accepted the link (409;
+     * `adrs/AdrLifecycle.kt`): ask the predecessor's Approver to open the predecessor and accept it.
+     */
+    const val SUCCESSOR_NOT_ACCEPTED = "urn:hammurabi:problem:successor-not-accepted"
+
     /** Every registered URI; the spec's list and the main sources are diffed against it. */
     val ALL: Set<String> = setOf(
         REVISION_CONFLICT, ILLEGAL_TRANSITION, ADR_FROZEN, DISCUSSION_CLOSED, SEARCH_TIMEOUT, SEARCH_BUSY, EXPORT_BUSY,
+        SUCCESSOR_NOT_ACCEPTED,
     )
 }

@@ -82,6 +82,40 @@ class NotificationsTest {
     }
 
     @Test
+    fun `the expiry date of an ACTIVE ADR notifies everyone but the actor, a draft's date nobody, and a removed date has no detail`() =
+        testApplication {
+            usePostgresTestcontainer()
+            val cast = adrCast()
+            val adr = cast.raise()
+            val draft = cast.driver.client.getAdr(adr.id)
+            assertEquals(HttpStatusCode.NoContent,
+                cast.driver.client.saveAdr(adr.id, draft.revision, draft.asUpdate().copy(expiresOn = "2098-01-01")).status)
+            for (who in cast.everyone.values) {
+                assertEquals(emptyList(), who.client.noticesOf(NotificationType.EXPIRY_CHANGED, adr.id), "a draft's date is nobody's news")
+            }
+
+            cast.activate(adr)
+            val live = cast.admin.client.getAdr(adr.id)
+            assertEquals(HttpStatusCode.NoContent,
+                cast.approver.client.saveAdr(adr.id, live.revision, live.asUpdate().copy(expiresOn = "2099-01-01")).status)
+            for (who in listOf(cast.driver, cast.contributor, cast.informed)) {
+                val notice = who.client.noticesOf(NotificationType.EXPIRY_CHANGED, adr.id).single()
+                assertEquals("2099-01-01", notice.detail)
+                assertEquals(cast.approver.id, notice.actorId)
+            }
+            assertEquals(emptyList(), cast.approver.client.noticesOf(NotificationType.EXPIRY_CHANGED, adr.id), "not the actor")
+            assertEquals(emptyList(), cast.stranger.client.noticesOf(NotificationType.EXPIRY_CHANGED, adr.id), "a stranger takes no part")
+
+            // Removing the date is its own notice with no detail; a save that changes no date makes none.
+            val dated = cast.admin.client.getAdr(adr.id)
+            assertEquals(HttpStatusCode.NoContent, cast.admin.client.saveAdr(adr.id, dated.revision, dated.asUpdate()).status)
+            assertEquals(HttpStatusCode.NoContent,
+                cast.approver.client.saveAdr(adr.id, dated.revision, dated.asUpdate().copy(expiresOn = null)).status)
+            val details = cast.driver.client.noticesOf(NotificationType.EXPIRY_CHANGED, adr.id).map { it.detail }
+            assertEquals(listOf(null, "2099-01-01"), details)
+        }
+
+    @Test
     fun `a comment or question reaches the leads and Contributors, an issue or escalation the leads only, never its author`() =
         testApplication {
             usePostgresTestcontainer()
@@ -163,6 +197,7 @@ class NotificationsTest {
         val next = cast.driver.client.createAdr(complete = true, participants = listOf(AdrParticipantRequest(cast.approver.id,
             AdrRole.APPROVER)))
         assertEquals(HttpStatusCode.NoContent, cast.driver.client.setSupersedes(next.id, old.id).status)
+        cast.approver.client.acceptSuccessorOk(old.id, next.id)
         cast.driver.client.moveAdrNow(next.id, AdrStatus.IN_REVIEW)
         cast.approver.client.moveAdrNow(next.id, AdrStatus.ACTIVE)
         for (who in listOf(cast.driver, cast.contributor, cast.informed)) {

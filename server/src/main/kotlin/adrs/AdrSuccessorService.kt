@@ -29,6 +29,9 @@ internal const val ADR_LINK_LOCK_KEY = 0x4144524C494E4B53L
 /** What a link write changed: the predecessor before and after (null = none); the audit line and the events read it. */
 data class SuccessorChange(val from: AdrRef?, val to: AdrRef?)
 
+/** A successor as its predecessor reads it: the ADR ([ref]) and whether the predecessor's Approver (or ADMIN) accepted the link. */
+data class SuccessorLink(val ref: AdrRef, val accepted: Boolean)
+
 /** The statuses a predecessor may be in when a link is made: in force, or still on its way (a terminal one has nothing left to replace). */
 private val LINKABLE_PREDECESSORS: Set<AdrStatus> = AdrStatus.entries.filter { !it.terminal }.toSet()
 
@@ -77,14 +80,19 @@ class AdrSuccessorService(private val events: AdrEventService) {
             .associate { it[adrs.id].value to it.toRef() }
     }
 
+    private fun ResultRow.toLink(): SuccessorLink {
+        val accepted = this[adrs.supersedesAcceptedId]?.value
+        return SuccessorLink(toRef(), accepted != null && accepted == this[adrs.supersedesId]?.value)
+    }
+
     /** [successorOf] for every ADR in [ids] in ONE query: the predecessor's id to its lowest-id successor in play or in effect. */
-    suspend fun successorsOf(ids: Collection<UInt>): Map<UInt, AdrRef> {
+    suspend fun successorsOf(ids: Collection<UInt>): Map<UInt, SuccessorLink> {
         if (ids.isEmpty()) return emptyMap()
         return adrs.selectAll()
             .where { (adrs.supersedesId inList ids.distinct()) and adrs.active() and successorInPlayOrInEffect() }
             .orderBy(adrs.id).toList()
             .groupBy { checkNotNull(it[adrs.supersedesId]).value }
-            .mapValues { (_, rows) -> rows.first().toRef() }
+            .mapValues { (_, rows) -> rows.first().toLink() }
     }
 
     /** The ADR [id] whatever its state, soft-deleted included (the old end of a link being removed still deserves its event). */
@@ -97,9 +105,9 @@ class AdrSuccessorService(private val events: AdrEventService) {
      * The ADR replacing [id]: its successor still in play, or the one that replaced it once it is `SUPERSEDED` - never one that was
      * cancelled or withdrawn before it activated. At most one exists (the unique index, and a superseded ADR takes no new link).
      */
-    suspend fun successorOf(id: UInt): AdrRef? = adrs.selectAll()
+    suspend fun successorOf(id: UInt): SuccessorLink? = adrs.selectAll()
         .where { (adrs.supersedesId eq id) and adrs.active() and successorInPlayOrInEffect() }
-        .orderBy(adrs.id).limit(1).toList().singleOrNull()?.toRef()
+        .orderBy(adrs.id).limit(1).toList().singleOrNull()?.toLink()
 
     /** The id of [id]'s successor that is still pre-active (a pending link, not yet in effect), or null: a plain read, no lock. */
     suspend fun pendingSuccessorIdOf(id: UInt): UInt? = adrs.select(adrs.id)
@@ -148,6 +156,16 @@ class AdrSuccessorService(private val events: AdrEventService) {
     suspend fun recordDetached(predecessor: AdrRef, successor: AdrRef, byUserId: UInt, stamp: Long) {
         events.record(successor.id, byUserId, adrSuccessorUnlinkedEvent(predecessor), stamp)
         events.record(predecessor.id, byUserId, adrSuccessorDetachedEvent(successor), stamp)
+    }
+
+    /**
+     * Records the two `SUCCESSOR_ACCEPTED` events of an ACCEPTANCE (the predecessor's Approver, or ADMIN, accepted the pending
+     * [successor]): on the successor (`predecessorId`, the side that notifies its Driver and Approver) and on the [predecessor]
+     * (`successorId`). The caller writes the marker; no revision moves.
+     */
+    suspend fun recordAccepted(predecessor: AdrRef, successor: AdrRef, byUserId: UInt, stamp: Long) {
+        events.record(successor.id, byUserId, adrSuccessorAcceptedEvent(predecessor), stamp)
+        events.record(predecessor.id, byUserId, adrSuccessorAcceptedOnPredecessorEvent(successor), stamp)
     }
 
     private suspend fun requireLinkablePredecessor(record: AdrRecord, predecessorId: UInt): AdrRef {

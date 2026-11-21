@@ -1,6 +1,7 @@
 package ch.nokillswit.adrs
 
 import ch.nokillswit.authz.CallerPrincipal
+import ch.nokillswit.authz.ConflictException
 import ch.nokillswit.authz.NotFoundException
 import ch.nokillswit.infra.db.nowMillis
 import ch.nokillswit.infra.revision.requireRevision
@@ -9,9 +10,29 @@ import org.jetbrains.exposed.v1.r2dbc.transactions.suspendTransaction
 import org.jetbrains.exposed.v1.r2dbc.update
 
 /**
- * The two successor-link writes of an ADR (V14), beside [AdrService] because they share its row-lock and revision machinery. Both take
+ * The successor-link writes of an ADR (V14, V19), beside [AdrService] because they share its row-lock and revision machinery. All take
  * the link advisory lock FIRST and the ADR row locks after, never the other way (`persistence.md` "Successor links (V14)").
  */
+
+/**
+ * The ONE writer of `supersedes_id`: sets or clears the successor's predecessor AND always clears `supersedes_accepted_id` in the same
+ * UPDATE, because an acceptance belongs to one link (a re-point, an unlink and a detach each void it; `adr-model.md` "Successors"). A
+ * source pin (`AdrSuccessorAcceptTest`) keeps every other file from assigning either column.
+ */
+private suspend fun writeLink(successorId: UInt, predecessorId: UInt?) {
+    AdrService.Adrs.update({ AdrService.Adrs.id eq successorId }) {
+        it[supersedesId] = predecessorId
+        it[supersedesAcceptedId] = null
+    }
+}
+
+/**
+ * The marker's one writer beside [writeLink]: accepts the link of [successorId] to the predecessor it already names (the two columns
+ * then agree, `ck_adrs_supersedes_accepted`).
+ */
+private suspend fun writeAcceptance(successorId: UInt) {
+    AdrService.Adrs.update({ AdrService.Adrs.id eq successorId }) { it[supersedesAcceptedId] = supersedesId }
+}
 
 /**
  * Sets or removes the ADR this one replaces (`PUT .../supersedes`, [AdrSuccessorService.replace]) under `X-Expected-Revision`. The
@@ -34,7 +55,7 @@ suspend fun AdrService.setSupersedes(
         before.status.requireLinkable()
         val stamp = nowMillis()
         val change = successors.replace(before, request.supersedesId, caller.userId, stamp) ?: return@suspendTransaction null
-        AdrService.Adrs.update({ AdrService.Adrs.id eq id }) { it[supersedesId] = request.supersedesId }
+        writeLink(id, request.supersedesId)
         AdrSupersedesChange(id, before.number, bumpRevision(id, before.revision, stamp), change)
     }
 
@@ -54,10 +75,39 @@ suspend fun AdrService.detachSuccessor(id: UInt, caller: CallerPrincipal): AdrDe
         val successor = successors.pendingSuccessorIdOf(id)?.let { activeRecord(it) }
             ?: throw NotFoundException("This ADR has no pending successor")
         val stamp = nowMillis()
-        AdrService.Adrs.update({ AdrService.Adrs.id eq successor.id }) { it[supersedesId] = null }
+        writeLink(successor.id, null)
         val revision = bumpRevision(successor.id, successor.revision, stamp)
         val predecessorRef = AdrRef(id, adrKey(predecessor.number), predecessor.name, predecessor.status)
         val successorRef = AdrRef(successor.id, adrKey(successor.number), successor.name, successor.status)
         successors.recordDetached(predecessorRef, successorRef, caller.userId, stamp)
         AdrDetachChange(id, predecessor.number, successorRef, successor.number, revision)
+    }
+
+/**
+ * The PREDECESSOR's Approver (or ADMIN) accepts its pending successor (`POST .../successor/accept`, 1.0.0): the consent the successor's
+ * activation needs while this decision is `ACTIVE`. Judged on the PREDECESSOR [id]; the body names the successor ([successorId]) so a
+ * link that was re-pointed since the caller looked is `404`, never a blind acceptance of another ADR. Link lock first, then both rows
+ * together in id order (the activation's pair order), so it serialises with a racing detach, re-link and activation. Under the locks:
+ * the guard again (403), a terminal predecessor (409 `adr-frozen`), a predecessor not yet in force (409: nothing to accept before it
+ * is), the pending successor re-read and equal to [successorId] (404), then already accepted = null (nothing written). Otherwise the
+ * marker is written and `SUCCESSOR_ACCEPTED` recorded on both ADRs; neither revision moves (the document and its editors are
+ * untouched), and the stale-looking successor is protected instead by the activation reading the marker from its own locked row.
+ */
+suspend fun AdrService.acceptSuccessor(id: UInt, caller: CallerPrincipal, successorId: UInt): AdrAcceptChange? =
+    suspendTransaction(database) {
+        successors.lockLinkWrites(this)
+        val (predecessor, standing) = lockedActive(id, caller, alsoLock = successors.pendingSuccessorIdOf(id))
+        requireMayAcceptSuccessor(standing)
+        predecessor.status.requireWritable()
+        if (predecessor.status != AdrStatus.ACTIVE) {
+            throw ConflictException("A ${predecessor.status} ADR is not in force yet: its successor is accepted once it is ACTIVE")
+        }
+        val successor = successors.pendingSuccessorIdOf(id)?.takeIf { it == successorId }?.let { activeRecord(it) }
+            ?: throw NotFoundException("This ADR has no pending successor with that id")
+        if (successor.supersedesAccepted) return@suspendTransaction null
+        writeAcceptance(successor.id)
+        val predecessorRef = AdrRef(id, adrKey(predecessor.number), predecessor.name, predecessor.status)
+        val successorRef = AdrRef(successor.id, adrKey(successor.number), successor.name, successor.status)
+        successors.recordAccepted(predecessorRef, successorRef, caller.userId, nowMillis())
+        AdrAcceptChange(id, predecessor.number, successorRef, successor.number)
     }

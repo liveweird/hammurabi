@@ -3,6 +3,7 @@ package ch.nokillswit
 import ch.nokillswit.adrs.AdrEventDescriptor
 import ch.nokillswit.adrs.AdrEventType
 import ch.nokillswit.adrs.AdrRole
+import ch.nokillswit.adrs.AdrStatus
 import ch.nokillswit.notifications.Audience
 import ch.nokillswit.notifications.NotificationType
 import ch.nokillswit.notifications.noticeFor
@@ -78,6 +79,37 @@ class NotificationPlanTest {
         assertEquals(NotificationType.SUCCESSOR_UNLINKED, plan(AdrEventType.SUCCESSOR_UNLINKED, "predecessorId" to "3", adr = 8u)!!.type)
         assertNull(plan(AdrEventType.SUCCESSOR_UNLINKED, "successorId" to "8", "key" to "k", "name" to "n", adr = 3u))
         assertNull(plan(AdrEventType.SUCCESSOR_ACTIVATED, "predecessorId" to "3", adr = 8u))
+    }
+
+    @Test
+    fun `an acceptance is the SUCCESSOR's notice for its leads, and the predecessor's mirror event makes none`() {
+        val accepted = plan(AdrEventType.SUCCESSOR_ACCEPTED, "predecessorId" to "3", "key" to "ADR-0003", "name" to "n", adr = 8u)!!
+        assertEquals(NotificationType.SUCCESSOR_ACCEPTED, accepted.type)
+        assertEquals(8u, accepted.adrId, "about the successor, where the recipients take part")
+        assertEquals(3u, accepted.otherAdrId, "the predecessor it replaces")
+        assertEquals(Audience.Roles(8u, setOf(AdrRole.DRIVER, AdrRole.APPROVER)), accepted.audience)
+        assertNull(plan(AdrEventType.SUCCESSOR_ACCEPTED, "successorId" to "8", "key" to "k", "name" to "n", adr = 3u))
+        assertNull(plan(AdrEventType.SUCCESSOR_ACCEPTED, "predecessorId" to "junk", adr = 8u), "a malformed id is no notice")
+    }
+
+    @Test
+    fun `a changed expiry date is told to every role, only while the ADR is in force, and a removed one carries no detail`() {
+        val all = AdrRole.entries.toSet()
+        val changed = plan(
+            AdrEventType.UPDATED, "changed" to "context,expiresOn", "expiresOn.from" to "2027-01-01", "expiresOn.to" to "2028-01-01",
+        )!!
+        assertEquals(NotificationType.EXPIRY_CHANGED, changed.type)
+        assertEquals(Audience.Roles(7u, all, onlyWhile = AdrStatus.ACTIVE), changed.audience)
+        assertEquals("2028-01-01", changed.detail)
+        assertEquals(7u, changed.adrId)
+        val removed = plan(AdrEventType.UPDATED, "changed" to "expiresOn", "expiresOn.from" to "2027-01-01")!!
+        assertNull(removed.detail, "an absent side means the date was removed")
+        assertEquals(NotificationType.EXPIRY_CHANGED, removed.type)
+        assertEquals("2028-01-01", plan(AdrEventType.UPDATED, "changed" to "expiresOn", "expiresOn.to" to "2028-01-01")!!.detail)
+        // A save that touched other fields, or a field whose name merely contains the word, tells nobody.
+        assertNull(plan(AdrEventType.UPDATED, "changed" to "name,context", "name.from" to "a", "name.to" to "b"))
+        assertNull(plan(AdrEventType.UPDATED, "changed" to "expiresOnSoon"))
+        assertNull(plan(AdrEventType.UPDATED))
     }
 
     @Test

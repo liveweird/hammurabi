@@ -6,7 +6,6 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { IconPencil, IconTrash } from "@tabler/icons-react";
 import { deleteAdr, exportAdr, getAdr, type AdrResponse } from "../api/adrs";
 import { ApiError } from "../api/http";
-import { getUserId } from "../api/session";
 import { useAdmin } from "../auth";
 import AdrContentSections from "../components/AdrContentSections";
 import AdrEditForm from "../components/AdrEditForm";
@@ -18,7 +17,6 @@ import ConfirmDeleteModal from "../components/ConfirmDeleteModal";
 import EditPageLoadState from "../components/EditPageLoadState";
 import PageHeader from "../components/PageHeader";
 import { useDeleteConfirm } from "../hooks/useDeleteConfirm";
-import { canEditContent } from "../utils/adrAccess";
 import { adrsPath } from "../utils/adrLinks";
 import { refreshQueriesAfterMutation } from "../utils/queryRefresh";
 import { loadErrorMessage, saveErrorMessage } from "../utils/saveError";
@@ -70,7 +68,7 @@ export default function AdrDetails() {
   }
   const data = adr.data;
   // Falls back to the sections the moment the verdict turns (a move to ACTIVE froze the content under an open editor).
-  const mayEdit = canEditContent(data, getUserId(), admin);
+  const mayEdit = data.canEditContent;
 
   return (
     <Stack gap="md">

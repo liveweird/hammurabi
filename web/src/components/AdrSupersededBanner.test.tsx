@@ -31,7 +31,7 @@ describe("AdrSupersededBanner", () => {
   });
 
   test("a pending successor is a quieter note about what activating it will do", () => {
-    renderWithProviders(<AdrSupersededBanner adr={adrFixture({ status: "ACTIVE", supersededBy: PENDING })} />);
+    renderWithProviders(<AdrSupersededBanner adr={adrFixture({ status: "ACTIVE", supersededBy: PENDING, supersededByAccepted: true })} />);
     expect(screen.getByText("A successor is on its way")).toBeInTheDocument();
     expect(screen.getByText(/this ADR is superseded\./)).toBeInTheDocument();
     expect(screen.getByText("In review")).toBeInTheDocument();
@@ -39,10 +39,40 @@ describe("AdrSupersededBanner", () => {
 
   test("a pending successor shows on a pre-active ADR too", () => {
     for (const status of ["PROBLEM_RAISED", "SOLUTION_DRAFT", "IN_REVIEW"] as const) {
-      const { unmount } = renderWithProviders(<AdrSupersededBanner adr={adrFixture({ status, supersededBy: PENDING })} />);
+      const { unmount } = renderWithProviders(<AdrSupersededBanner adr={adrFixture({ status, supersededBy: PENDING, supersededByAccepted: true })} />);
       expect(screen.getByText("A successor is on its way")).toBeInTheDocument();
       unmount();
     }
+  });
+
+  test("an unaccepted successor is only proposed; whoever may accept it is offered Accept, after a confirmation", async () => {
+    const stub = stubFetch((r) => (r.method === "POST" ? noContent() : jsonResponse(200, { items: [] })));
+    const user = userEvent.setup();
+    renderWithProviders(<AdrSupersededBanner adr={adrFixture({ id: 4, status: "ACTIVE", supersededBy: PENDING, canAcceptSuccessor: true })} />);
+    expect(screen.getByText("A successor is proposed")).toBeInTheDocument();
+    expect(screen.queryByText("A successor is on its way")).not.toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: "Accept" }));
+    const dialog = await screen.findByRole("dialog", { name: "Accept ADR-0009?" });
+    await user.click(within(dialog).getByRole("button", { name: "Accept" }));
+    await waitFor(() => expect(stub.find("POST", "/api/v1/adrs/4/successor/accept")?.body).toEqual({ successorId: 9 }));
+  });
+
+  test("nobody who may not accept is offered Accept, and an accepted successor has nothing left to accept", () => {
+    const { unmount } = renderWithProviders(<AdrSupersededBanner adr={adrFixture({ status: "ACTIVE", supersededBy: PENDING })} />);
+    expect(screen.getByText("A successor is proposed")).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Accept" })).not.toBeInTheDocument();
+    unmount();
+    renderWithProviders(<AdrSupersededBanner adr={adrFixture({ status: "ACTIVE", supersededBy: PENDING, supersededByAccepted: true })} />);
+    expect(screen.queryByRole("button", { name: "Accept" })).not.toBeInTheDocument();
+  });
+
+  test("a refused accept is said in words", async () => {
+    stubFetch((r) => (r.method === "POST" ? problem(404) : jsonResponse(200, { items: [] })));
+    const user = userEvent.setup();
+    renderWithProviders(<AdrSupersededBanner adr={adrFixture({ status: "ACTIVE", supersededBy: PENDING, canAcceptSuccessor: true })} />);
+    await user.click(screen.getByRole("button", { name: "Accept" }));
+    await user.click(within(await screen.findByRole("dialog", { name: "Accept ADR-0009?" })).getByRole("button", { name: "Accept" }));
+    expect(await screen.findByText(/not pending any more/)).toBeInTheDocument();
   });
 
   test("a terminal ADR that was not superseded shows nothing, whatever link it still carries", () => {

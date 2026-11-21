@@ -2,6 +2,7 @@ package ch.nokillswit
 
 import ch.nokillswit.adrs.AdrResponse
 import ch.nokillswit.adrs.AdrService
+import ch.nokillswit.adrs.AdrSuccessorAcceptRequest
 import ch.nokillswit.adrs.AdrSupersedesRequest
 import ch.nokillswit.adrs.AdrTagsRequest
 import ch.nokillswit.infra.revision.EXPECTED_REVISION_HEADER
@@ -14,6 +15,7 @@ import io.ktor.client.call.body
 import io.ktor.client.request.delete
 import io.ktor.client.request.get
 import io.ktor.client.request.header
+import io.ktor.client.request.post
 import io.ktor.client.request.put
 import io.ktor.client.request.setBody
 import io.ktor.client.statement.HttpResponse
@@ -83,6 +85,22 @@ suspend fun HttpClient.setTags(id: UInt, tags: List<String>, revision: Long? = n
 /** Detaches the pending successor of the ADR [id] as [this] (any status code). */
 suspend fun HttpClient.detachSuccessor(id: UInt): HttpResponse = delete("/api/v1/adrs/$id/successor")
 
+/** Accepts [successorId] as the pending successor of the ADR [id] as [this] - the predecessor's Approver or ADMIN (any status code). */
+suspend fun HttpClient.acceptSuccessor(id: UInt, successorId: UInt): HttpResponse =
+    post("/api/v1/adrs/$id/successor/accept") {
+        contentType(ContentType.Application.Json)
+        setBody(AdrSuccessorAcceptRequest(successorId))
+    }
+
+/**
+ * The accept step of a successor that activates over an ACTIVE predecessor (1.0.0): [this] is the predecessor's Approver or ADMIN, and the
+ * answer is asserted `204`. A test that does not care about the acceptance calls this between the link and the activation.
+ */
+suspend fun HttpClient.acceptSuccessorOk(id: UInt, successorId: UInt) {
+    val response = acceptSuccessor(id, successorId)
+    assertEquals(HttpStatusCode.NoContent, response.status, "accept $successorId on $id: ${response.status}")
+}
+
 /** Sets (or, null, removes) the predecessor of the ADR under [revision] (default: its current one). */
 suspend fun HttpClient.setSupersedes(id: UInt, supersedesId: UInt?, revision: Long? = null): HttpResponse {
     val expected = revision ?: get("/api/v1/adrs/$id").let { if (it.status == HttpStatusCode.OK) it.body<AdrResponse>().revision else 1L }
@@ -97,6 +115,12 @@ suspend fun HttpClient.setSupersedes(id: UInt, supersedesId: UInt?, revision: Lo
 suspend fun rawSupersedesId(id: UInt): UInt? = suspendTransaction(sharedDatabaseForTests()) {
     val adrs = AdrService.Adrs
     adrs.select(adrs.supersedesId).where { adrs.id eq id }.toList().single()[adrs.supersedesId]?.value
+}
+
+/** The stored `supersedes_accepted_id` of [id], straight from the table. */
+suspend fun rawSupersedesAcceptedId(id: UInt): UInt? = suspendTransaction(sharedDatabaseForTests()) {
+    val adrs = AdrService.Adrs
+    adrs.select(adrs.supersedesAcceptedId).where { adrs.id eq id }.toList().single()[adrs.supersedesAcceptedId]?.value
 }
 
 /** The live tags of every category [this] can read, flattened. */

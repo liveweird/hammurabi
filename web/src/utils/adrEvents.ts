@@ -48,6 +48,9 @@ export function describeAdrEvent(event: AdrEventResponse, t: TFunction): string 
     case "SUCCESSOR_LINKED":
     case "SUCCESSOR_ACTIVATED":
       return t(`adrs.history.event.${event.type}`, { key: p.key ?? DASH });
+    case "SUCCESSOR_ACCEPTED":
+      // Written on both ends: the successor's names the predecessor it will replace, the predecessor's (`successorId`) names the successor.
+      return t(p.successorId === undefined ? "adrs.history.event.SUCCESSOR_ACCEPTED" : "adrs.history.event.SUCCESSOR_ACCEPTED_FOR", { key: p.key ?? DASH });
     case "COMMENTED":
     case "QUESTION_ASKED":
     case "QUESTION_ANSWERED":
@@ -98,6 +101,7 @@ export function adrEventLines(event: AdrEventResponse, t: TFunction): string[] {
     case "SUCCESSOR_LINKED":
     case "SUCCESSOR_UNLINKED":
     case "SUCCESSOR_ACTIVATED":
+    case "SUCCESSOR_ACCEPTED":
       return [t("adrs.history.line.adrName", { name: p.name ?? DASH })];
     case "UPDATED":
       return changedLines(p, t);

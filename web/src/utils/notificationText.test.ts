@@ -34,9 +34,12 @@ describe("describeNotification", () => {
     [{ type: "DISCUSSION_SETTLED", detail: "ESCALATION" }, "Ada resolved your entry on ADR-0042: Escalation"],
     [{ type: "ADR_EXPIRED", detail: "2026-11-30", actorId: null, actorName: null }, "ADR-0042 expired: its expiry date 2026-11-30 has passed"],
     [{ type: "ADR_SUPERSEDED", otherAdrId: 43, otherAdrKey: "ADR-0043" }, "ADR-0042 was superseded by ADR-0043"],
-    [{ type: "SUCCESSOR_LINKED", otherAdrId: 43, otherAdrKey: "ADR-0043" }, "Ada set ADR-0043 to replace ADR-0042"],
+    [{ type: "SUCCESSOR_LINKED", otherAdrId: 43, otherAdrKey: "ADR-0043" }, "Ada proposed ADR-0043 to replace ADR-0042"],
+    [{ type: "SUCCESSOR_ACCEPTED", otherAdrId: 42, otherAdrKey: "ADR-0042", adrKey: "ADR-0043" }, "Ada accepted ADR-0043 to replace ADR-0042"],
     [{ type: "SUCCESSOR_UNLINKED", otherAdrId: 43, otherAdrKey: "ADR-0043" }, "Ada detached ADR-0043: it no longer replaces ADR-0042"],
     [{ type: "EXPIRY_REMINDER", detail: "2026-12-01", actorId: null, actorName: null }, "ADR-0042 expires on 2026-12-01"],
+    [{ type: "EXPIRY_CHANGED", detail: "2027-03-31" }, "Ada changed the expiry date of ADR-0042 to 2027-03-31"],
+    [{ type: "EXPIRY_CHANGED", detail: null }, "Ada removed the expiry date of ADR-0042"],
   ])("%j reads as one sentence", (over, sentence) => {
     expect(describeNotification(notice(over), t)).toBe(sentence);
   });
@@ -51,7 +54,7 @@ describe("describeNotification", () => {
     expect(describeNotification(notice({ type: "DISCUSSION_POSTED", detail: "POLL" }), t)).toContain(": POLL");
     expect(describeNotification(notice({ type: "DISCUSSION_SETTLED", detail: null }), t)).toBe("Ada resolved your entry on ADR-0042: —");
     expect(describeNotification(notice({ type: "STATUS_CHANGED", detail: null }), t)).toContain("to —");
-    expect(describeNotification(notice({ type: "SUCCESSOR_LINKED", otherAdrKey: null }), t)).toBe("Ada set — to replace ADR-0042");
+    expect(describeNotification(notice({ type: "SUCCESSOR_LINKED", otherAdrKey: null }), t)).toBe("Ada proposed — to replace ADR-0042");
   });
 
   test("a type this build does not know shows its raw name", () => {

@@ -61,6 +61,8 @@ export default function AdrStatusControl({ adr }: { adr: AdrResponse }) {
   const primary = moves.find(({ kind }) => !CONFIRMED_MOVES.has(kind))?.to;
   const needsReviewFields = moves.some(({ to }) => to === "IN_REVIEW" || to === "ACTIVE");
   const missing = needsReviewFields ? missingForReview(adr) : [];
+  // Activating over a decision in force needs its Approver's acceptance first (the server refuses with a typed 409 otherwise).
+  const waitingForAcceptance = moves.some(({ to }) => to === "ACTIVE") && adr.supersedes?.status === "ACTIVE" && !adr.supersedesAccepted;
 
   return (
     <Stack gap="xs">
@@ -91,6 +93,11 @@ export default function AdrStatusControl({ adr }: { adr: AdrResponse }) {
       {missing.length > 0 && (
         <Text size="xs" c="dimmed">
           {t("adrs.status.missing", { list: missing.map((item) => t(`adrs.requirement.${item}`)).join(", ") })}
+        </Text>
+      )}
+      {waitingForAcceptance && (
+        <Text size="xs" c="grape" role="status">
+          {t("adrs.status.waitingAcceptance", { key: adr.supersedes?.key ?? "" })}
         </Text>
       )}
       {move.isError && !reasonRefused && <AdrWriteError error={move.error} kind="transition" onReloaded={move.reset} />}

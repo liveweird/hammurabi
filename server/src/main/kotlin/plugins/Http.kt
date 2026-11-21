@@ -65,8 +65,11 @@ private val SMALL_BODY_PATHS = setOf(
 
 private val ADR_DOCUMENT_PATH = Regex("^/api/v1/adrs(/[0-9]+)?$")
 
-/** The ADR transition `{to}` and the participants PUT (at most 100 `{userId, role}` entries, about 4.5 KB): small bodies. */
-private val ADR_SMALL_PATH = Regex("^/api/v1/adrs/[0-9]+/(transitions|participants)$")
+/**
+ * The ADR transition `{to}`, the participants PUT (at most 100 `{userId, role}` entries, about 4.5 KB) and the successor acceptance
+ * `{successorId}`: small bodies.
+ */
+private val ADR_SMALL_PATH = Regex("^/api/v1/adrs/[0-9]+/(transitions|participants|successor/accept)$")
 
 /** A discussion entry's text: `POST .../discussion` (post) and `PUT .../discussion/{entryId}` (edit). */
 private val DISCUSSION_ENTRY_PATH = Regex("^/api/v1/adrs/[0-9]+/discussion(/[0-9]+)?$")

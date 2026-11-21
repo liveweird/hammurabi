@@ -133,9 +133,11 @@ class AdrSuccessorDetachTest {
         val old = cast.activeAdr()
         val next = cast.raise(complete = true)
         cast.driver.client.setSupersedes(next.id, old.id)
+        cast.approver.client.acceptSuccessorOk(old.id, next.id)
         cast.driver.client.moveAdrNow(next.id, AdrStatus.IN_REVIEW)
         cast.approver.client.moveAdrNow(next.id, AdrStatus.ACTIVE)
         assertFalse(cast.admin.client.getAdr(old.id).canDetachSuccessor)
+        assertFalse(cast.admin.client.getAdr(old.id).canAcceptSuccessor, "nothing pending any more")
         assertEquals(ProblemTypes.ADR_FROZEN, cast.admin.client.detachSuccessor(old.id).body<ProblemDetail>().type)
         assertEquals(old.id, rawSupersedesId(next.id))
     }
@@ -148,6 +150,8 @@ class AdrSuccessorDetachTest {
             val old = cast.activeAdr()
             val next = cast.raise(complete = true)
             cast.driver.client.setSupersedes(next.id, old.id)
+            // Accepted, so the activation can win: without it the race would be a refusal against a detach, not two writes.
+            cast.approver.client.acceptSuccessorOk(old.id, next.id)
             cast.driver.client.moveAdrNow(next.id, AdrStatus.IN_REVIEW)
             val revision = cast.approver.client.getAdr(next.id).revision
             val (activation, detach) = coroutineScope {
@@ -170,7 +174,7 @@ class AdrSuccessorDetachTest {
     }
 
     @Test
-    fun `two activations along a chain at once - B replaces A, C replaces B - never deadlock and end consistent`() = testApplication {
+    fun `two activations along a chain at once - B replaces A, C replaces B - no deadlock, C waits for B's Approver`() = testApplication {
         usePostgresTestcontainer()
         val cast = adrCast()
         repeat(4) { round ->
@@ -185,6 +189,8 @@ class AdrSuccessorDetachTest {
             }
             assertEquals(HttpStatusCode.NoContent, cast.driver.client.setSupersedes(b.id, a.id).status)
             assertEquals(HttpStatusCode.NoContent, cast.driver.client.setSupersedes(c.id, b.id).status)
+            // A's Approver accepted B. C replaces B, which cannot be accepted before B is in force: C waits for it, whatever the order.
+            cast.approver.client.acceptSuccessorOk(a.id, b.id)
             cast.driver.client.moveAdrNow(b.id, AdrStatus.IN_REVIEW)
             cast.driver.client.moveAdrNow(c.id, AdrStatus.IN_REVIEW)
             val revisionB = cast.approver.client.getAdr(b.id).revision
@@ -195,21 +201,19 @@ class AdrSuccessorDetachTest {
                     async(Dispatchers.IO) { cast.approver.client.moveAdr(c.id, revisionC, AdrStatus.ACTIVE).status },
                 ).awaitAll()
             }
-            assertEquals(HttpStatusCode.OK, activationB, "B's predecessor is ACTIVE throughout")
+            assertEquals(HttpStatusCode.OK, activationB, "B's predecessor is ACTIVE and accepted throughout")
             assertEquals("SUPERSEDED", rawAdrStatus(a.id))
-            when (activationC) {
-                // B was ACTIVE when C ran: the whole chain moved on.
-                HttpStatusCode.OK -> {
-                    assertEquals("SUPERSEDED", rawAdrStatus(b.id))
-                    assertEquals("ACTIVE", rawAdrStatus(c.id))
-                }
-                // C ran while B was still in review: refused, naming the predecessor; nothing of C moved.
-                HttpStatusCode.BadRequest -> {
-                    assertEquals("ACTIVE", rawAdrStatus(b.id))
-                    assertEquals("IN_REVIEW", rawAdrStatus(c.id))
-                }
-                else -> error("unexpected status for C's activation: $activationC")
-            }
+            // C never moves in the race: B was still in review (400, naming the predecessor) or already ACTIVE but not yet accepted by
+            // its Approver (409 successor-not-accepted). Either way nothing of C moved.
+            assertTrue(activationC == HttpStatusCode.BadRequest || activationC == HttpStatusCode.Conflict, "C's activation: $activationC")
+            assertEquals("ACTIVE", rawAdrStatus(b.id))
+            assertEquals("IN_REVIEW", rawAdrStatus(c.id))
+            // With B in force its Approver accepts C and the chain moves on.
+            cast.approver.client.acceptSuccessorOk(b.id, c.id)
+            val finalMove = cast.approver.client.moveAdr(c.id, cast.approver.client.getAdr(c.id).revision, AdrStatus.ACTIVE)
+            assertEquals(HttpStatusCode.OK, finalMove.status)
+            assertEquals("SUPERSEDED", rawAdrStatus(b.id))
+            assertEquals("ACTIVE", rawAdrStatus(c.id))
         }
     }
 }

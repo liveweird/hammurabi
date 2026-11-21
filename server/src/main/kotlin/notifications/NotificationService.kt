@@ -24,6 +24,7 @@ import org.jetbrains.exposed.v1.core.TextColumnType
 import org.jetbrains.exposed.v1.core.and
 import org.jetbrains.exposed.v1.core.dao.id.UIntIdTable
 import org.jetbrains.exposed.v1.core.eq
+import org.jetbrains.exposed.v1.core.exists
 import org.jetbrains.exposed.v1.core.inList
 import org.jetbrains.exposed.v1.core.statements.StatementType
 import org.jetbrains.exposed.v1.core.isNotNull
@@ -155,7 +156,12 @@ internal class NotificationService(private val database: R2dbcDatabase) : AdrNot
         is Audience.Person -> listOf(audience.userId)
         is Audience.Roles -> {
             val p = AdrParticipantService.AdrParticipants
-            p.select(p.userId).where { (p.adrId eq audience.adrId) and (p.role inList audience.roles.map { it.name }) }
+            val adrs = AdrService.Adrs
+            // The status predicate is an EXISTS on the ADR's own row, in the same statement: the status as the write left it.
+            val inStatus: Op<Boolean> = audience.onlyWhile
+                ?.let { status -> exists(adrs.select(adrs.id).where { (adrs.id eq audience.adrId) and (adrs.status eq status.name) }) }
+                ?: Op.TRUE
+            p.select(p.userId).where { (p.adrId eq audience.adrId) and (p.role inList audience.roles.map { it.name }) and inStatus }
                 .map { it[p.userId].value }.toList()
         }
         is Audience.EntryAuthor -> {

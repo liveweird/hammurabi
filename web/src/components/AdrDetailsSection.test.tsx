@@ -24,12 +24,12 @@ describe("AdrDetailsSection", () => {
     expect(screen.getByText("2027-06-30")).toBeInTheDocument();
   });
 
-  test("no expiry date says so; the editor button follows canManageParticipants", () => {
+  test("no expiry date says so; the editor button follows canEditExpiry", () => {
     const { unmount } = renderWithProviders(<AdrDetailsSection adr={adrFixture()} />);
     expect(screen.getByText("No expiry date")).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Edit the expiry date" })).toBeInTheDocument();
     unmount();
-    renderWithProviders(<AdrDetailsSection adr={adrFixture({ canManageParticipants: false })} />);
+    renderWithProviders(<AdrDetailsSection adr={adrFixture({ canEditExpiry: false })} />);
     expect(screen.queryByRole("button", { name: "Edit the expiry date" })).not.toBeInTheDocument();
   });
 

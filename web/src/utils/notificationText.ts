@@ -45,8 +45,14 @@ export function describeNotification(n: NotificationItem, t: TFunction): string 
     case "ADR_SUPERSEDED":
     case "SUCCESSOR_LINKED":
     case "SUCCESSOR_UNLINKED":
+    case "SUCCESSOR_ACCEPTED":
     case "EXPIRY_REMINDER":
       return t(`notifications.event.${n.type}`, params);
+    case "EXPIRY_CHANGED":
+      // The server's detail is the new date; absent means the date was removed (its own sentence).
+      return n.detail === null
+        ? t("notifications.event.EXPIRY_REMOVED", params)
+        : t("notifications.event.EXPIRY_CHANGED", params);
     default:
       return n.type;
   }

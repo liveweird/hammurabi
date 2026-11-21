@@ -67,6 +67,7 @@ class AdrSuccessorTest {
         val old = cast.activeAdr()
         val next = cast.raise(complete = true)
         cast.driver.client.setSupersedes(next.id, old.id)
+        cast.approver.client.acceptSuccessorOk(old.id, next.id)
         cast.driver.client.moveAdrNow(next.id, AdrStatus.IN_REVIEW)
         withAuditCapture { capture ->
             val activated = cast.approver.client.moveAdrNow(next.id, AdrStatus.ACTIVE)
@@ -315,8 +316,11 @@ class AdrSuccessorTest {
         assertEquals(HttpStatusCode.BadRequest, blocked.status)
         assertTrue(blocked.body<ProblemDetail>().detail!!.contains("supersedes ${old.key}"))
         assertEquals(AdrStatus.IN_REVIEW, cast.driver.client.getAdr(next.id).status)
-        // Once the predecessor is in force, the same move supersedes it.
+        // Once the predecessor is in force the link still needs its Approver's acceptance; then the same move supersedes it.
         cast.activate(old)
+        val unaccepted = cast.approver.client.moveAdr(next.id, cast.approver.client.getAdr(next.id).revision, AdrStatus.ACTIVE)
+        assertEquals(ProblemTypes.SUCCESSOR_NOT_ACCEPTED, unaccepted.body<ProblemDetail>().type)
+        cast.approver.client.acceptSuccessorOk(old.id, next.id)
         cast.approver.client.moveAdrNow(next.id, AdrStatus.ACTIVE)
         assertEquals(AdrStatus.SUPERSEDED, cast.driver.client.getAdr(old.id).status)
     }
@@ -359,6 +363,7 @@ class AdrSuccessorTest {
             val old = cast.activeAdr()
             val next = cast.raise(complete = true)
             cast.driver.client.setSupersedes(next.id, old.id)
+            cast.approver.client.acceptSuccessorOk(old.id, next.id)
             cast.driver.client.moveAdrNow(next.id, AdrStatus.IN_REVIEW)
             val revision = cast.approver.client.getAdr(next.id).revision
             val same = old.participants.map { AdrParticipantRequest(it.userId, it.role) }

@@ -33,6 +33,7 @@ class NotificationEmailTest {
             entry(NotificationType.ADR_SUPERSEDED, other = "ADR-0050"),
             entry(NotificationType.SUCCESSOR_LINKED, other = "ADR-0050"),
             entry(NotificationType.SUCCESSOR_UNLINKED, other = "ADR-0050"),
+            entry(NotificationType.SUCCESSOR_ACCEPTED, other = "ADR-0050"),
             entry(NotificationType.EXPIRY_REMINDER, "2026-12-01", actor = null),
         )
         for (language in listOf("en", "pl")) {
@@ -46,6 +47,11 @@ class NotificationEmailTest {
         assertTrue("Ala added a escalation on ADR-0042" in en, en)
         assertTrue("Ala answered your question on ADR-0042" in en, en)
         assertTrue("ADR-0042 has expired (its last day in force was 2026-12-01)" in en, en)
+        val linked = entry(NotificationType.SUCCESSOR_LINKED, other = "ADR-0050")
+        val accepted = entry(NotificationType.SUCCESSOR_ACCEPTED, other = "ADR-0050")
+        assertTrue("Ala proposed ADR-0050 to replace ADR-0042" in body("en", linked), "a link is only a proposal")
+        assertTrue("Ala accepted ADR-0042 to replace ADR-0050" in body("en", accepted))
+        assertTrue("Ala akceptuje ADR-0042 jako następcę ADR-0050" in body("pl", accepted))
         val sentBack = entry(NotificationType.STATUS_CHANGED, "SENT_BACK")
         assertTrue("Ala sent ADR-0042 back to draft" in body("en", sentBack))
         assertTrue("Ala odsyła ADR-0042 do szkicu" in body("pl", sentBack))
@@ -54,6 +60,18 @@ class NotificationEmailTest {
         assertTrue("Ala rozwiązuje Twój wpis typu „zgłoszenie” w ADR-0042" in pl, pl)
         assertTrue("ADR-0042 wygasł (ostatni dzień obowiązywania: 2026-12-01)" in pl, pl)
         assertTrue("Cześć Ola," in pl && "W Hammurabim" in pl)
+    }
+
+    @Test
+    fun `a changed expiry date is told with its date, a removed one without, in both languages`() {
+        val changed = entry(NotificationType.EXPIRY_CHANGED, "2027-03-31")
+        val removed = entry(NotificationType.EXPIRY_CHANGED, null)
+        val en = body("en", changed, removed)
+        assertTrue("Ala changed the expiry date of ADR-0042 to 2027-03-31 (the last day in force)" in en, en)
+        assertTrue("Ala removed the expiry date of ADR-0042" in en, en)
+        val pl = body("pl", changed, removed)
+        assertTrue("Ala zmienia datę wygaśnięcia ADR-0042 na 2027-03-31 (ostatni dzień obowiązywania)" in pl, pl)
+        assertTrue("Ala usuwa datę wygaśnięcia ADR-0042" in pl, pl)
     }
 
     @Test

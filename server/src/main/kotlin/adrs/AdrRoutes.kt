@@ -69,7 +69,12 @@ class AdrsRoute {
 
         @Serializable
         @Resource("successor")
-        class Successor(val parent: Id)
+        class Successor(val parent: Id) {
+            /** `POST /adrs/{id}/successor/accept` (1.0.0): the predecessor's Approver accepts its pending successor. */
+            @Serializable
+            @Resource("accept")
+            class Accept(val parent: Successor)
+        }
 
         @Serializable
         @Resource("events")
@@ -114,6 +119,7 @@ fun Application.configureAdrRoutes() {
             adrLifecycle(adrService)
             adrParticipants(adrService)
             adrOrganise(adrService)
+            adrAcceptSuccessor(adrService)
             adrHistory(adrService, eventService)
         }
     }
@@ -268,9 +274,9 @@ private fun Route.adrParticipants(adrService: AdrService) {
 }
 
 /**
- * The tags PUT, the successor-link PUT and the successor DETACH: the same standing / coarse guard / header / body order as the
- * participants. The detach has neither header nor body: it names the pending successor by the route (there is at most one) and the
- * service judges it under the locks.
+ * The tags PUT, the successor-link PUT, the successor DETACH and the successor ACCEPT: the same standing / coarse guard / header / body
+ * order as the participants. The detach has neither header nor body: it names the pending successor by the route (there is at most one)
+ * and the service judges it under the locks. The accept has a body (`{successorId}`) and no header: it bumps no revision.
  */
 private fun Route.adrOrganise(adrService: AdrService) {
     put<AdrsRoute.Id.Tags> { route ->
@@ -326,6 +332,27 @@ private fun Route.adrOrganise(adrService: AdrService) {
             "successorNumber" to change.successorNumber,
             "successorRevision" to change.successorRevision,
         )
+        call.respond(HttpStatusCode.NoContent)
+    }
+}
+
+/** The predecessor's Approver (or ADMIN) accepts its pending successor: standing (404), guard (403), body (400), then the service. */
+private fun Route.adrAcceptSuccessor(adrService: AdrService) {
+    post<AdrsRoute.Id.Successor.Accept> { route ->
+        val id = route.parent.parent.id
+        val caller = call.caller()
+        requireMayAcceptSuccessor(adrService.standing(id, caller).orNotFound("ADR"))
+        val request = call.receive<AdrSuccessorAcceptRequest>()
+        adrService.acceptSuccessor(id, caller, request.successorId)?.let {
+            audit(
+                "adr.successor_accepted",
+                "byUserId" to caller.userId.toLong(),
+                "adrId" to it.id.toLong(),
+                "number" to it.number,
+                "successorId" to it.successor.id.toLong(),
+                "successorNumber" to it.successorNumber,
+            )
+        }
         call.respond(HttpStatusCode.NoContent)
     }
 }

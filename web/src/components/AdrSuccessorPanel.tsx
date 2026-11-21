@@ -30,11 +30,37 @@ function Ref({ adr }: { adr: AdrRef }) {
   );
 }
 
+/** Whether the predecessor's Approver accepted this ADR as its successor: teal when it did, grape while it is awaited, gray before the predecessor is in force. */
+function AcceptanceLine({ adr }: { adr: AdrResponse }) {
+  const { t } = useTranslation();
+  const key = adr.supersedes?.key ?? "";
+  if (adr.supersedesAccepted) {
+    return (
+      <Text size="xs" c="teal" role="status">
+        {t("adrs.successor.accepted", { key })}
+      </Text>
+    );
+  }
+  if (adr.supersedes?.status === "ACTIVE") {
+    return (
+      <Text size="xs" c="grape" role="status">
+        {t("adrs.successor.waiting", { key })}
+      </Text>
+    );
+  }
+  return (
+    <Text size="xs" c="dimmed">
+      {t("adrs.successor.notYet", { key })}
+    </Text>
+  );
+}
+
 /**
  * The Successor section: both ends of the link - the ADR this one supersedes (`supersedes`) and the one replacing it (`supersededBy`,
  * pending or done). Whoever the server says may edit the link (`canEditSuccessor`: the Driver, the Approver or an ADMIN, while the ADR is
  * pre-active) gets a picker that searches ADRs by key or name over the list endpoint and a button to remove an existing link. The link
- * takes effect at activation, which the hint says. A cycle, a rival successor or a stale revision is the write's error notice.
+ * takes effect at activation, which the hint says, and - over a decision in force - only once that decision's Approver accepted it: the
+ * state line under "This ADR supersedes" says whether it did. A cycle, a rival successor or a stale revision is the write's error notice.
  */
 export default function AdrSuccessorPanel({ adr }: { adr: AdrResponse }) {
   const { t } = useTranslation();
@@ -62,6 +88,7 @@ export default function AdrSuccessorPanel({ adr }: { adr: AdrResponse }) {
             {t("adrs.successor.none")}
           </Text>
         )}
+        {adr.supersedes && isPreActive(adr.status) && <AcceptanceLine adr={adr} />}
         {/* A predecessor that ended (withdrawn, expired, cancelled) leaves nothing to replace: activation is refused until the link goes. */}
         {adr.supersedes && isTerminal(adr.supersedes.status) && isPreActive(adr.status) && (
           <Text size="xs" c="orange" role="status">

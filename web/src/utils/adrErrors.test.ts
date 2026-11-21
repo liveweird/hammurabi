@@ -12,6 +12,14 @@ describe("ADR write errors", () => {
     expect(adrConflict(problem(409, "urn:hammurabi:problem:revision-conflict"))).toBe("revision");
     expect(adrConflict(problem(409, "urn:hammurabi:problem:adr-frozen"))).toBe("frozen");
     expect(adrConflict(problem(409, "urn:hammurabi:problem:illegal-transition"))).toBe("illegalTransition");
+    expect(adrConflict(problem(409, "urn:hammurabi:problem:successor-not-accepted"))).toBe("successorNotAccepted");
+  });
+
+  test("an unaccepted successor and the accept's own refusals have their words", () => {
+    expect(adrWriteError(problem(409, "urn:hammurabi:problem:successor-not-accepted"), t, "transition")).toMatch(/has to accept it first/);
+    expect(adrWriteError(problem(404), t, "accept")).toMatch(/not pending any more/);
+    expect(adrWriteError(problem(409), t, "accept")).toMatch(/not in force yet/);
+    expect(adrWriteError(problem(403), t, "accept")).toBe("Your role on this ADR does not allow this.");
   });
 
   test("an untyped 409, another status or a non-API error is not a typed conflict", () => {

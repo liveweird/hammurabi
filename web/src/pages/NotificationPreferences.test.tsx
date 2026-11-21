@@ -20,6 +20,8 @@ const TYPES = [
   "SUCCESSOR_LINKED",
   "SUCCESSOR_UNLINKED",
   "EXPIRY_REMINDER",
+  "EXPIRY_CHANGED",
+  "SUCCESSOR_ACCEPTED",
 ] as const;
 
 /** Every kind on the bell and the email unless `off` names it: `"ROLE_REMOVED:email"` or `"ROLE_REMOVED:inApp"`. */

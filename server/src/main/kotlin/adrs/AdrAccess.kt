@@ -20,7 +20,10 @@ data class AdrStanding(
     fun holds(vararg roles: AdrRole): Boolean = isAdmin || role in roles
 }
 
-/** Who may edit the document at all (coarse, before the body): the Driver, a Contributor, the Approver (the expiry date), ADMIN. */
+/**
+ * Who may edit the document at all (coarse, before the body): the Driver, a Contributor, the Approver (the expiry date), ADMIN. The
+ * per-field verdicts are [canEditContent] and [canEditExpiry].
+ */
 fun requireMayEdit(standing: AdrStanding) {
     if (!standing.holds(AdrRole.DRIVER, AdrRole.CONTRIBUTOR, AdrRole.APPROVER)) {
         throw ForbiddenException("Only the Driver, a Contributor, the Approver or an administrator may edit this ADR")
@@ -79,11 +82,16 @@ fun allowedTransitions(standing: AdrStanding, from: AdrStatus): List<AdrStatus> 
 fun canEditContent(standing: AdrStanding, status: AdrStatus): Boolean =
     status.contentEditable && standing.holds(AdrRole.DRIVER, AdrRole.CONTRIBUTOR)
 
-/** The expiry date changes in any non-terminal status, by the Driver, the Approver or ADMIN. */
-fun canEditExpiry(standing: AdrStanding, status: AdrStatus): Boolean =
-    !status.terminal && standing.holds(AdrRole.DRIVER, AdrRole.APPROVER)
-
-fun canEdit(standing: AdrStanding, status: AdrStatus): Boolean = canEditContent(standing, status) || canEditExpiry(standing, status)
+/**
+ * The expiry date changes in any non-terminal status, but WHO depends on whether the decision is in force: before it is, the Driver, the
+ * Approver or ADMIN; once `ACTIVE` only the Approver or ADMIN (the Approver decides, so the Driver cannot end a decision in force by
+ * dating it to today). One verdict for the document PUT's 403 and the served `canEditExpiry` flag.
+ */
+fun canEditExpiry(standing: AdrStanding, status: AdrStatus): Boolean = when {
+    status.terminal -> false
+    status == AdrStatus.ACTIVE -> standing.holds(AdrRole.APPROVER)
+    else -> standing.holds(AdrRole.DRIVER, AdrRole.APPROVER)
+}
 
 /** Tags change in any non-terminal status (they are not part of the content freeze), by the Driver, the Approver or ADMIN. */
 fun canEditTags(standing: AdrStanding, status: AdrStatus): Boolean =
@@ -100,6 +108,21 @@ fun canEditSuccessor(standing: AdrStanding, status: AdrStatus): Boolean =
  */
 fun canDetachSuccessor(standing: AdrStanding, status: AdrStatus, pending: AdrRef?): Boolean =
     !status.terminal && pending?.status?.contentEditable == true && standing.holds(AdrRole.DRIVER, AdrRole.APPROVER)
+
+/** Who may accept a pending successor (coarse, before the body): the Approver of the PREDECESSOR (this ADR) or ADMIN. */
+fun requireMayAcceptSuccessor(standing: AdrStanding) {
+    if (!standing.holds(AdrRole.APPROVER)) {
+        throw ForbiddenException("Only the Approver or an administrator may accept a successor of this ADR")
+    }
+}
+
+/**
+ * The predecessor's Approver (or ADMIN) accepts the pending successor (`POST /adrs/{id}/successor/accept`, 1.0.0): a successor replaces a
+ * decision in force only with the consent of the one who decides it. Offered on an `ACTIVE` ADR whose successor is still pre-active
+ * ([pending]) and not yet [accepted]; the activation then goes through.
+ */
+fun canAcceptSuccessor(standing: AdrStanding, status: AdrStatus, pending: AdrRef?, accepted: Boolean): Boolean =
+    status == AdrStatus.ACTIVE && pending?.status?.contentEditable == true && !accepted && standing.holds(AdrRole.APPROVER)
 
 /** The participants are replaceable on any non-terminal ADR by the Driver, the Approver or ADMIN. */
 fun canManageParticipants(standing: AdrStanding, status: AdrStatus): Boolean =

@@ -21,9 +21,12 @@
     "DISCUSSION_RESOLVED": "{{actor}} resolved your entry on {{key}}: {{kind}}",
     "ADR_EXPIRED": "{{key}} expired: its expiry date {{date}} has passed",
     "ADR_SUPERSEDED": "{{key}} was superseded by {{other}}",
-    "SUCCESSOR_LINKED": "{{actor}} set {{other}} to replace {{key}}",
+    "SUCCESSOR_LINKED": "{{actor}} proposed {{other}} to replace {{key}}",
     "SUCCESSOR_UNLINKED": "{{actor}} detached {{other}}: it no longer replaces {{key}}",
-    "EXPIRY_REMINDER": "{{key}} expires on {{date}}"
+    "EXPIRY_REMINDER": "{{key}} expires on {{date}}",
+    "EXPIRY_CHANGED": "{{actor}} changed the expiry date of {{key}} to {{date}}",
+    "EXPIRY_REMOVED": "{{actor}} removed the expiry date of {{key}}",
+    "SUCCESSOR_ACCEPTED": "{{actor}} accepted {{key}} to replace {{other}}"
   },
   "toast": {
     "preferencesSaved": "Notification preferences saved"
@@ -73,8 +76,8 @@
         "description": "A successor takes over an ADR you take part in."
       },
       "SUCCESSOR_LINKED": {
-        "label": "A successor is linked",
-        "description": "Someone names a successor for an ADR you drive or approve."
+        "label": "A successor is proposed",
+        "description": "Someone proposes a successor for an ADR you drive or approve."
       },
       "SUCCESSOR_UNLINKED": {
         "label": "A successor is detached",
@@ -83,6 +86,14 @@
       "EXPIRY_REMINDER": {
         "label": "An expiry is coming up",
         "description": "The system reminds you that an ADR you drive or approve is about to expire."
+      },
+      "EXPIRY_CHANGED": {
+        "label": "The expiry date of a decision in force changes",
+        "description": "Someone changes or removes the expiry date of an ADR in force that you take part in. Only the Approver or an administrator may."
+      },
+      "SUCCESSOR_ACCEPTED": {
+        "label": "A successor is accepted",
+        "description": "The Approver of a decision in force accepts the successor you drive or approve, which it needs to take that decision's place."
       }
     }
   }

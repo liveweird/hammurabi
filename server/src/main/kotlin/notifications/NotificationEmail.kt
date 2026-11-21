@@ -79,8 +79,20 @@ private val RESOLVED = LocalizedText("%s resolved your %s on %s", "%s rozwi\u010
 private val EXPIRED = LocalizedText("%s has expired (its last day in force was %s)",
     "%s wygas\u0142 (ostatni dzie\u0144 obowi\u0105zywania: %s)")
 private val SUPERSEDED = LocalizedText("%s was superseded by %s", "%s zosta\u0142 zast\u0105piony przez %s")
-private val LINKED = LocalizedText("%s set %s to replace %s", "%s wskazuje %s jako nast\u0119pc\u0119 %s")
+private val LINKED = LocalizedText("%s proposed %s to replace %s", "%s proponuje %s jako nast\u0119pc\u0119 %s")
 private val UNLINKED = LocalizedText("%s removed the link: %s will not replace %s", "%s usuwa powi\u0105zanie: %s nie zast\u0105pi %s")
+private val EXPIRY_CHANGED = LocalizedText(
+    "%s changed the expiry date of %s to %s (the last day in force)",
+    "%s zmienia dat\u0119 wyga\u015bni\u0119cia %s na %s (ostatni dzie\u0144 obowi\u0105zywania)",
+)
+private val EXPIRY_REMOVED = LocalizedText(
+    "%s removed the expiry date of %s",
+    "%s usuwa dat\u0119 wyga\u015bni\u0119cia %s",
+)
+private val ACCEPTED = LocalizedText(
+    "%s accepted %s to replace %s",
+    "%s akceptuje %s jako nast\u0119pc\u0119 %s",
+)
 private val REMINDER = LocalizedText("%s expires on %s (the last day in force)", "%s wygasa %s (ostatni dzie\u0144 obowi\u0105zywania)")
 
 /** `String.format` in the root locale: a digit is always an ASCII digit, whatever the server's default locale. */
@@ -109,6 +121,10 @@ private fun entryText(entry: DigestEntry, language: String): String {
         NotificationType.ADR_SUPERSEDED -> fmt(SUPERSEDED.of(language), adr, other)
         NotificationType.SUCCESSOR_LINKED -> fmt(LINKED.of(language), actor, other, adr)
         NotificationType.SUCCESSOR_UNLINKED -> fmt(UNLINKED.of(language), actor, other, adr)
+        NotificationType.SUCCESSOR_ACCEPTED -> fmt(ACCEPTED.of(language), actor, adr, other)
+        NotificationType.EXPIRY_CHANGED ->
+            if (detail.isNullOrEmpty()) fmt(EXPIRY_REMOVED.of(language), actor, adr)
+            else fmt(EXPIRY_CHANGED.of(language), actor, adr, mailSafe(detail))
         NotificationType.EXPIRY_REMINDER -> fmt(REMINDER.of(language), adr, mailSafe(detail.orEmpty()))
     }
 }

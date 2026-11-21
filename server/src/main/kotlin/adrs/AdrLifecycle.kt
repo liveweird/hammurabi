@@ -98,6 +98,21 @@ fun missingForTransition(
     return missing
 }
 
+/**
+ * A successor replaces a decision in force only with the consent of that decision's Approver (1.0.0, `adr-model.md` "Successors"): the
+ * activation of [record] over an `ACTIVE` [predecessor] is the typed `409` `successor-not-accepted` until the predecessor's Approver (or
+ * ADMIN) accepted the link, ADMIN included (nobody bypasses it at activation). A predecessor that is not `ACTIVE` is not this rule's
+ * business (it keeps its own `400` among the requirements), and no predecessor, or a soft-deleted one that reads as none, passes.
+ */
+fun requireSuccessorAccepted(record: AdrRecord, predecessor: AdrRef?) {
+    if (predecessor?.status == AdrStatus.ACTIVE && !record.supersedesAccepted) {
+        throw ConflictException(
+            "${predecessor.key} is in force: its Approver has to accept this successor before it can be activated",
+            ProblemTypes.SUCCESSOR_NOT_ACCEPTED,
+        )
+    }
+}
+
 fun requireTransitionRequirements(
     target: AdrStatus,
     record: AdrRecord,

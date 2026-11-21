@@ -15,6 +15,7 @@
     "ROLE_ASSIGNED": "{{actor}} gave you a role on {{key}}: {{role}}",
     "ROLE_REMOVED": "{{actor}} took your role on {{key}} away: {{role}}",
     "STATUS_CHANGED": "{{actor}} changed the status of {{key}} to {{status}}",
+    "STATUS_SENT_BACK": "{{actor}} sent {{key}} back to draft",
     "DISCUSSION_POSTED": "{{actor}} posted on {{key}}: {{kind}}",
     "DISCUSSION_ANSWERED": "{{actor}} marked your question on {{key}} as answered",
     "DISCUSSION_RESOLVED": "{{actor}} resolved your entry on {{key}}: {{kind}}",

@@ -30,7 +30,10 @@ export function describeNotification(n: NotificationItem, t: TFunction): string 
     case "ROLE_REMOVED":
       return t(`notifications.event.${n.type}`, { ...params, role: roleWord(n.detail, t) });
     case "STATUS_CHANGED":
-      return t("notifications.event.STATUS_CHANGED", { ...params, status: statusWord(n.detail, t) });
+      // An in-review ADR returned to draft is "sent back" (the server's own detail word), not a plain move to the draft status.
+      return n.detail === "SENT_BACK"
+        ? t("notifications.event.STATUS_SENT_BACK", params)
+        : t("notifications.event.STATUS_CHANGED", { ...params, status: statusWord(n.detail, t) });
     case "DISCUSSION_POSTED":
       return t("notifications.event.DISCUSSION_POSTED", { ...params, kind: kindWord(n.detail, t) });
     case "DISCUSSION_SETTLED":

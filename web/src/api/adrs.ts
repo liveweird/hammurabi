@@ -88,12 +88,12 @@ export async function updateAdr(id: number, revision: number, body: AdrUpdateBod
   });
 }
 
-/** One lifecycle move; answers the ADR as the caller now sees it. */
-export async function transitionAdr(id: number, revision: number, to: AdrStatus): Promise<AdrResponse> {
+/** One lifecycle move with an optional `reason` (kept in the history, never in a notice); answers the ADR as the caller now sees it. */
+export async function transitionAdr(id: number, revision: number, to: AdrStatus, reason?: string): Promise<AdrResponse> {
   return jsonRequest<AdrResponse>(`/api/v1/adrs/${id}/transitions`, {
     method: "POST",
     headers: { [REVISION_HEADER]: String(revision) },
-    body: JSON.stringify({ to }),
+    body: JSON.stringify(reason ? { to, reason } : { to }),
   });
 }
 

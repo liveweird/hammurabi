@@ -15,15 +15,22 @@ export default function AdrParticipantsFields({
   withDriver,
   reserved = [],
   driverError,
+  approverLocked = false,
+  withholdFromApprover = [],
 }: {
   value: ParticipantsState;
   onChange: (next: ParticipantsState) => void;
   withDriver: boolean;
   reserved?: readonly string[];
   driverError?: string;
+  /** The Approver seat may not be changed by this caller now (`canChangeApprover` false): the picker shows who holds it, disabled. */
+  approverLocked?: boolean;
+  /** People not offered for the Approver seat alone (the caller, who may not name themselves Approver unless an ADMIN). */
+  withholdFromApprover?: readonly string[];
 }) {
   const { t } = useTranslation();
   const exclude = new Set([...takenIds(value), ...reserved]);
+  const approverExclude = new Set([...exclude, ...withholdFromApprover]);
   return (
     <Stack gap="sm">
       {withDriver && (
@@ -38,10 +45,11 @@ export default function AdrParticipantsFields({
       )}
       <UserDirectorySelect
         label={t("adrs.role.APPROVER")}
-        description={t("adrs.daci.approverHint")}
+        description={approverLocked ? t("adrs.daci.approverLockedHint") : t("adrs.daci.approverHint")}
         picked={value.approver}
         onPick={(approver) => onChange({ ...value, approver })}
-        exclude={exclude}
+        exclude={approverExclude}
+        disabled={approverLocked}
       />
       <UserMultiPicker
         label={t("adrs.roleGroup.CONTRIBUTOR")}

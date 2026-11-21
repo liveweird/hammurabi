@@ -77,7 +77,9 @@
     "CANCELLED": "Anuluj ADR",
     "WITHDRAWN": "Wycofaj",
     "EXPIRED": "Wygaś",
-    "SUPERSEDED": "Zastąp"
+    "SUPERSEDED": "Zastąp",
+    "SEND_BACK": "Odeślij do szkicu",
+    "WITHDRAW_ACTIVE": "Wycofaj decyzję"
   },
   "confirm": {
     "CANCELLED": {
@@ -87,7 +89,18 @@
     "WITHDRAWN": {
       "title": "Wycofać ten ADR?",
       "body": "Wycofany ADR jest zamknięty na stałe: nikt nie może go już edytować ani przesunąć."
-    }
+    },
+    "WITHDRAW_ACTIVE": {
+      "title": "Wycofać tę decyzję?",
+      "body": "Decyzja przestaje obowiązywać, a ADR zostaje zamknięty na stałe: nikt nie może go już edytować ani przesunąć. Otwarte zgłoszenia nadal można rozwiązać."
+    },
+    "SEND_BACK": {
+      "title": "Odesłać ten ADR do szkicu?",
+      "body": "ADR wraca do szkicowania; treść, osoby i tagi zostają, a Zatwierdzający/a będzie musiał/a przejrzeć go ponownie, gdy ponownie wyślesz go do przeglądu."
+    },
+    "reasonLabel": "Powód (opcjonalnie)",
+    "reasonHint": "Widoczny w historii. Osoby przy ADR dowiedzą się o zmianie, ale nie o powodzie.",
+    "reasonRefused": "Powód został odrzucony: nie może zawierać znaków sterujących ani ukrytych znaków kierunku tekstu, ani być dłuższy niż 1000 znaków."
   },
   "requirement": {
     "context": "kontekst",
@@ -144,6 +157,7 @@
     "removeAria": "Usuń: {{name}}",
     "driverHint": "Prowadzi ADR. Dokładnie jedna osoba; można ją zmienić, ale nie zostawić pustego miejsca.",
     "approverHint": "Decyduje: aktywuje albo wycofuje. Najwyżej jedna osoba.",
+    "approverLockedHint": "Gdy ADR był już w przeglądzie, tylko Zatwierdzający/a lub administrator może to zmienić.",
     "contributorHint": "Edytują treść i biorą udział w dyskusji.",
     "informedHint": "Tylko czytają i są informowani/e.",
     "save": "Zapisz uczestników/czki",
@@ -170,6 +184,8 @@
       "CREATED": "Zgłoszono ADR",
       "UPDATED": "Edytowano",
       "TRANSITIONED": "Status zmieniony z „{{from}}” na „{{to}}”",
+      "SENT_BACK": "Odesłany do szkicu",
+      "DECISION_WITHDRAWN": "Decyzja wycofana",
       "PARTICIPANT_ADDED": "Dodano: {{name}} ({{role}})",
       "PARTICIPANT_REMOVED": "Usunięto: {{name}} ({{role}})",
       "PARTICIPANT_CHANGED": "{{name}}: rola zmieniona z „{{from}}” na „{{to}}”",
@@ -200,14 +216,16 @@
       "textChanged": "Zmieniono: {{field}}",
       "adrName": "„{{name}}”",
       "tagsAdded": "Dodano: {{tags}}",
-      "tagsRemoved": "Usunięto: {{tags}}"
+      "tagsRemoved": "Usunięto: {{tags}}",
+      "reason": "Powód: {{reason}}"
     }
   },
   "validation": {
     "textLength": "Najwyżej {{max}} znaków",
     "nameLength": "Nazwa musi mieć od 1 do 120 znaków",
     "problemRequired": "Opisz problem albo pytanie",
-    "driverRequired": "ADR potrzebuje Prowadzącego/ej"
+    "driverRequired": "ADR potrzebuje Prowadzącego/ej",
+    "reasonCharacters": "Powód nie może zawierać znaków sterujących ani ukrytych znaków kierunku tekstu"
   },
   "error": {
     "conflictTitle": "Ten ADR się zmienił",
@@ -220,6 +238,7 @@
     "frozen": "Ten ADR jest zamrożony: w obecnym statusie nie można już zmieniać jego treści. Wczytaj go ponownie, aby zobaczyć aktualny stan.",
     "illegalTransition": "Z obecnego statusu ten ADR nie może tam przejść. Wczytaj go ponownie, aby zobaczyć, co jest teraz możliwe.",
     "forbidden": "Twoja rola w tym ADR-ze na to nie pozwala.",
+    "participantsForbidden": "Nikt poza administratorem nie może sam siebie uczynić Zatwierdzającym/ą, a gdy ADR był już w przeglądzie, tylko jego Zatwierdzający/a lub administrator może zmienić, kto nim jest.",
     "gone": "Ten ADR już nie istnieje.",
     "nameTaken": "ADR o tej nazwie już istnieje.",
     "tagsInvalid": "Sprawdź tagi: używaj tylko tagów z rejestru (wycofany trzeba usunąć), każdy raz, najwyżej 20.",
@@ -231,6 +250,8 @@
     "created": "ADR zgłoszony",
     "saved": "ADR zapisany",
     "moved": "Status zmieniony",
+    "sentBack": "ADR odesłany do szkicu",
+    "withdrawn": "ADR wycofany",
     "participantsSaved": "Uczestnicy/czki zapisani/e",
     "expirySaved": "Data wygaśnięcia zapisana",
     "deleted": "ADR usunięty",
@@ -339,6 +360,7 @@
     "pending": "Ustawiony jako zastępujący ten ADR",
     "none": "Nie zastępuje żadnego ADR-a.",
     "hint": "Zaczyna działać, gdy ten ADR stanie się aktywny: zastępowany ADR zostanie wtedy zastąpiony.",
+    "predecessorOver": "{{key}} już nie obowiązuje ({{status}}), więc nie ma czego zastępować. Usuń powiązanie, zanim ten ADR zostanie aktywowany.",
     "pickerLabel": "Ten ADR zastępuje…",
     "pickerPlaceholder": "Szukaj ADR-ów po kluczu lub nazwie…",
     "pickerClear": "Wyczyść ADR",

@@ -17,7 +17,9 @@ import ConfirmActionModal from "./ConfirmActionModal";
  * The banner above a replaced ADR: once the successor is active this ADR reads "Superseded by ADR-0042" (orange: it is no longer in force);
  * while the successor is only linked, a cyan note says one is on its way and what activating it will do - and only while THIS ADR can still
  * be replaced (`ACTIVE` or pre-active: on a cancelled, withdrawn or expired ADR a pending link means nothing, so nothing is shown). Nothing
- * when there is no successor, or when the one linked is itself over (the server never serves a cancelled or withdrawn one here).
+ * when there is no successor. The server never serves a successor cancelled or withdrawn BEFORE it activated, but a SUPERSEDED
+ * predecessor keeps pointing at the successor that replaced it even if that one was withdrawn since: the banner then still names it,
+ * with its status badge reading "Withdrawn" (the old decision stays superseded; nothing is resurrected).
  * Whoever the server says may detach the pending successor (`canDetachSuccessor`: this ADR's Driver, Approver or an ADMIN) gets the
  * "Detach" action - linking is the successor's, so this is how the predecessor's owners take back a link parked on it.
  */

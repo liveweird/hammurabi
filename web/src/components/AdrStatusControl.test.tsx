@@ -3,8 +3,11 @@ import userEvent from "@testing-library/user-event";
 import { adrFixture } from "../test/adrFixtures";
 import { problem, stubFetch } from "../test/fetchStub";
 import { jsonResponse } from "../test/http";
-import { renderWithProviders, screen, waitFor, within } from "../test/render";
+import { fireEvent, renderWithProviders, screen, waitFor, within } from "../test/render";
+import { showSuccessToast } from "../utils/toast";
 import AdrStatusControl from "./AdrStatusControl";
+
+vi.mock("../utils/toast", () => ({ showSuccessToast: vi.fn() }));
 
 const COMPLETE = { context: "C", decision: "D", consequences: "Q" };
 const WITH_APPROVER = [
@@ -15,6 +18,7 @@ const WITH_APPROVER = [
 describe("AdrStatusControl", () => {
   beforeEach(() => localStorage.setItem("hammurabi.auth.token", "fake-token"));
   afterEach(() => {
+    vi.mocked(showSuccessToast).mockClear();
     vi.unstubAllGlobals();
     localStorage.clear();
   });
@@ -83,6 +87,136 @@ describe("AdrStatusControl", () => {
     renderWithProviders(<AdrStatusControl adr={adrFixture({ status: "IN_REVIEW", allowedTransitions: ["ACTIVE", "CANCELLED", "WITHDRAWN"] })} />);
     await user.click(screen.getByRole("button", { name: "Withdraw" }));
     expect(await screen.findByRole("dialog", { name: "Withdraw this ADR?" })).toBeInTheDocument();
+  });
+
+  test("an ADR in review offers the Approver a send back that is not the filled button, and the Driver one beside Cancel", () => {
+    const { unmount } = renderWithProviders(
+      <AdrStatusControl adr={adrFixture({ status: "IN_REVIEW", ...COMPLETE, participants: WITH_APPROVER, allowedTransitions: ["SOLUTION_DRAFT", "ACTIVE", "WITHDRAWN"] })} />,
+    );
+    expect(screen.getByRole("button", { name: "Send back to draft" })).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Move to draft" })).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Activate" })).toHaveAttribute("data-variant", "filled");
+    expect(screen.getByRole("button", { name: "Send back to draft" })).not.toHaveAttribute("data-variant", "filled");
+    unmount();
+    renderWithProviders(<AdrStatusControl adr={adrFixture({ status: "IN_REVIEW", allowedTransitions: ["SOLUTION_DRAFT", "CANCELLED"] })} />);
+    expect(screen.getByRole("button", { name: "Send back to draft" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Cancel ADR" })).toBeInTheDocument();
+  });
+
+  test("sending back asks first, takes an optional reason and sends it with the held revision", async () => {
+    const stub = stubFetch((r) => (r.method === "POST" ? jsonResponse(200, adrFixture({ status: "SOLUTION_DRAFT" })) : jsonResponse(200, { items: [] })));
+    const user = userEvent.setup();
+    renderWithProviders(<AdrStatusControl adr={adrFixture({ status: "IN_REVIEW", revision: 7, allowedTransitions: ["SOLUTION_DRAFT", "ACTIVE", "WITHDRAWN"] })} />);
+    await user.click(screen.getByRole("button", { name: "Send back to draft" }));
+    const dialog = await screen.findByRole("dialog", { name: "Send this ADR back to draft?" });
+    expect(within(dialog).getByText(/content, people and tags are kept/)).toBeInTheDocument();
+    expect(stub.find("POST", "/api/v1/adrs/1/transitions")).toBeUndefined();
+    await user.type(within(dialog).getByLabelText("Reason (optional)"), "  Needs the cost of option B ");
+    await user.click(within(dialog).getByRole("button", { name: "Send back to draft" }));
+    await waitFor(() => expect(stub.find("POST", "/api/v1/adrs/1/transitions")?.body).toEqual({ to: "SOLUTION_DRAFT", reason: "Needs the cost of option B" }));
+    expect(stub.find("POST", "/api/v1/adrs/1/transitions")?.headers.get("X-Expected-Revision")).toBe("7");
+    await waitFor(() => expect(showSuccessToast).toHaveBeenCalledWith("ADR sent back to draft"));
+    await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
+  });
+
+  test("an empty reason sends no reason field, and the dialog starts empty each time", async () => {
+    const stub = stubFetch((r) => (r.method === "POST" ? problem(403) : jsonResponse(200, { items: [] })));
+    const user = userEvent.setup();
+    renderWithProviders(<AdrStatusControl adr={adrFixture({ status: "IN_REVIEW", allowedTransitions: ["SOLUTION_DRAFT"] })} />);
+    await user.click(screen.getByRole("button", { name: "Send back to draft" }));
+    await user.type(within(await screen.findByRole("dialog")).getByLabelText("Reason (optional)"), "draft text");
+    await user.click(within(screen.getByRole("dialog")).getByRole("button", { name: "Cancel" }));
+    await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
+    await user.click(screen.getByRole("button", { name: "Send back to draft" }));
+    const dialog = await screen.findByRole("dialog");
+    expect(within(dialog).getByLabelText("Reason (optional)")).toHaveValue("");
+    await user.click(within(dialog).getByRole("button", { name: "Send back to draft" }));
+    await waitFor(() => expect(stub.find("POST", "/api/v1/adrs/1/transitions")?.body).toEqual({ to: "SOLUTION_DRAFT" }));
+    // A refused move (403) reports in the section in fixed words, and the dialog is gone.
+    expect(await screen.findByRole("alert")).toHaveTextContent("Your role on this ADR does not allow this.");
+    await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
+  });
+
+  test("an ACTIVE decision is withdrawn in red after a confirmation with an optional reason", async () => {
+    const stub = stubFetch((r) => (r.method === "POST" ? jsonResponse(200, adrFixture({ status: "WITHDRAWN" })) : jsonResponse(200, { items: [] })));
+    const user = userEvent.setup();
+    renderWithProviders(<AdrStatusControl adr={adrFixture({ status: "ACTIVE", allowedTransitions: ["WITHDRAWN"] })} />);
+    expect(screen.queryByRole("button", { name: "Withdraw" })).not.toBeInTheDocument();
+    const button = screen.getByRole("button", { name: "Withdraw decision" });
+    expect(button).toHaveAttribute("data-variant", "light");
+    await user.click(button);
+    const dialog = await screen.findByRole("dialog", { name: "Withdraw this decision?" });
+    expect(within(dialog).getByText(/stops being in force/)).toBeInTheDocument();
+    await user.type(within(dialog).getByLabelText("Reason (optional)"), "Replaced by the platform standard");
+    await user.click(within(dialog).getByRole("button", { name: "Withdraw decision" }));
+    await waitFor(() => expect(stub.find("POST", "/api/v1/adrs/1/transitions")?.body).toEqual({ to: "WITHDRAWN", reason: "Replaced by the platform standard" }));
+    await waitFor(() => expect(showSuccessToast).toHaveBeenCalledWith("ADR withdrawn"));
+  });
+
+  test("a reason over 1,000 characters blocks the confirm button", async () => {
+    stubFetch(() => null);
+    const user = userEvent.setup();
+    renderWithProviders(<AdrStatusControl adr={adrFixture({ status: "ACTIVE", allowedTransitions: ["WITHDRAWN"] })} />);
+    await user.click(screen.getByRole("button", { name: "Withdraw decision" }));
+    const dialog = await screen.findByRole("dialog");
+    fireEvent.change(within(dialog).getByLabelText("Reason (optional)"), { target: { value: "x".repeat(1001) } });
+    expect(within(dialog).getByText("At most 1000 characters")).toBeInTheDocument();
+    expect(within(dialog).getByRole("button", { name: "Withdraw decision" })).toBeDisabled();
+    fireEvent.change(within(dialog).getByLabelText("Reason (optional)"), { target: { value: "\u{1F600}".repeat(1000) } });
+    expect(within(dialog).getByRole("button", { name: "Withdraw decision" })).toBeEnabled();
+  });
+
+  test("a reason with a hidden direction or control character is caught in the dialog before anything is sent", async () => {
+    const stub = stubFetch(() => null);
+    const user = userEvent.setup();
+    renderWithProviders(<AdrStatusControl adr={adrFixture({ status: "ACTIVE", allowedTransitions: ["WITHDRAWN"] })} />);
+    await user.click(screen.getByRole("button", { name: "Withdraw decision" }));
+    const dialog = await screen.findByRole("dialog");
+    for (const bad of ["a\u202eb", "a\u2028b", "a\u2029b", "a\u0007b", "a\u0085b", "a\u2066b"]) {
+      fireEvent.change(within(dialog).getByLabelText("Reason (optional)"), { target: { value: bad } });
+      expect(within(dialog).getByText("The reason must not contain control characters or hidden direction characters")).toBeInTheDocument();
+      expect(within(dialog).getByRole("button", { name: "Withdraw decision" })).toBeDisabled();
+    }
+    fireEvent.change(within(dialog).getByLabelText("Reason (optional)"), { target: { value: "line one\n\tline two" } });
+    expect(within(dialog).queryByText(/hidden direction characters/)).not.toBeInTheDocument();
+    expect(within(dialog).getByRole("button", { name: "Withdraw decision" })).toBeEnabled();
+    expect(stub.find("POST", "/api/v1/adrs/1/transitions")).toBeUndefined();
+  });
+
+  test("a 400 to a confirmed move keeps the dialog open with the reason in it and says the reason was refused", async () => {
+    let answer = problem(400);
+    const stub = stubFetch((r) => (r.method === "POST" ? answer : jsonResponse(200, { items: [] })));
+    const user = userEvent.setup();
+    renderWithProviders(<AdrStatusControl adr={adrFixture({ status: "ACTIVE", allowedTransitions: ["WITHDRAWN"] })} />);
+    await user.click(screen.getByRole("button", { name: "Withdraw decision" }));
+    const dialog = await screen.findByRole("dialog");
+    await user.type(within(dialog).getByLabelText("Reason (optional)"), "Replaced by the platform standard");
+    await user.click(within(dialog).getByRole("button", { name: "Withdraw decision" }));
+    expect(await within(dialog).findByText(/The reason was refused/)).toBeInTheDocument();
+    expect(screen.getByRole("dialog")).toBeInTheDocument();
+    expect(within(dialog).getByLabelText("Reason (optional)")).toHaveValue("Replaced by the platform standard");
+    // Not the "context, decision ..." notice of the forward moves.
+    expect(screen.queryByText(/Not ready for that move/)).not.toBeInTheDocument();
+    // Editing the reason clears the refusal; the next try goes through and closes the dialog.
+    answer = jsonResponse(200, adrFixture({ status: "WITHDRAWN" }));
+    await user.type(within(dialog).getByLabelText("Reason (optional)"), "!");
+    expect(within(dialog).queryByText(/The reason was refused/)).not.toBeInTheDocument();
+    await user.click(within(dialog).getByRole("button", { name: "Withdraw decision" }));
+    await waitFor(() => expect(stub.count("POST", "/api/v1/adrs/1/transitions")).toBe(2));
+    await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
+  });
+
+  test("cancelling the dialog after a refused reason leaves no stale notice behind", async () => {
+    stubFetch((r) => (r.method === "POST" ? problem(400) : jsonResponse(200, { items: [] })));
+    const user = userEvent.setup();
+    renderWithProviders(<AdrStatusControl adr={adrFixture({ status: "ACTIVE", allowedTransitions: ["WITHDRAWN"] })} />);
+    await user.click(screen.getByRole("button", { name: "Withdraw decision" }));
+    const dialog = await screen.findByRole("dialog");
+    await user.click(within(dialog).getByRole("button", { name: "Withdraw decision" }));
+    expect(await within(dialog).findByText(/The reason was refused/)).toBeInTheDocument();
+    await user.click(within(dialog).getByRole("button", { name: "Cancel" }));
+    await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
+    expect(screen.queryByRole("alert")).not.toBeInTheDocument();
   });
 
   test("a stale revision shows the reload notice; the dialog closes and the notice stays", async () => {

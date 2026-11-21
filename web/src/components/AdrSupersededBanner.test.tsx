@@ -23,6 +23,13 @@ describe("AdrSupersededBanner", () => {
     expect(screen.getByText("Active")).toBeInTheDocument();
   });
 
+  test("a superseded ADR whose replacement was withdrawn since still names it, with a Withdrawn badge", () => {
+    renderWithProviders(<AdrSupersededBanner adr={adrFixture({ status: "SUPERSEDED", supersededBy: { ...NEXT, status: "WITHDRAWN" } })} />);
+    expect(screen.getByText("This ADR is superseded")).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "ADR-0009 Use CockroachDB" })).toBeInTheDocument();
+    expect(screen.getByText("Withdrawn")).toBeInTheDocument();
+  });
+
   test("a pending successor is a quieter note about what activating it will do", () => {
     renderWithProviders(<AdrSupersededBanner adr={adrFixture({ status: "ACTIVE", supersededBy: PENDING })} />);
     expect(screen.getByText("A successor is on its way")).toBeInTheDocument();

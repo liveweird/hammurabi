@@ -26,6 +26,8 @@ describe("describeNotification", () => {
     [{ type: "ROLE_ASSIGNED", detail: "DRIVER" }, "Ada gave you a role on ADR-0042: Driver"],
     [{ type: "ROLE_REMOVED", detail: "INFORMED" }, "Ada took your role on ADR-0042 away: Informed"],
     [{ type: "STATUS_CHANGED", detail: "IN_REVIEW" }, "Ada changed the status of ADR-0042 to In review"],
+    [{ type: "STATUS_CHANGED", detail: "SENT_BACK" }, "Ada sent ADR-0042 back to draft"],
+    [{ type: "STATUS_CHANGED", detail: "WITHDRAWN" }, "Ada changed the status of ADR-0042 to Withdrawn"],
     [{ type: "DISCUSSION_POSTED", detail: "ESCALATION" }, "Ada posted on ADR-0042: Escalation"],
     [{ type: "DISCUSSION_SETTLED", detail: "QUESTION" }, "Ada marked your question on ADR-0042 as answered"],
     [{ type: "DISCUSSION_SETTLED", detail: "ISSUE" }, "Ada resolved your entry on ADR-0042: Issue"],
@@ -61,6 +63,7 @@ describe("describeNotification", () => {
     try {
       expect(describeNotification(notice({ type: "ROLE_ASSIGNED", detail: "DRIVER" }), i18n.t.bind(i18n))).toBe("Ada przypisał/a Ci rolę w ADR-0042: Prowadzący/a");
       expect(describeNotification(notice({ type: "STATUS_CHANGED", detail: "ACTIVE" }), i18n.t.bind(i18n))).toBe("Ada zmienił/a status ADR-0042 na „Obowiązujący”");
+      expect(describeNotification(notice({ type: "STATUS_CHANGED", detail: "SENT_BACK" }), i18n.t.bind(i18n))).toBe("Ada odesłał/a ADR-0042 do szkicu");
     } finally {
       await i18n.changeLanguage("en");
     }

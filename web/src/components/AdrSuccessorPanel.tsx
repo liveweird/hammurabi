@@ -6,6 +6,7 @@ import { IconLink, IconLinkOff } from "@tabler/icons-react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { listAdrs, setAdrSupersedes, type AdrRef, type AdrResponse, type AdrStatus } from "../api/adrs";
 import { adrPath } from "../utils/adrLinks";
+import { isPreActive, isTerminal } from "../utils/adrStatus";
 import { refreshQueriesAfterMutation } from "../utils/queryRefresh";
 import { showSuccessToast } from "../utils/toast";
 import AdrStatusBadge from "./AdrStatusBadge";
@@ -59,6 +60,12 @@ export default function AdrSuccessorPanel({ adr }: { adr: AdrResponse }) {
         ) : (
           <Text size="sm" c="dimmed">
             {t("adrs.successor.none")}
+          </Text>
+        )}
+        {/* A predecessor that ended (withdrawn, expired, cancelled) leaves nothing to replace: activation is refused until the link goes. */}
+        {adr.supersedes && isTerminal(adr.supersedes.status) && isPreActive(adr.status) && (
+          <Text size="xs" c="orange" role="status">
+            {t("adrs.successor.predecessorOver", { key: adr.supersedes.key, status: t(`adrs.status.${adr.supersedes.status}`) })}
           </Text>
         )}
       </div>

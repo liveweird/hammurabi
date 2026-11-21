@@ -110,6 +110,65 @@ describe("AdrParticipantsPanel", () => {
     await waitFor(() => expect(stub.find("PUT", "/api/v1/adrs/1/participants")?.body).toMatchObject({ participants: [{ userId: 9, role: "DRIVER" }, { userId: 6, role: "APPROVER" }, { userId: 7, role: "CONTRIBUTOR" }] }));
   });
 
+  describe("the Approver seat", () => {
+    const WITH_CALLER = {
+      items: [
+        { id: 5, name: "Dana Driver", email: "dana@example.test" },
+        { id: 9, name: "Dave Driver", email: "dave@example.test" },
+      ],
+      page: 1,
+      pageSize: 20,
+      total: 2,
+    };
+    const serveCaller = () =>
+      stubFetch((r) => (r.method === "PUT" ? noContent() : r.url.startsWith("/api/v1/users/directory") ? jsonResponse(200, WITH_CALLER) : jsonResponse(200, { items: [] })));
+
+    test("a caller who is not an ADMIN is never offered themselves as the Approver, however the seats are arranged", async () => {
+      serveCaller();
+      const user = userEvent.setup();
+      renderWithProviders(<AdrParticipantsPanel adr={adrFixture({ participants: [{ userId: 5, name: "Dana Driver", role: "DRIVER" }] })} />);
+      await user.click(screen.getByRole("button", { name: "Edit participants" }));
+      // Hand the Driver seat over first, so the caller holds no seat and the directory would otherwise offer them.
+      await user.click(screen.getAllByLabelText("Clear the user")[0]);
+      await user.type(screen.getByRole("combobox", { name: "Approver" }), "da");
+      expect(await screen.findByRole("option", { name: "Dave Driver (dave@example.test)" })).toBeInTheDocument();
+      expect(screen.queryByRole("option", { name: "Dana Driver (dana@example.test)" })).not.toBeInTheDocument();
+    });
+
+    test("an ADMIN may be offered themselves", async () => {
+      localStorage.setItem("hammurabi.auth.roles", JSON.stringify(["ADMIN"]));
+      serveCaller();
+      const user = userEvent.setup();
+      renderWithProviders(<AdrParticipantsPanel adr={adrFixture({ participants: [{ userId: 5, name: "Dana Driver", role: "DRIVER" }] })} />);
+      await user.click(screen.getByRole("button", { name: "Edit participants" }));
+      await user.click(screen.getAllByLabelText("Clear the user")[0]);
+      await user.type(screen.getByRole("combobox", { name: "Approver" }), "da");
+      expect(await screen.findByRole("option", { name: "Dana Driver (dana@example.test)" })).toBeInTheDocument();
+    });
+
+    test("once the Approver seat is locked (canChangeApprover false) it is disabled and says why, and the rest still saves", async () => {
+      const stub = serve();
+      const user = userEvent.setup();
+      renderWithProviders(<AdrParticipantsPanel adr={adrFixture({ status: "IN_REVIEW", participants: PEOPLE, canChangeApprover: false })} />);
+      await user.click(screen.getByRole("button", { name: "Edit participants" }));
+      expect(screen.getByRole("combobox", { name: "Approver" })).toBeDisabled();
+      expect(screen.getByText(/Once the ADR has been in review, only the Approver or an administrator can change this\./)).toBeInTheDocument();
+      await user.type(screen.getByRole("combobox", { name: "Informed" }), "id");
+      await user.click(await screen.findByRole("option", { name: "Ida Informed (ida@example.test)" }));
+      await user.click(screen.getByRole("button", { name: "Save participants" }));
+      await waitFor(() => expect(stub.find("PUT", "/api/v1/adrs/1/participants")?.body).toMatchObject({ participants: expect.arrayContaining([{ userId: 6, role: "APPROVER" }]) }));
+    });
+
+    test("a refused seat change (403) says what the rule is, in fixed words", async () => {
+      serve(() => problem(403));
+      const user = userEvent.setup();
+      renderWithProviders(<AdrParticipantsPanel adr={adrFixture({ participants: PEOPLE })} />);
+      await user.click(screen.getByRole("button", { name: "Edit participants" }));
+      await user.click(screen.getByRole("button", { name: "Save participants" }));
+      expect(await screen.findByRole("alert")).toHaveTextContent("Nobody but an administrator can make themselves the Approver");
+    });
+  });
+
   test("a stale revision is the reload notice; reloading leaves the editor", async () => {
     serve(() => problem(409, "urn:hammurabi:problem:revision-conflict"));
     const user = userEvent.setup();

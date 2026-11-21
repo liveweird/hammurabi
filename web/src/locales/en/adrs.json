@@ -77,7 +77,9 @@
     "CANCELLED": "Cancel ADR",
     "WITHDRAWN": "Withdraw",
     "EXPIRED": "Expire",
-    "SUPERSEDED": "Supersede"
+    "SUPERSEDED": "Supersede",
+    "SEND_BACK": "Send back to draft",
+    "WITHDRAW_ACTIVE": "Withdraw decision"
   },
   "confirm": {
     "CANCELLED": {
@@ -87,7 +89,18 @@
     "WITHDRAWN": {
       "title": "Withdraw this ADR?",
       "body": "A withdrawn ADR is closed for good: nobody can edit it or move it again."
-    }
+    },
+    "WITHDRAW_ACTIVE": {
+      "title": "Withdraw this decision?",
+      "body": "The decision stops being in force and the ADR is closed for good: nobody can edit it or move it again. Open issues can still be resolved."
+    },
+    "SEND_BACK": {
+      "title": "Send this ADR back to draft?",
+      "body": "It goes back to drafting; its content, people and tags are kept, and the Approver will have to review it again once you send it back to review."
+    },
+    "reasonLabel": "Reason (optional)",
+    "reasonHint": "Shown in the history. The people on the ADR are told about the move, not the reason.",
+    "reasonRefused": "The reason was refused: it must not contain control characters or hidden direction characters, or be longer than 1000 characters."
   },
   "requirement": {
     "context": "context",
@@ -144,6 +157,7 @@
     "removeAria": "Remove {{name}}",
     "driverHint": "Drives the ADR. Exactly one; hand it over, never leave it empty.",
     "approverHint": "Decides: activates or withdraws. At most one.",
+    "approverLockedHint": "Once the ADR has been in review, only the Approver or an administrator can change this.",
     "contributorHint": "Edit the content and take part in the discussion.",
     "informedHint": "Only read and are kept informed.",
     "save": "Save participants",
@@ -170,6 +184,8 @@
       "CREATED": "ADR raised",
       "UPDATED": "Edited",
       "TRANSITIONED": "Status changed from {{from}} to {{to}}",
+      "SENT_BACK": "Sent back to draft",
+      "DECISION_WITHDRAWN": "Decision withdrawn",
       "PARTICIPANT_ADDED": "{{name}} added as {{role}}",
       "PARTICIPANT_REMOVED": "{{name}} removed ({{role}})",
       "PARTICIPANT_CHANGED": "{{name}} moved from {{from}} to {{to}}",
@@ -200,14 +216,16 @@
       "textChanged": "{{field}} changed",
       "adrName": "\"{{name}}\"",
       "tagsAdded": "Added: {{tags}}",
-      "tagsRemoved": "Removed: {{tags}}"
+      "tagsRemoved": "Removed: {{tags}}",
+      "reason": "Reason: {{reason}}"
     }
   },
   "validation": {
     "textLength": "At most {{max}} characters",
     "nameLength": "The name must be 1–120 characters",
     "problemRequired": "Describe the problem or question",
-    "driverRequired": "An ADR needs a Driver"
+    "driverRequired": "An ADR needs a Driver",
+    "reasonCharacters": "The reason must not contain control characters or hidden direction characters"
   },
   "error": {
     "conflictTitle": "This ADR has moved on",
@@ -220,6 +238,7 @@
     "frozen": "This ADR is frozen: its content can no longer be changed in its current status. Reload to see its latest state.",
     "illegalTransition": "This ADR cannot move there from its current status. Reload to see what is possible now.",
     "forbidden": "Your role on this ADR does not allow this.",
+    "participantsForbidden": "Nobody but an administrator can make themselves the Approver, and once the ADR has been in review only its Approver or an administrator can change who the Approver is.",
     "gone": "This ADR no longer exists.",
     "nameTaken": "An ADR with this name already exists.",
     "tagsInvalid": "Check the tags: use only tags from the registry (remove a retired one), each once, at most 20.",
@@ -231,6 +250,8 @@
     "created": "ADR raised",
     "saved": "ADR saved",
     "moved": "Status changed",
+    "sentBack": "ADR sent back to draft",
+    "withdrawn": "ADR withdrawn",
     "participantsSaved": "Participants saved",
     "expirySaved": "Expiry date saved",
     "deleted": "ADR deleted",
@@ -339,6 +360,7 @@
     "pending": "Set to replace this ADR",
     "none": "Replaces no ADR.",
     "hint": "Takes effect when this ADR becomes active: the ADR it replaces is then superseded.",
+    "predecessorOver": "{{key}} is no longer in force ({{status}}), so there is nothing left to replace. Remove the link before this ADR is activated.",
     "pickerLabel": "This ADR supersedes…",
     "pickerPlaceholder": "Search ADRs by key or name…",
     "pickerClear": "Clear the ADR",

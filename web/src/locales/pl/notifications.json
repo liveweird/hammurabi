@@ -17,6 +17,7 @@
     "ROLE_ASSIGNED": "{{actor}} przypisał/a Ci rolę w {{key}}: {{role}}",
     "ROLE_REMOVED": "{{actor}} odebrał/a Ci rolę w {{key}}: {{role}}",
     "STATUS_CHANGED": "{{actor}} zmienił/a status {{key}} na „{{status}}”",
+    "STATUS_SENT_BACK": "{{actor}} odesłał/a {{key}} do szkicu",
     "DISCUSSION_POSTED": "{{actor}} dodał/a wpis w {{key}}: {{kind}}",
     "DISCUSSION_ANSWERED": "{{actor}} oznaczył/a Twoje pytanie w {{key}} jako odpowiedziane",
     "DISCUSSION_RESOLVED": "{{actor}} rozwiązał/a Twój wpis w {{key}}: {{kind}}",

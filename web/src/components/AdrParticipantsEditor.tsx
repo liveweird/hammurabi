@@ -3,6 +3,7 @@ import { useTranslation } from "react-i18next";
 import { Button, Group, Stack } from "@mantine/core";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { replaceAdrParticipants, type AdrResponse } from "../api/adrs";
+import { getUserId, isAdmin } from "../api/session";
 import { participantsRequest, participantsState, type ParticipantsState } from "../utils/adrParticipants";
 import { refreshQueriesAfterMutation } from "../utils/queryRefresh";
 import { showSuccessToast } from "../utils/toast";
@@ -20,6 +21,9 @@ export default function AdrParticipantsEditor({ adr, onClose }: { adr: AdrRespon
   const [driverMissing, setDriverMissing] = useState(false);
   // The set above was read at this revision: send it, not whatever a later refetch made of the prop.
   const [openedAtRevision] = useState(adr.revision);
+  // Nobody but an ADMIN names themselves Approver (the server answers 403): the caller is left out of the Approver picker.
+  const me = getUserId();
+  const withheld = me === null || isAdmin() ? [] : [String(me)];
   const save = useMutation({
     mutationFn: () => replaceAdrParticipants(adr.id, openedAtRevision, participantsRequest(state)),
     onSuccess: async () => {
@@ -39,6 +43,8 @@ export default function AdrParticipantsEditor({ adr, onClose }: { adr: AdrRespon
       <AdrParticipantsFields
         value={state}
         withDriver
+        approverLocked={!adr.canChangeApprover}
+        withholdFromApprover={withheld}
         onChange={(next) => {
           setState(next);
           setDriverMissing(false);

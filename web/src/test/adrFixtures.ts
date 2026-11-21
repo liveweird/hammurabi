@@ -27,6 +27,7 @@ export function adrFixture(overrides: Partial<AdrResponse> = {}): AdrResponse {
     allowedTransitions: ["SOLUTION_DRAFT", "IN_REVIEW", "CANCELLED"],
     canEdit: true,
     canManageParticipants: true,
+    canChangeApprover: true,
     canEditTags: true,
     canEditSuccessor: true,
     canDetachSuccessor: false,

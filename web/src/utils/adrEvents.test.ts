@@ -10,6 +10,10 @@ describe("describeAdrEvent", () => {
     [{ type: "CREATED" as const, params: { key: "ADR-0001", name: "N" } }, "ADR raised"],
     [{ type: "UPDATED" as const, params: { changed: "context" } }, "Edited"],
     [{ type: "TRANSITIONED" as const, params: { from: "PROBLEM_RAISED", to: "SOLUTION_DRAFT" } }, "Status changed from Problem raised to Solution draft"],
+    [{ type: "TRANSITIONED" as const, params: { from: "IN_REVIEW", to: "SOLUTION_DRAFT", reason: "Needs costs" } }, "Sent back to draft"],
+    [{ type: "TRANSITIONED" as const, params: { from: "SOLUTION_DRAFT", to: "IN_REVIEW" } }, "Status changed from Solution draft to In review"],
+    [{ type: "TRANSITIONED" as const, params: { from: "ACTIVE", to: "WITHDRAWN" } }, "Decision withdrawn"],
+    [{ type: "TRANSITIONED" as const, params: { from: "IN_REVIEW", to: "WITHDRAWN" } }, "Status changed from In review to Withdrawn"],
     [{ type: "PARTICIPANT_ADDED" as const, params: { userId: "7", name: "Cora", role: "CONTRIBUTOR" } }, "Cora added as Contributor"],
     [{ type: "PARTICIPANT_REMOVED" as const, params: { userId: "7", name: "Cora", role: "INFORMED" } }, "Cora removed (Informed)"],
     [{ type: "PARTICIPANT_CHANGED" as const, params: { userId: "7", name: "Cora", from: "INFORMED", to: "APPROVER" } }, "Cora moved from Informed to Approver"],
@@ -85,8 +89,16 @@ describe("adrEventLines", () => {
     expect(adrEventLines(eventFixture({ type: "SUCCESSOR_LINKED", params: {} }), t)).toEqual(['"—"']);
   });
 
-  test("other events have no detail lines", () => {
+  test("a move shows its reason as a line, and none without one", () => {
+    expect(adrEventLines(eventFixture({ type: "TRANSITIONED", params: { from: "IN_REVIEW", to: "SOLUTION_DRAFT", reason: "Needs costs\nof option B" } }), t)).toEqual([
+      "Reason: Needs costs\nof option B",
+    ]);
     expect(adrEventLines(eventFixture({ type: "TRANSITIONED", params: { from: "ACTIVE", to: "EXPIRED" } }), t)).toEqual([]);
+    expect(adrEventLines(eventFixture({ type: "TRANSITIONED", params: { from: "ACTIVE", to: "WITHDRAWN", reason: "" } }), t)).toEqual([]);
+  });
+
+  test("other events have no detail lines", () => {
+    expect(adrEventLines(eventFixture({ type: "EXPIRED", params: { expiresOn: "2026-12-31" } }), t)).toEqual([]);
   });
 });
 

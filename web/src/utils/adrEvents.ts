@@ -26,6 +26,9 @@ export function describeAdrEvent(event: AdrEventResponse, t: TFunction): string 
     case "UPDATED":
       return t("adrs.history.event.UPDATED");
     case "TRANSITIONED":
+      // The two moves 0.7.0 added read as their own sentence; every other move (and an unknown pair) is the generic from/to.
+      if (p.from === "IN_REVIEW" && p.to === "SOLUTION_DRAFT") return t("adrs.history.event.SENT_BACK");
+      if (p.from === "ACTIVE" && p.to === "WITHDRAWN") return t("adrs.history.event.DECISION_WITHDRAWN");
       return t("adrs.history.event.TRANSITIONED", { from: statusName(p.from, t), to: statusName(p.to, t) });
     case "PARTICIPANT_ADDED":
       return t("adrs.history.event.PARTICIPANT_ADDED", { name: p.name ?? DASH, role: roleName(p.role, t) });
@@ -85,7 +88,7 @@ function tagLines(p: AdrEventResponse["params"], t: TFunction): string[] {
   ];
 }
 
-/** The dimmed detail lines under an event's sentence: the new ADR's key and name, an edit's changed fields, a tag change's names, or the other ADR's name for a link. */
+/** The dimmed detail lines under an event's sentence: the new ADR's key and name, an edit's changed fields, a tag change's names, the other ADR's name for a link, or the reason of a move. */
 export function adrEventLines(event: AdrEventResponse, t: TFunction): string[] {
   const p = event.params;
   switch (event.type) {
@@ -100,6 +103,8 @@ export function adrEventLines(event: AdrEventResponse, t: TFunction): string[] {
       return changedLines(p, t);
     case "TAGS_CHANGED":
       return tagLines(p, t);
+    case "TRANSITIONED":
+      return p.reason ? [t("adrs.history.line.reason", { reason: p.reason })] : [];
     default:
       return [];
   }

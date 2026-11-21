@@ -6,6 +6,8 @@ import LoadingBlock from "./LoadingBlock";
 
 // A recorded title or value with no break opportunity (a name, a path) wraps instead of widening the side panel.
 const WRAP = { overflowWrap: "anywhere" } as const;
+// A body line can be multi-line (the reason of a status move): keep its breaks.
+const LINE = { ...WRAP, whiteSpace: "pre-line" } as const;
 
 /** One already-rendered history entry: the caller owns the wording, the shell owns the layout. */
 export type TimelineItem = {
@@ -96,7 +98,7 @@ export default function EventTimeline({
         {items.map((item) => (
           <Timeline.Item key={item.key} title={<span style={WRAP}>{item.title}</span>}>
             {item.lines.map((line, index) => (
-              <Text key={`${index}:${line}`} size="sm" c="dimmed" style={WRAP}>
+              <Text key={`${index}:${line}`} size="sm" c="dimmed" style={LINE}>
                 {line}
               </Text>
             ))}

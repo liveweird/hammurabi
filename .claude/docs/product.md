@@ -19,7 +19,8 @@ The user's requirements (2026-11-20):
 
 1. **User management** (the foundation's users, teams, feature flags).
 2. **The ADR lifecycle** — `PROBLEM_RAISED` → `SOLUTION_DRAFT` → `IN_REVIEW` → `ACTIVE`; `CANCELLED` from the first three; `WITHDRAWN` from
-   `IN_REVIEW` (manual); `EXPIRED` from `ACTIVE` once its expiry date passes.
+   `IN_REVIEW` (manual); `EXPIRED` from `ACTIVE` once its expiry date passes. (0.7.0 added the send back `IN_REVIEW` → `SOLUTION_DRAFT` and
+   `ACTIVE` → `WITHDRAWN`, below.)
 3. **ADR event history** — every change with its date.
 4. **Tagging** and other ways to organise ADRs.
 5. **Search** by multiple criteria.
@@ -70,7 +71,8 @@ stele of the Code of Hammurabi on a lapis disc — the sun disc of Shamash crown
   (else `400`: unlink it or wait) - then it is superseded in the same transaction, the event actor being the activator. **Successor squatting (decided in the 0.4.0 review):** linking needs no role on the PREDECESSOR (anyone who owns a draft may point it at any live ADR), so a stranger could park a pending link on an ADR and block every honest successor (one successor in play per predecessor). To close that, the PREDECESSOR's Driver, Approver or ADMIN may DETACH its pending successor (`DELETE /adrs/{id}/successor`; the successor's Driver may link again, so detaching is a veto of that link, not a ban). The detach bumps the successor's revision and writes `SUCCESSOR_UNLINKED` on both ADRs. Details: `adr-model.md` "Tags", "Successors".
 - **Find (0.5.0; change on request):** `text` (full-text) is a separate parameter from `q` (name-or-key substring) and both stay; a search page is at most 20 rows and ranks by relevance unless sorted; `expiresBefore` is strictly before the day, any status; a lens stores the filters only (no sort, no page), keeps at most 50 per user, and an ADMIN may delete (not edit, not read if private) a PUBLIC lens; there is no per-user rate bucket on the list (the deadline and the concurrency cap bound a search). Details: `adr-model.md` "Search", "Lenses".
 - **Notify (0.6.0; change on request):** every notice derives from a history event of its own transaction and never reaches its actor; the email digest cadence is the deployment's (Adder's `delaySeconds` 300 / `minIntervalSeconds` 900), not a per-user frequency, and "email off" is the EMAIL switches; a comment reaches the Driver, Approver and Contributors, an issue or escalation the Driver and Approver; the expiry reminder is `adrs.expiry.reminderDays` (14, `0` off) days before the last day in force, once per ADR per expiry date (a changed date re-arms it); mail names the ADR by its KEY only, never its name or text; the bell is polled once a minute (no live channel). Details: `adr-model.md` "Notifications".
-- **Not built (one-line map changes if wanted):** `IN_REVIEW → SOLUTION_DRAFT` ("send back") and `ACTIVE → WITHDRAWN`.
+- **Send back and withdraw (0.7.0, approved by the user 2026-11-21; the who is assumed, change on request):** `IN_REVIEW → SOLUTION_DRAFT` ("send back") may be requested by the **Approver** (returning it for rework), the **Driver** (pulling it back) or ADMIN; `ACTIVE → WITHDRAWN` by the **Approver** or ADMIN only, since the Approver decides (the Driver cannot revoke a decision). A **reason** is optional on every transition (the UI asks for it on send back, withdraw and cancel): free text up to 1000 code points, kept in the history, **never in a notice or an email** (notices say "sent back" / the new status; mail names the ADR by its key only). A send back clears nothing; the next "Send to review" re-validates the required fields. A withdrawn decision is terminal; a pending successor of it cannot be activated until its Driver removes the link (as for an expired predecessor), and a predecessor a withdrawn successor had already superseded stays superseded. Details: `adr-model.md` "Lifecycle", "DACI roles and verdicts".
+- **The Approver seat (0.7.0, decided in the review of the withdraw; change on request):** nobody but ADMIN can make themselves the Approver, at any status (no self-approval), and once the ADR has ever been in review (also after a send back to draft) only the current Approver or ADMIN can add, remove or replace the Approver; the Driver still hands the Driver seat over, sends back to fix the text and edits every other seat. The Driver could otherwise take the seat through the participants PUT and approve or withdraw their own ADR. Until its first review the Driver may still name someone else as Approver; if the Approver's account is deleted, ADMIN fixes the seat. Details: `adr-model.md` "Participants", `authorization.md`.
 - **User directory:** any signed-in user may look up `{id, name, email}` of active users (`GET /users/directory`, Adder's, for the DACI pickers); the
   name+email disclosure to every signed-in user that Adder's owner accepted is carried over (`security.md` "What the user directory discloses"). Collapse it to `{id, name}` if that changes.
 - Flow's integration service tokens are not ported: nothing external writes ADRs yet.
@@ -78,7 +80,7 @@ stele of the Code of Hammurabi on a lapis disc — the sun disc of Shamash crown
 
 ## Roadmap
 
-Each increment is built and gated on its own. **Current version: 0.6.0.**
+Each increment is built and gated on its own. **Current version: 0.7.0.**
 
 | Ver | Scope |
 |---|---|
@@ -88,7 +90,8 @@ Each increment is built and gated on its own. **Current version: 0.6.0.**
 | **0.4.0 Tags and successors** | Tag categories (Toadie) and successor links + `SUPERSEDED`, released |
 | **0.5.0 Find** | The remaining multi-criteria filters, full-text search (Adder), URL-synced filters, saved lenses (Toadie), released |
 | **0.6.0 Notify** | The bell, email digest and preferences (Adder's `notifications/`) for DACI participants, notices derived from the history events, expiry reminders (`adrs.expiry.reminderDays`), released |
-| **0.7.0–0.9.0 Extras** (approved by the user 2026-11-21) | Markdown export (adr-tools format), send back `IN_REVIEW` → `SOLUTION_DRAFT` and `ACTIVE` → `WITHDRAWN`, the ADR log/overview page |
+| **0.7.0 Send back and withdraw** (extra, approved by the user 2026-11-21) | `IN_REVIEW` → `SOLUTION_DRAFT` and `ACTIVE` → `WITHDRAWN` with an optional reason in the history, released |
+| **0.8.0–0.9.0 Extras** (approved by the user 2026-11-21) | 0.8.0 Markdown export (adr-tools format), 0.9.0 the ADR log/overview page |
 | **1.0.0 Checkup** | The family's technical checkup (docs, DRY/SRP, tests, UI consistency, security, guardrails, infra) |
 
 ## Donors
@@ -114,6 +117,10 @@ Left in Flow on purpose: `ingest/`, `fetch/`, `jira/`, `gitlab/`, `norm/`, `iden
 `infra/outbound/` (the SSRF guard — port it with the first server-initiated call other than SMTP), `plugins/Role.kt`, `EncryptedAtRest`/`Reencrypt`.
 
 ## Release history
+
+### v0.7.0 — send back and withdraw (2026-11-21)
+
+Server (`adrs/`, `notifications/`; no migration): two new edges in the lifecycle map, `IN_REVIEW → SOLUTION_DRAFT` (the Approver, the Driver or ADMIN) and `ACTIVE → WITHDRAWN` (the Approver or ADMIN), the per-move verdict (`rolesToRequest(from, target)`; `allowedTransitions` serves it), an optional `reason` on every transition (`{to, reason?}`, up to 1000 code points, stored in the `TRANSITIONED` event, audited only as `reasoned`), `STATUS_CHANGED` notices with the `SENT_BACK` word (and its mail sentence), and the successor read that keeps a superseded predecessor pointing at a successor withdrawn later. Web: "Send back to draft" and "Withdraw decision" in the Status section, a confirmation with the optional reason for send back, withdraw and cancel, the reason and the two new sentences in the History, "sent back" in the bell, a warning on a successor whose predecessor is no longer in force. E2E: `adr-send-back`.
 
 ### v0.6.0 — notify (2026-11-21)
 

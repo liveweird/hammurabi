@@ -20,8 +20,8 @@ The `backlog` mod (`liveweird/claude-mods`) summarises the tags on the status li
 ## ADR MVP (0.2–0.6)
 
 - [todo] **Markdown export of an ADR.** Render an ADR in the adr-tools format. (promoted by the user 2026-11-21)
-- [todo] **"Send back" and withdraw an active ADR.** `IN_REVIEW` → `SOLUTION_DRAFT` and `ACTIVE` → `WITHDRAWN` (`product.md` "Not built"). (promoted by the user 2026-11-21)
 - [todo] **ADR log / overview page.** A read-only decision-log page: active ADRs grouped by tag category, recently decided, expiring soon. (promoted by the user 2026-11-21)
+- [new] **Tell a pending successor's people when its predecessor stops being ACTIVE.** Notify the successor's Driver and Approver when its predecessor is withdrawn, expires or is cancelled, and stop listing it as pending on the terminal predecessor.
 
 ## Foundation follow-ups
 

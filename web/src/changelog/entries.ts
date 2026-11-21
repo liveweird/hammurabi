@@ -17,6 +17,22 @@ interface ChangelogEntry {
 
 export const CHANGELOG: readonly ChangelogEntry[] = [
   {
+    version: "0.7.0",
+    date: "2026-11-21",
+    en: `**Hammurabi 0.7.0: send back and withdraw.**
+
+- The Approver or the Driver can now send an ADR in review back to draft. Nothing is cleared (the content, the people and the tags stay), the Approver has to review it again, and sending it to review again re-checks the required fields.
+- The Approver can withdraw a decision that is already in force. The ADR is closed for good, its open issues can still be resolved, and an ADR that was set to replace it cannot be activated until that link is removed.
+- Sending back, withdrawing and cancelling ask for an optional reason, which the History shows under the move. Notifications and emails only say that the ADR was sent back or withdrawn, never why.
+- Nobody can make themselves the Approver; once an ADR has been in review, only its Approver or an administrator can hand the role on.`,
+    pl: `**Hammurabi 0.7.0: odsyłanie i wycofywanie.**
+
+- Zatwierdzający/a lub Prowadzący/a może teraz odesłać ADR z przeglądu z powrotem do szkicu. Nic nie jest czyszczone (treść, osoby i tagi zostają), Zatwierdzający/a musi przejrzeć go ponownie, a ponowne wysłanie do przeglądu ponownie sprawdza wymagane pola.
+- Zatwierdzający/a może wycofać decyzję, która już obowiązuje. ADR zostaje zamknięty na stałe, jego otwarte zgłoszenia nadal można rozwiązać, a ADR, który miał go zastąpić, nie może zostać aktywowany, dopóki to powiązanie nie zostanie usunięte.
+- Odesłanie, wycofanie i anulowanie pytają o opcjonalny powód, który Historia pokazuje pod zmianą. Powiadomienia i e-maile mówią tylko, że ADR odesłano lub wycofano, nigdy dlaczego.
+- Nikt nie może sam siebie uczynić Zatwierdzającym/ą; gdy ADR był już w przeglądzie, tylko jego Zatwierdzający/a lub administrator może przekazać tę rolę dalej.`,
+  },
+  {
     version: "0.6.0",
     date: "2026-11-21",
     en: `**Hammurabi 0.6.0: notify.**

@@ -92,6 +92,13 @@ On a cold start the app waits for Postgres rather than exiting: Flyway retries i
 (`POSTGRES_CONNECT_RETRIES`, default 10 — about a minute of backing-off attempts; see "Configuration"),
 so `docker compose up` and Kubernetes restarts need no manual ordering.
 
+**Backup and restore.** `scripts/db-backup.sh` dumps the database (`pg_dump -Fc`, taken inside the Postgres container, so
+nothing to install) and `scripts/db-restore.sh` loads a dump into an EMPTY database — it refuses a non-empty one unless you
+pass `--replace`. Both also work against Kubernetes (`HAMMURABI_PG_EXEC='kubectl -n hammurabi exec -i deploy/postgres --'`).
+`node scripts/db-drill.mjs` proves the whole round trip on a throwaway compose project. The runbook, with the restore order and what
+a dump does not hold (`JWT_SECRET`, `DATA_ENCRYPTION_KEY`, the Postgres password), is in `.claude/docs/persistence.md`
+"Backup and restore".
+
 ## Running on Kubernetes (local)
 
 Two Deployments, each a single replica with `Recreate` updates (the old pod stops before the

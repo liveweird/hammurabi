@@ -625,7 +625,7 @@ fresh 12-byte nonce per value, 128-bit tag, envelope `enc:v1:<base64(nonce||ciph
 database-level attacker — SQL access, `pg_dump`, a stolen volume or backup — sees ciphertext; the
 key lives with the app (`DATA_ENCRYPTION_KEY`, 64 hex chars from `openssl rand -hex 32`; compose
 ships a burned demo key, k8s reads `hammurabi-secrets`), never in the database. **Losing the key loses
-every encrypted value** — back it up apart from the DB. Rotation: set the OLD key as
+every encrypted value** — back it up apart from the DB (a `pg_dump` does not hold it: `persistence.md` "Backup and restore"). Rotation: set the OLD key as
 `DATA_ENCRYPTION_KEY_PREVIOUS` (decrypt-only fallback — a wrong-key attempt fails cleanly on GCM's
 tag, then the previous key is tried) and the new one as `DATA_ENCRYPTION_KEY`, then re-encrypt every row under the
 current key and remove the previous key. **Not ported yet:** Flow's `EncryptedAtRest` registry (a service owning encrypted columns registers

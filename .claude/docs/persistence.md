@@ -356,3 +356,78 @@ Adder's V16 search column, ported to ONE table (`infra/db/Fts.kt`, `adr-model.md
 - **The per-actor mail budget (V21, 1.2.0, additive).** `notification_email_budget (actor_id BIGINT -> users ON DELETE CASCADE, day INTEGER, admitted INTEGER, exceeded_at BIGINT, PRIMARY KEY (actor_id, day))` plus `idx_notification_email_budget_day (day)`: one row per charged account and UTC epoch day holding how many notices were made eligible for the digest (at most `notifications.email.maxNoticesPerActorPerDay`); `exceeded_at` is the first withholding's instant (informational: the audit line is per withholding write). `NotificationService.makeAll` runs it INSIDE the write, after the notices' own `INSERT ... RETURNING recipient_id, id`: the first N notices of the day (ids ascending, i.e. plan order; a role audience is read Driver, Approver, Contributors, Informed, then user id) stay admitted and the rest are withheld by `UPDATE notifications SET emailed_at = created_at WHERE id = ANY(...)` (the "settled, never mailed" stamp; no new column on `notifications`, `seen_at` untouched). **Whose row:** the actor's; for a write with no actor (the expiry sweep, the reminders) the CURRENT Approver of the ADR (`adr_participants` joined to an active `users` row, read without a lock; `PREDECESSOR_ENDED`, written on the successor, is made in the transaction that ended the predecessor, which reserved for the ENDED predecessor's Approver, so `makeAll` charges that reserved account); no active Approver = exempt. **The row lock is a plain `FOR UPDATE` on purpose** ("Row locks vs. FK locks"): nothing references the row, so no foreign-key check can wait behind it. **Lock order: it is the FIRST lock of every write that can make notices** (`AdrNotices.reserve`, called by `AdrService.create` when it has participants, `update`, `transition` and `replaceParticipants`, the three link writes before the link advisory lock, the discussion post and state change, and the expiry sweep and the reminders for their Approver), taken BEFORE the ADR rows and the numbering (`ADR_NUMBER_LOCK_KEY`) and link (`ADR_LINK_LOCK_KEY`) advisory locks, and `makeAll` finds it already held. **The reservation is transaction-scoped** (`AdrNotices.reserve` records the charged account, or "exempt", and the UTC day in the transaction's own state, Exposed's per-transaction user data): `makeAll` charges exactly that account for exactly that day, so an Approver changed after the reservation (the sweep reserved A1, a participants PUT made it A2) is still charged as A1 and a write that straddles 00:00 UTC still charges the day it reserved; neither asks for another row late. A transaction that made notices without reserving (a path that forgot) falls back to a fresh look and logs a WARN (`NotificationEmailBudgetTest` drives every notice-making route and the two system passes and asserts none does). `reserve` also runs on writes that end up making no notice (a refused or no-op write; a refused one rolls the row's creation back), which the `adr-write` bucket bounds. Every notice-making transaction therefore takes the same order (budget row, then advisory lock, then ADR rows in id order, then history rows), so it sits in no cycle, and a write queued behind the account's other writes waits for this row alone, never while holding a global lock (`NotificationEmailBudgetTest`: a creation blocked on the row leaves the numbering lock free). The wait is **unbounded** (no `lock_timeout`): one account's notice-making writes serialise on their day's row, the worst case is that account's own in-flight writes (a few milliseconds each, holding a pooled connection while they wait; the `adr-write` bucket, 120 a minute, bounds the queue), and a timeout would turn a harmless queue of one person's own writes into failed writes. A writer that reserves and then fails (403, 409) rolls the row's creation back with it. Constant statement texts, every parameter cast. **Delete class: HARD** (a counter of the day, not a record): the notice retention pass (`purgeOlderThan`) ends by deleting the days before its cutoff's (a failure of that last step is logged and never fails the pass), and an account's rows go with the user row. It is deliberately NOT tied to the notices or the participants, so a removal or a re-add cannot reset a budget, and a rolled-back write rolls its spending back. Cross-feature: `notifications/` owns the table and touches no other feature's. `MigrationChecksumTest` pins the file.
 - **The digest's claim** is Adder's (settle, claim per person `FOR UPDATE SKIP LOCKED`, stamp before send, release the unattempted), unchanged but for the columns; its statements run under a 10 s `queryTimeout` (the only way a timeout is set).
 
+### Backup and restore
+
+A manual runbook (checkup C-ARCH-2, decided 2026-11-21: no scheduled job; `BACKLOG.md` files running the drill nightly). The unit is `pg_dump -Fc`
+of the `hammurabi` database, taken INSIDE the Postgres container/pod and streamed out, so the host needs no Postgres client and no password
+(the image's local socket trusts the in-container user). `scripts/db-backup.sh [OUT.dump]` and `scripts/db-restore.sh DUMP.dump [--replace]`
+(Adder's, ported) wrap it; both take the command that reaches the container from `HAMMURABI_PG_EXEC` (also `HAMMURABI_DB_USER`/`HAMMURABI_DB_NAME`,
+default `hammurabi`/`hammurabi`; the value is word-split on purpose):
+
+| Where | `HAMMURABI_PG_EXEC` |
+|---|---|
+| compose, default project | unset (default `docker exec -i hammurabi-postgres`) |
+| compose, another project | `docker compose -p NAME exec -T postgres` (a container name changed by an override: `docker exec -i THAT-NAME`) |
+| Kubernetes (`hammurabi` namespace) | `kubectl -n hammurabi exec -i deploy/postgres --` |
+
+- **Which database.** Both scripts print their target command (`via: ...`) on stderr before they touch anything. A `HAMMURABI_PG_EXEC` that is
+  set but EMPTY is refused (never read as unset, so a computed command that came out blank cannot fall back to the local default
+  container and its real data; a deliberate departure from Adder's `:-`). The restore waits up to 30 s for a real query to answer (a fresh volume
+  can pass the container healthcheck while the entrypoint's temporary init server is still up) before it looks at the database.
+- **Backup** (live, the app may keep running: one transaction, a consistent snapshot): `scripts/db-backup.sh`, default name `hammurabi-<UTC>.dump`
+  in the current directory (the ignore files cover `*.dump` and `*.dump.partial.*` only, so keep that suffix on a name you choose). The file is written `0600` (it holds every user, ADR and password hash; treat it
+  like the database), never over an existing file, and only kept if `pg_restore --list` reads it and finds table data. The bare equivalent is
+  `(umask 077; docker exec hammurabi-postgres pg_dump -U hammurabi -d hammurabi -Fc > hammurabi.dump)`.
+- **Restore into an EMPTY database** (a new machine, a lost volume): bring up ONLY Postgres, restore, then start the app.
+  Compose: `docker compose up -d --wait postgres && scripts/db-restore.sh hammurabi.dump && docker compose up -d app`.
+  Kubernetes: scale the app to zero (`kubectl -n hammurabi scale deploy/app --replicas=0`), make sure the `postgres` pod runs on a fresh
+  `postgres-data` claim (or restore with `--replace`), restore, scale the app back to 1. The app must NOT have booted against the empty database
+  first: Flyway and the seed admin would have made it non-empty, and the script refuses (see below). On start the app finds the schema current
+  (`Flyway applied 0 migration(s); schema at version 21`). The restore is one transaction (`--single-transaction --exit-on-error`): all or
+  nothing, and `--no-owner --no-acl` leaves everything owned by the connecting role.
+- **Safe by default:** the restore refuses unless the target has NO table, view or sequence outside the system schemas, no extension besides `plpgsql`, no schema besides `public` AND no other client is
+  connected (`pg_stat_activity`: the app still running; `--force-connected` overrides, for a client you know is idle), and changes nothing when
+  it refuses. `--replace` is the explicit way over a non-empty database and DESTROYS what is there: in ONE explicit transaction it drops every
+  extension (bar `plpgsql`) and every non-system schema (`public`, `ops`; V4 puts `unaccent` in `public`, V9 creates `ops`) with `CASCADE`,
+  recreates an empty `public`, and replays the dump rendered by `pg_restore -f -`, so the result is exactly the dump even when the live database
+  is AHEAD of it (a newer table with a foreign key into `adrs`, a higher Flyway history row; `pg_restore --clean` would trip over the first and
+  leave the second). The script is fed to `psql` without `-1` and ends in `COMMIT;`, so a cut stream rolls back instead of committing half a
+  restore (the rendered SQL goes through a `0600` temp file first, so a failed `pg_restore` never reaches the database). A future migration that
+  creates another schema or an extension needs no change here: the drop is by catalog, not by name. **Take a fresh `db-backup.sh` of the CURRENT state first** (a `--replace` cannot be undone). Stop the app first (compose
+  `docker compose stop app`; Kubernetes scale to 0). To restore beside the data instead, make a scratch database
+  (`HAMMURABI_DB_NAME=hammurabi_restored` after `createdb`) and compare.
+- **Flyway:** the dump carries `flyway_schema_history`, so a restore brings the schema AND its version back. A dump restores into the SAME or a
+  NEWER app version (Flyway migrates forward on boot: a 1.1.0 dump under a 1.2.0 app logs `Flyway applied 1 migration(s); schema at version 21`).
+  An OLDER app against a newer database is not refused by Flyway (its default ignores `*:future` migrations; the config is unchanged), so never
+  roll the app back past the schema without restoring a dump of that older schema (a history holding a value the older build does not know
+  answers 500, "Persisted enums"). Restore into the same Postgres major (18): a dump from a newer `pg_dump` may not load in an older server.
+- **Not in the dump** (keep each with the dump, STORED APART from it): `JWT_SECRET`, `DATA_ENCRYPTION_KEY` and `DATA_ENCRYPTION_KEY_PREVIOUS`
+  (the Secret / compose env; no column is encrypted yet, but the day one is, a restored database is unreadable without the key that wrote it;
+  `security.md` "Encryption at rest"), `POSTGRES_PASSWORD` (the role's password is a cluster property, not in a logical dump: the restored
+  database takes the new cluster's role) and `ADMIN_INITIAL_PASSWORD`. In Kubernetes back up the `hammurabi-secrets` Secret separately
+  (`kubectl -n hammurabi get secret hammurabi-secrets -o yaml`; it is as sensitive as the dump).
+- **The seed admin.** A dump of a demo stack still holds the V3 seed hash (`admin@hammurabi.local` / `changeme`). Production refuses to start on
+  it until `ADMIN_INITIAL_PASSWORD` rotates it at boot (`security.md` "Seed passwords"); set it for the restored deployment.
+- **A restore turns back time.** Password changes and revocations after the dump are undone (`revoked_tokens`, `users.credential_revision`
+  come back as they were), so a token revoked after the dump is valid again until it expires and a changed password reverts: after an incident
+  rotate `JWT_SECRET` (every outstanding token dies) and have affected users reset their passwords. Notices the digest mailed after the dump are
+  unclaimed again (`emailed_at` reverts) and are mailed a second time if still unseen; the per-actor mail budget's counters revert with them.
+  In-memory state (lockouts, MFA codes, refresh rotations, rate buckets, export slots) starts empty.
+- **Drill.** `node scripts/db-drill.mjs [--image TAG] [--keep]` proves all of the above on a throwaway compose project
+  (`hammurabi-backup-drill`, own containers and volume, ports 8592 / 5943 / 8536, the pattern of `scripts/cds-classlist.mjs`; it never touches
+  the default project: one `compose()` helper hard-codes `-p`, and each script call asserts the drill's `HAMMURABI_PG_EXEC` and the container's
+  compose label first). It seeds through the API (users, a team, a tag category, an accented-name ADR taken to `ACTIVE` with participants, a
+  comment, a lens), fingerprints the database (row counts per table, the Flyway maximum, md5 of the ordered `users`, `adrs`, `adr_events`),
+  backs up (mode `0600`, a second run to the same path refuses), proves the restore refuses while the app runs and over a non-empty database,
+  drops the volume, restores into a fresh Postgres (the fingerprint is equal, taken before the app starts because telemetry writes at boot),
+  starts the app (`Flyway applied 0 migration(s)`, both logins, `GET /adrs?text=zolw` finds the accented ADR, a duplicate name is `409`, a new
+  ADR takes the next number), runs `--replace` over a database AHEAD of the dump (an extra table with a foreign key into `adrs`, an extra ADR, a fake
+  higher Flyway row: afterwards exactly the dump), and a forward migration (V21 undone by hand, i.e. a 1.1.0-shaped database; the boot logs
+  `applied 1 migration(s); schema at version 21` and a notice-making write works). It exits non-zero at the first failed assertion and takes
+  the project down (`down -v`; an image the drill built itself goes with it, one passed with `--image` is yours and stays), also on Ctrl-C or SIGTERM. In a git worktree build the image from a scratch clone and pass `--image`. Repeat the
+  drill after a migration that adds a schema or an extension, and repoint its forward step (`FORWARD` in the script) at the newest migration.
+- **Drilled** 2026-11-21, on the 1.2.0 tree (V1-V21, image built from a scratch clone of the commit before this one): `node scripts/db-drill.mjs` exited 0 with 32
+  assertions (the final scripts; an earlier run of the first version also passed), steps 1 to 9 above, the compose path only. The Kubernetes path was NOT run end to end
+  (no `hammurabi` namespace exists on the local cluster, and the manifests, the scale-down and the claim swap were not exercised); only the `kubectl exec` transport was
+  exercised, with the final scripts against a bare `postgres` Deployment in a throwaway namespace (backup `0600`, restore into an empty database, the refusal over a
+  leftover extension, `--replace`; the namespace is gone). Append a dated entry on every repeat; a failing drill is a failing backup.

@@ -44,6 +44,7 @@ or activate mise in your shell. If `./gradlew` resolves the wrong JDK, point it 
 - JVM memory flags are pre-tuned in `server/build.gradle.kts` (`applicationDefaultJvmArgs`; rationale in place).
 - AppCDS class list (`server/cds/classlist.txt`, dumped into the Docker image): `node scripts/cds-classlist.mjs` regenerates it from a real run
   (in a git worktree pass `--image <tag>`); `CdsClassListTest` and CI's `scripts/check-cds-archive.sh` guard drift.
+- Backup and restore: `scripts/db-backup.sh`, `scripts/db-restore.sh`, the drill `node scripts/db-drill.mjs` (`.claude/docs/persistence.md` "Backup and restore").
 - **Run the whole stack with one command: `docker compose up --build`** (only Docker required). See "Running the full stack" below.
 - Frontend: `cd web && npm install --legacy-peer-deps`, then
   `npm run dev|build|lint|test|test:coverage|knip|gen:api` (details in `web/CLAUDE.md`). The

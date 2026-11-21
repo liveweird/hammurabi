@@ -60,3 +60,7 @@ docker-compose.override.yaml
 
 # Claude Code agent worktrees (isolated parallel checkouts)
 .claude/worktrees/
+
+# Database dumps (scripts/db-backup.sh): every user, ADR and password hash; never committed, never in an image context
+*.dump
+*.dump.partial.*

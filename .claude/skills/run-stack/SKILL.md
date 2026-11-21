@@ -100,6 +100,15 @@ side on one machine; host ports bind to 127.0.0.1:
   verbatim fail-closes at startup (the placeholder JWT value is on the burned list in
   `plugins/Security.kt`).
 
+- **Backup and restore:** `scripts/db-backup.sh [OUT.dump]` and `scripts/db-restore.sh DUMP.dump [--replace]` (dump taken inside the
+  Postgres container; the restore refuses a non-empty database without `--replace`). Default target is the compose container
+  `hammurabi-postgres`; point `HAMMURABI_PG_EXEC` elsewhere (`docker compose -p NAME exec -T postgres`, or
+  `kubectl -n hammurabi exec -i deploy/postgres --`). Restore into a stack where ONLY Postgres is up, then start the app. The drill is
+  `node scripts/db-drill.mjs [--image TAG] [--keep]`: a throwaway compose project `hammurabi-backup-drill` (ports 8592 / 5943 / 8536,
+  the pattern of `scripts/cds-classlist.mjs`), never the default project; in a git worktree build the image from a scratch clone and
+  pass `--image`. Never run these scripts against the default stack to "try them": it holds real data. Runbook:
+  `.claude/docs/persistence.md` "Backup and restore".
+
 The root `Dockerfile` is a 3-stage build: (1) Node 24.22.1 builds `web/dist` (`npm ci
 --legacy-peer-deps`), (2) Temurin 21.0.13+9 JDK on Ubuntu 24.04 Noble runs `:server:installDist`
 with the committed Gradle project and plugin locks, (3) the matching Temurin JRE bundles the

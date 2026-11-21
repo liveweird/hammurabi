@@ -21,3 +21,7 @@ e2e/test-results/
 **/.idea/
 **/*.iml
 server/h2.mv.db
+
+# Database dumps (scripts/db-backup.sh)
+**/*.dump
+**/*.dump.partial.*

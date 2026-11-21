@@ -136,6 +136,7 @@ protection on `master` (repository settings), and closing issue #10 (C-GATE-3, C
 | C-DOC-8, C-DOC-9 | this commit | The stale sweeps (donor "next:" ports, the service list, the persisted-enum list, the deleted seams, v0.1.0 tense, the package layout, V1-V20, the `application.yaml` comment order). |
 | C-API-3 | this commit | Donor prose out of the spec; `schema.ts` regenerated. |
 | C-SEC-4 | 1.2.0 (this commit) | The per-actor mail budget (V21 `notification_email_budget`: a counter of notices per actor per UTC day, default 200, over it the bell notice stays and its email is withheld; the system's notices are charged to the ADR's Approver; the budget row is the first lock of a write; every withholding write is audited) and the per-user `adr-write` bucket (120/min on the 13 ADR and discussion writes); `NotificationEmailBudgetTest`, `AdrWriteLimitsTest`. |
+| C-ARCH-2 | 1.2.0 (this commit) | `scripts/db-backup.sh`, `scripts/db-restore.sh` (Adder `50851b9`, ported), the runbook (`persistence.md` "Backup and restore": compose and Kubernetes, Flyway, what a dump does not hold, what a restore turns back) and `scripts/db-drill.mjs`, run once at 1.2.0 and recorded there (the user's decision D4: manual, no scheduled backup; a nightly drill is a `[new]` backlog item). |
 
 **CI.** The `e2e` workflow ran green on `029da12` (run 44865747177, after one transient Maven Central miss on the first attempt). C-GATE-1 stays a condition of the tag: the same green run is needed on the 1.0.0 release commit.
 

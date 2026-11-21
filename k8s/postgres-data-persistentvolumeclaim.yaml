@@ -11,5 +11,6 @@ spec:
   resources:
     requests:
       # Generous for the foundation's tiny data set; a storage class without allowVolumeExpansion
-      # (local-path) cannot grow a bound claim in place: back up, recreate the claim, restore.
+      # (local-path) cannot grow a bound claim in place: back up, recreate the claim, restore
+      # (.claude/docs/persistence.md "Backup and restore").
       storage: 5Gi

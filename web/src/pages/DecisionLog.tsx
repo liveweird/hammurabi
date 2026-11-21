@@ -1,5 +1,5 @@
-import { Anchor, Badge, SimpleGrid, Stack, Text, VisuallyHidden } from "@mantine/core";
-import { IconCalendarDue, IconCalendarOff, IconCircleCheck, IconCircleOff, IconHourglass, IconHourglassOff } from "@tabler/icons-react";
+import { Anchor, Badge, Stack, Text, VisuallyHidden } from "@mantine/core";
+import { IconArrowRight, IconCalendarDue, IconCalendarOff, IconCircleCheck, IconCircleOff, IconHourglass, IconHourglassOff } from "@tabler/icons-react";
 import { useQuery } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
 import { Link as RouterLink } from "react-router-dom";
@@ -8,6 +8,7 @@ import AdrLogRow from "../components/AdrLogRow";
 import DecisionLogCard, { LogList } from "../components/DecisionLogCard";
 import DecisionLogCounts from "../components/DecisionLogCounts";
 import DecisionLogInForce from "../components/DecisionLogInForce";
+import styles from "../components/DecisionLog.module.css";
 import EmptyState from "../components/EmptyState";
 import ErrorAlert from "../components/ErrorAlert";
 import LoadingBlock from "../components/LoadingBlock";
@@ -28,7 +29,7 @@ function MoreLink({ more, to, label }: { more: number; to: string; label: string
   const { t } = useTranslation();
   if (more <= 0) return null;
   return (
-    <Anchor component={RouterLink} to={to} size="sm">
+    <Anchor component={RouterLink} to={to} size="sm" className={styles.moreLink}>
       {t("decisionLog.more", { count: more })}
       <VisuallyHidden>: {label}</VisuallyHidden>
     </Anchor>
@@ -39,10 +40,11 @@ function MoreLink({ more, to, label }: { more: number; to: string; label: string
 function Awaiting({ awaiting }: { awaiting: AdrOverview["awaitingDecision"] }) {
   const { t } = useTranslation();
   return (
-    <DecisionLogCard icon={IconHourglass} title={t("decisionLog.awaiting.title")} hint={t("decisionLog.awaiting.hint")}>
+    <DecisionLogCard icon={IconHourglass} title={t("decisionLog.awaiting.title")} hint={t("decisionLog.awaiting.hint")} className={styles.lane}>
       {awaiting.mineTotal > 0 && (
-        <Anchor component={RouterLink} to={adrListPath({ status: ["IN_REVIEW"], mine: true, participantRole: "APPROVER" })} size="sm" fw={600}>
-          {t("decisionLog.awaiting.mineLink", { count: awaiting.mineTotal })}
+        <Anchor component={RouterLink} to={adrListPath({ status: ["IN_REVIEW"], mine: true, participantRole: "APPROVER" })} size="sm" fw={600} className={styles.reviewLink}>
+          <span>{t("decisionLog.awaiting.mineLink", { count: awaiting.mineTotal })}</span>
+          <IconArrowRight size={16} stroke={1.7} aria-hidden />
         </Anchor>
       )}
       {awaiting.items.length === 0 ? (
@@ -55,7 +57,7 @@ function Awaiting({ awaiting }: { awaiting: AdrOverview["awaitingDecision"] }) {
               item={item}
               highlight={item.mine}
               note={
-                <Stack gap={0} align="flex-end">
+                <>
                   {item.mine && (
                     <Badge color="grape" variant="light" size="sm">
                       {t("decisionLog.awaiting.mine")}
@@ -63,7 +65,7 @@ function Awaiting({ awaiting }: { awaiting: AdrOverview["awaitingDecision"] }) {
                   )}
                   <Dim>{t("decisionLog.awaiting.since", { date: formatDate(item.statusChangedAt, "—", browserTimeZone()) })}</Dim>
                   <Dim>{item.approver ? t("decisionLog.awaiting.approver", { name: item.approver.name }) : t("decisionLog.awaiting.noApprover")}</Dim>
-                </Stack>
+                </>
               }
             />
           ))}
@@ -83,7 +85,7 @@ function Expiring({ expiring, generatedAt }: { expiring: AdrOverview["expiringSo
   // "Strictly before" the day after the horizon, so the list link shows exactly the span the section covers.
   const beyond = addDays(today, expiring.days + 1);
   return (
-    <DecisionLogCard icon={IconCalendarDue} title={t("decisionLog.expiring.title")} hint={t("decisionLog.expiring.hint", { count: expiring.days })}>
+    <DecisionLogCard icon={IconCalendarDue} title={t("decisionLog.expiring.title")} hint={t("decisionLog.expiring.hint", { count: expiring.days })} className={styles.lane}>
       {expiring.items.length === 0 ? (
         <EmptyState compact icon={IconCalendarOff} label={t("decisionLog.expiring.empty")} />
       ) : (
@@ -115,7 +117,7 @@ function Expiring({ expiring, generatedAt }: { expiring: AdrOverview["expiringSo
 function Recent({ recent }: { recent: AdrOverview["recentlyDecided"] }) {
   const { t } = useTranslation();
   return (
-    <DecisionLogCard icon={IconCircleCheck} title={t("decisionLog.recent.title")} hint={t("decisionLog.recent.hint")}>
+    <DecisionLogCard icon={IconCircleCheck} title={t("decisionLog.recent.title")} hint={t("decisionLog.recent.hint")} className={styles.lane}>
       {recent.items.length === 0 ? (
         <EmptyState compact icon={IconCircleOff} label={t("decisionLog.recent.empty")} />
       ) : (
@@ -139,18 +141,18 @@ export default function DecisionLog() {
   const { t } = useTranslation();
   const { data, isLoading, isError, error } = useQuery({ queryKey: ["adrs", "overview"], queryFn: getAdrOverview });
   return (
-    <Stack gap="md">
+    <Stack gap="lg" className={styles.page}>
       <PageHeader title={t("decisionLog.title")} description={t("decisionLog.intro")} />
       {isError && <ErrorAlert error={error} title={t("decisionLog.loadFailed")} />}
       {isLoading && <LoadingBlock />}
       {data && (
         <>
           <DecisionLogCounts counts={data.counts} />
-          <SimpleGrid cols={{ base: 1, md: 2, xl: 3 }} spacing="md">
+          <div className={styles.activity}>
             <Awaiting awaiting={data.awaitingDecision} />
             <Expiring expiring={data.expiringSoon} generatedAt={data.generatedAt} />
             <Recent recent={data.recentlyDecided} />
-          </SimpleGrid>
+          </div>
           <DecisionLogInForce inForce={data.inForce} />
         </>
       )}

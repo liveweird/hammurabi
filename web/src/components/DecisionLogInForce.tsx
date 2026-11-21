@@ -1,4 +1,4 @@
-import { Anchor, Badge, Group, SimpleGrid, Stack, Text, Title, VisuallyHidden } from "@mantine/core";
+import { Anchor, Badge, Group, Text, Title, VisuallyHidden } from "@mantine/core";
 import { IconTags, IconTagsOff } from "@tabler/icons-react";
 import { useTranslation } from "react-i18next";
 import { Link as RouterLink } from "react-router-dom";
@@ -6,6 +6,7 @@ import type { AdrOverview } from "../api/adrs";
 import { adrListPath } from "../utils/adrListParams";
 import AdrLogRow from "./AdrLogRow";
 import DecisionLogCard, { LogList } from "./DecisionLogCard";
+import styles from "./DecisionLog.module.css";
 import EmptyState from "./EmptyState";
 
 type InForce = AdrOverview["inForce"];
@@ -19,19 +20,19 @@ type Items = InForce["untagged"]["items"];
 function GroupList({ label, items, more, moreOf, moreText, to }: { label: string; items: Items; more: number; moreOf?: string; moreText?: string; to: string }) {
   const { t } = useTranslation();
   return (
-    <Stack gap={4}>
+    <>
       <LogList label={label}>
         {items.map((item) => (
           <AdrLogRow key={item.id} item={item} />
         ))}
       </LogList>
       {more > 0 && (
-        <Anchor component={RouterLink} to={to} size="sm">
+        <Anchor component={RouterLink} to={to} size="sm" className={styles.moreLink}>
           {moreText ?? t("decisionLog.more", { count: more })}
           {moreOf && <VisuallyHidden>: {moreOf}</VisuallyHidden>}
         </Anchor>
       )}
-    </Stack>
+    </>
   );
 }
 
@@ -43,22 +44,25 @@ export default function DecisionLogInForce({ inForce }: { inForce: InForce }) {
   const { t } = useTranslation();
   const activeList = adrListPath({ status: ["ACTIVE"] });
   return (
-    <DecisionLogCard icon={IconTags} title={t("decisionLog.inForce.title")} hint={t("decisionLog.inForce.hint")}>
-      <Text size="sm" fw={500}>
-        {t("decisionLog.inForce.total", { count: inForce.total })}
-      </Text>
+    <DecisionLogCard
+      icon={IconTags}
+      title={t("decisionLog.inForce.title")}
+      hint={t("decisionLog.inForce.hint")}
+      className={styles.catalog}
+      detail={t("decisionLog.inForce.total", { count: inForce.total })}
+    >
       {inForce.total === 0 && (
         <EmptyState compact icon={IconTagsOff} label={t("decisionLog.inForce.empty")} />
       )}
       {inForce.categories.map((category) => (
-        <Stack key={category.id} gap="sm">
-          <Title order={4} size="h5">
+        <div key={category.id} className={styles.category}>
+          <Title order={4} size="h6" className={styles.categoryHeading}>
             {category.name}
           </Title>
-          <SimpleGrid cols={{ base: 1, md: 2 }} spacing="md">
+          <div className={styles.tagGrid}>
             {category.tags.map((tag) => (
-              <Stack key={tag.name} gap={4}>
-                <Group gap="xs">
+              <div key={tag.name} className={styles.tagGroup}>
+                <Group gap={8} className={styles.tagHeading}>
                   <Title order={5} size="sm">
                     {tag.name}
                   </Title>
@@ -73,35 +77,34 @@ export default function DecisionLogInForce({ inForce }: { inForce: InForce }) {
                   moreOf={t("decisionLog.inForce.moreFor", { tag: tag.name })}
                   to={adrListPath({ status: ["ACTIVE"], tag: [tag.name] })}
                 />
-              </Stack>
+              </div>
             ))}
-          </SimpleGrid>
-        </Stack>
+          </div>
+        </div>
       ))}
       {inForce.untagged.total > 0 && (
-        <Stack gap="sm">
-          <Title order={4} size="h5">
+        <div className={styles.category}>
+          <Title order={4} size="h6" className={styles.categoryHeading}>
             {t("decisionLog.inForce.untagged")}
           </Title>
-          <Text size="sm" c="dimmed">
-            {t("decisionLog.inForce.untaggedHint")}
-          </Text>
-          <GroupList
-            label={t("decisionLog.inForce.untagged")}
-            items={inForce.untagged.items}
-            more={inForce.untagged.more}
-            moreText={t("decisionLog.inForce.all")}
-            to={activeList}
-          />
-        </Stack>
+          <div className={styles.tagGroup}>
+            <GroupList
+              label={t("decisionLog.inForce.untagged")}
+              items={inForce.untagged.items}
+              more={inForce.untagged.more}
+              moreText={t("decisionLog.inForce.all")}
+              to={activeList}
+            />
+          </div>
+        </div>
       )}
       {inForce.hiddenTags > 0 && (
-        <Text size="sm" c="dimmed">
+        <Text size="sm" c="dimmed" className={styles.catalogFootnote}>
           {t("decisionLog.inForce.hiddenTags", { count: inForce.hiddenTags })}
         </Text>
       )}
       {inForce.total > 0 && inForce.untagged.more === 0 && (
-        <Anchor component={RouterLink} to={activeList} size="sm" fw={500}>
+        <Anchor component={RouterLink} to={activeList} size="sm" className={`${styles.moreLink} ${styles.catalogLink}`}>
           {t("decisionLog.inForce.all")}
         </Anchor>
       )}

@@ -1,36 +1,39 @@
 import { useId } from "react";
-import { Anchor, Group, Paper, Stack, Text, Title } from "@mantine/core";
+import { Anchor, Box, Title } from "@mantine/core";
 import { useTranslation } from "react-i18next";
 import { Link as RouterLink } from "react-router-dom";
 import type { AdrOverview } from "../api/adrs";
 import { adrListPath } from "../utils/adrListParams";
-import AdrStatusBadge from "./AdrStatusBadge";
+import { ADR_STATUS_COLOR } from "../utils/adrStatus";
+import styles from "./DecisionLog.module.css";
 
-/** The count strip: every status as its badge (the list's colours) with how many ADRs hold it, each a link to the list in that status. */
+/** The count strip uses the same status colours and names as the ADR list. */
 export default function DecisionLogCounts({ counts }: { counts: AdrOverview["counts"] }) {
   const { t } = useTranslation();
   const headingId = useId();
   return (
-    <Paper withBorder p="md" component="section" aria-labelledby={headingId}>
-      <Stack gap="xs">
-        <Title order={3} size="h4" id={headingId}>
-          {t("decisionLog.counts.title")}
-        </Title>
-        <Group component="ul" gap="lg" p={0} m={0} style={{ listStyle: "none" }}>
-          {counts.map(({ status, count }) => (
-            <li key={status}>
-              <Anchor component={RouterLink} to={adrListPath({ status: [status] })} underline="never">
-                <Group gap={6} wrap="nowrap">
-                  <AdrStatusBadge status={status} />
-                  <Text span fw={600} size="sm">
-                    {count}
-                  </Text>
-                </Group>
-              </Anchor>
-            </li>
-          ))}
-        </Group>
-      </Stack>
-    </Paper>
+    <section className={styles.statusSection} aria-labelledby={headingId}>
+      <Title order={3} size="h5" id={headingId} className={styles.statusHeading}>
+        {t("decisionLog.counts.title")}
+      </Title>
+      <ul className={styles.statusGrid} role="list">
+        {counts.map(({ status, count }) => (
+          <li key={status}>
+            <Anchor component={RouterLink} to={adrListPath({ status: [status] })} underline="never" className={styles.statusLink}>
+              <span className={styles.statusLabel}>
+                <Box
+                  component="span"
+                  className={styles.statusDot}
+                  bg={`light-dark(var(--mantine-color-${ADR_STATUS_COLOR[status]}-light-color), var(--mantine-color-${ADR_STATUS_COLOR[status]}-4))`}
+                  aria-hidden
+                />
+                {t(`adrs.status.${status}`)}
+              </span>
+              <span className={styles.statusCount}>{count}</span>
+            </Anchor>
+          </li>
+        ))}
+      </ul>
+    </section>
   );
 }

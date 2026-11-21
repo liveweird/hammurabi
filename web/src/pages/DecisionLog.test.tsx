@@ -105,7 +105,7 @@ describe("DecisionLog", () => {
     );
     renderWithProviders(<DecisionLog />);
     const card = (await screen.findByRole("heading", { name: "Expiring soon" })).closest("section")!;
-    expect(within(card).getByText("ADRs in force whose last day is within 30 days, the soonest first.")).toBeInTheDocument();
+    expect(within(card).getByText("Overdue or due within 30 days.")).toBeInTheDocument();
     const overdue = within(card).getByRole("link", { name: /Renew the cert/ }).closest("li")!;
     expect(within(overdue).getByText("Overdue")).toBeInTheDocument();
     expect(within(overdue).getByText("last day 2026-11-20")).toBeInTheDocument();

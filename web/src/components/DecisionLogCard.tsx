@@ -1,38 +1,34 @@
 import { useId, type ReactNode } from "react";
-import { Group, Paper, Stack, Text, Title } from "@mantine/core";
+import { Text, Title } from "@mantine/core";
 import type { Icon } from "@tabler/icons-react";
+import styles from "./DecisionLog.module.css";
 
-/**
- * One section of the decision log (Astrolabe's `HomeCard` layout): a bordered section named by its h3 with the Tabler icon beside it, one
- * dimmed sentence saying what the section holds, then `children` (a list, an empty line, the "+N more" link).
- */
-export default function DecisionLogCard({ icon: CardIcon, title, hint, children }: { icon: Icon; title: string; hint?: string; children: ReactNode }) {
+type Props = { icon: Icon; title: string; hint: string; className: string; detail?: string; children: ReactNode };
+
+export default function DecisionLogCard({ icon: CardIcon, title, hint, className, detail, children }: Props) {
   const headingId = useId();
   return (
-    <Paper withBorder p="md" component="section" aria-labelledby={headingId}>
-      <Stack gap="xs">
-        <Group gap="xs" wrap="nowrap">
-          <CardIcon size={20} aria-hidden />
-          <Title order={3} size="h4" id={headingId}>
+    <section className={className} aria-labelledby={headingId}>
+      <header className={styles.sectionHeader}>
+        <div className={styles.sectionIcon}><CardIcon size={18} stroke={1.7} aria-hidden /></div>
+        <div className={styles.sectionHeading}>
+          <Title order={3} size="h5" id={headingId}>
             {title}
           </Title>
-        </Group>
-        {hint && (
-          <Text size="sm" c="dimmed">
-            {hint}
-          </Text>
-        )}
-        {children}
-      </Stack>
-    </Paper>
+          <Text size="xs" c="dimmed">{hint}</Text>
+        </div>
+        {detail && <Text className={styles.sectionDetail} size="sm" fw={600}>{detail}</Text>}
+      </header>
+      {children}
+    </section>
   );
 }
 
 /** A decision-log list: a real `<ul>` of `AdrLogRow`s with no bullets (the rows are the structure), `label` naming it for assistive technology. */
 export function LogList({ label, children }: { label: string; children: ReactNode }) {
   return (
-    <Stack component="ul" gap={6} p={0} m={0} aria-label={label} style={{ listStyle: "none" }}>
+    <ul className={styles.logList} role="list" aria-label={label}>
       {children}
-    </Stack>
+    </ul>
   );
 }

@@ -1,6 +1,6 @@
 {
   "title": "Decision log",
-  "intro": "What is in force, what was decided lately, what expires soon and what waits for a decision. Every row opens its ADR.",
+  "intro": "Track architecture decisions across their lifecycle.",
   "loadFailed": "The decision log could not be loaded.",
   "counts": {
     "title": "ADRs by status"
@@ -8,7 +8,7 @@
   "more": "+{{count}} more",
   "awaiting": {
     "title": "Awaiting decision",
-    "hint": "ADRs in review, the longest wait first.",
+    "hint": "Longest waits first.",
     "empty": "Nothing is waiting for a decision.",
     "since": "in review since {{date}}",
     "approver": "Approver: {{name}}",
@@ -20,8 +20,8 @@
   },
   "expiring": {
     "title": "Expiring soon",
-    "hint_one": "ADRs in force whose last day is within {{count}} day, the soonest first.",
-    "hint_other": "ADRs in force whose last day is within {{count}} days, the soonest first.",
+    "hint_one": "Overdue or due within {{count}} day.",
+    "hint_other": "Overdue or due within {{count}} days.",
     "empty": "No decision in force expires soon.",
     "lastDay": "last day {{date}}",
     "overdue": "Overdue",
@@ -29,19 +29,18 @@
   },
   "recent": {
     "title": "Recently decided",
-    "hint": "The ADRs that became active most recently.",
+    "hint": "Latest to take effect.",
     "empty": "No decision is in force yet.",
     "on": "decided {{date}}",
     "all": "All active ADRs"
   },
   "inForce": {
     "title": "In force by tag",
-    "hint": "Active ADRs by tag category and tag; an ADR is listed under each of its tags.",
+    "hint": "Decisions appear under each of their tags.",
     "total_one": "{{count}} decision in force.",
     "total_other": "{{count}} decisions in force.",
     "empty": "No decision is in force yet.",
     "untagged": "Untagged",
-    "untaggedHint": "Active ADRs without a tag from the registry.",
     "moreFor": "ADRs tagged {{tag}}",
     "hiddenTags_one": "{{count}} more tag has active ADRs but is not shown.",
     "hiddenTags_other": "{{count}} more tags have active ADRs but are not shown.",

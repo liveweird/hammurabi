@@ -231,13 +231,13 @@ adrs:
   # The Markdown export (adrs/AdrExportRoutes.kt, `.claude/docs/adr-model.md` "Export"). `maxAdrs` is the most ADRs one bulk export holds (a
   # filter matching more is a 400, never a truncation), 1..5000; `maxConcurrent` is how many bulk exports one process streams at once (the
   # next one is a 429 `export-busy`: a slow reader holds a blocking IO thread), 1..16.
+  export:
+    maxAdrs: "$ADRS_EXPORT_MAX_ADRS:500"
+    maxConcurrent: "$ADRS_EXPORT_MAX_CONCURRENT:2"
   # The decision log (adrs/AdrOverviewRoutes.kt, `adr-model.md` "Overview"): "expiring soon" lists the ACTIVE ADRs whose last day in force
   # is within this many days of today (UTC), overdue ones included; 1..365.
   overview:
     expiringSoonDays: "$ADRS_OVERVIEW_EXPIRING_SOON_DAYS:30"
-  export:
-    maxAdrs: "$ADRS_EXPORT_MAX_ADRS:500"
-    maxConcurrent: "$ADRS_EXPORT_MAX_CONCURRENT:2"
 
 notifications:
   # How long a notice is kept (`notifications/NotificationSweep.kt`): older rows are deleted, at most once an hour, in the sweep's own scope

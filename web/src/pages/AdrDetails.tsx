@@ -23,8 +23,8 @@ import { loadErrorMessage, saveErrorMessage } from "../utils/saveError";
 
 /**
  * One ADR (`/adrs/:id`). The main pane is three tabs - the five Markdown sections (or their editor while editing), the discussion and the
- * issues (`AdrMainPane`); the side panel holds Status, DACI, Details and History. What the signed-in user may do comes from the server's verdicts on the ADR (`allowedTransitions`, `canEdit`,
- * `canManageParticipants`); only an ADMIN deletes. Every write refreshes the `["adrs"]` prefix, so the page, the history and the list
+ * issues (`AdrMainPane`); the side panel holds Status, DACI, Details and History. What the signed-in user may do comes from the server's verdicts on the ADR (`allowedTransitions`, `canEditContent`,
+ * `canEditExpiry`, `canManageParticipants`, ...); only an ADMIN deletes. Every write refreshes the `["adrs"]` prefix, so the page, the history and the list
  * follow, and each write carries the revision the page holds.
  */
 export default function AdrDetails() {

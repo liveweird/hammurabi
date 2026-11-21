@@ -2,14 +2,15 @@
 
 Hammurabi starts at **0.1.0** (the foundation; `APP_VERSION` in `web/src/changelog/version.ts` and `info.version` in `documentation.yaml`). The Gradle `1.0.0-SNAPSHOT` group/version stays (inherited from the donor scaffold; renaming is out of scope). The per-version scope is `product.md` "Roadmap".
 
-## Bump the version in every user-visible PR
+## One version per milestone, a patch for a later fix
 
-Every PR that changes what a user sees or gets (a feature, a fix, a changed figure, a UI change) bumps
-`APP_VERSION` and adds its own English and Polish entry at the top of `web/src/changelog/entries.ts`, in that PR:
-a **minor** bump for a feature, a **patch** bump for a fix. Documentation-, test-, CI- and dependency-only PRs keep
-the version. An entry is never reopened to fold in a later change: once a version is on `master`, the next change
-gets the next version, so the displayed `v<APP_VERSION>` tells builds apart, not only the commit SHA. Versions are
-not roadmap milestones (the roadmap in `product.md` names the versions it intends, but a patch release in between is normal).
+The user's decision (2026-11-20, Adder's checkup C-DOC-6, adopted here by checkup C-DOC-3): a version is a **milestone** of the roadmap
+(`product.md`): the milestone's release commit bumps `APP_VERSION` (a **minor** bump, or the major for 1.0.0) and adds the one English and
+Polish entry for everything the milestone ships. Work inside a milestone does not bump. A user-visible fix that lands
+**after** a version's release commit is either folded in before that version is tagged (the entry is edited in the same
+change, so the tagged changelog describes the tagged code) or, once the tag exists, ships as a **patch** version
+(`1.0.1`) with its own entry. Documentation-, test-, CI- and dependency-only changes keep the version. Once a version
+is tagged, its entry is never reopened.
 
 **A bump edits three places in the same commit:** the `APP_VERSION` literal (`web/src/changelog/version.ts`), the new
 entry at the top of `web/src/changelog/entries.ts`, and `info.version` in
@@ -27,9 +28,14 @@ the same commit. Gradle and npm package versions are separate.
 
 ## Publishing a new version
 
-1. Merge the reviewed version/changelog change into `master` after its required checks pass.
-   Record the full release commit SHA and verify that commit's `APP_VERSION` and newest
-   changelog entry match the intended version. Wait for CI on that exact master commit.
+1. Merge the reviewed version/changelog change into `master`. Record the full release commit SHA
+   and verify that commit's `APP_VERSION` and newest changelog entry match the intended version.
+   **CI must be green on that exact commit before the tag** (the user's decision, 2026-11-20: a
+   release-checklist rule, not a GitHub ruleset): `gh run list --workflow ci --commit <sha>` shows
+   `success`; a red or still-running run blocks the tag, and a transient red is re-run, never waived.
+   Exceptions so far: v0.1.0 (`6c4c0a2`), v0.2.0 (`606c5dc`) and v0.3.0 (`ddc1b87`) were tagged while the
+   only `master` run was red or absent (run 44833044813 on `ddc1b87`, issue #10; checkup C-GATE-3); v0.4.0
+   onwards are green. The nightly `e2e` workflow also runs green on the release candidate before 1.0.0 (C-GATE-1).
 2. Create an annotated `v<APP_VERSION>` tag at that explicit SHA, then push that tag only.
    Never let a moving branch name choose the release commit. Existing published tags are
    immutable by convention: do not move, replace or force-push them.

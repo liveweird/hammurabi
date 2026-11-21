@@ -180,6 +180,7 @@ class-data-sharing (AppCDS) archive, and setting it drops the archive. Build-tim
 | Variable | Default | Purpose |
 |---|---|---|
 | `KTOR_DEVELOPMENT` | `true` | Development mode (`true`) vs production mode — HSTS/HTTPS redirect and the fail-closed startup checks. The image ships `false`. |
+| `KTOR_STARTUP_TIMEOUT_MILLIS` | `140000` | How long Ktor waits for every module (Flyway included) to start. A database whose migrations outrun it cannot boot: raise it together with the k8s startupProbe's `failureThreshold` (`k8s/app-deployment.yaml`), never one alone. |
 | `LOGIN_LOCKOUT_THRESHOLD` | `5` | Consecutive failures per account before `/login` answers 429. |
 | `LOGIN_LOCKOUT_DURATION_SECONDS` | `900` | How long a locked account stays locked. |
 | `LOGIN_LOCKOUT_MFA_MAX_DURATION_SECONDS` | `86400` | Ceiling of the progressive lock: a lock tripped by wrong emailed codes doubles per consecutive such lock (15 min, 30, 60, ...) up to this; wrong passwords keep the flat duration. |
@@ -196,7 +197,7 @@ class-data-sharing (AppCDS) archive, and setting it drops the archive. Build-tim
 | `MFA_CODE_TTL_SECONDS` | `300` | Lifetime of an emailed MFA code. |
 | `MFA_MAX_ATTEMPTS` | `5` | Wrong-code attempts before a challenge dies. |
 | `MFA_MAX_TRACKED` | `10000` | Maximum pending email-MFA challenges; new issuance receives 429 at capacity. |
-| `DATA_ENCRYPTION_KEY` | *(dev key, burned)* | AES-256-GCM key (64 hex) for stored credentials (none stored yet in 0.1.0; reserved for the first stored credential) — the dev default is burned, production refuses it. Back it up apart from the database. |
+| `DATA_ENCRYPTION_KEY` | *(dev key, burned)* | AES-256-GCM key (64 hex) for stored credentials (none stored yet; reserved for the first stored credential) — the dev default is burned, production refuses it. Back it up apart from the database. |
 | `DATA_ENCRYPTION_KEY_PREVIOUS` | *(blank)* | Decrypt-only fallback during a key rotation (boot once, then remove). |
 | `SECURITY_CSRF_ENABLED` | `false` | CSRF plugin gate — off (bearer JWT, no cookies). |
 | `JWT_SECRET` | `secret` | HMAC key for the access/refresh pair — production requires a private 64-hex key (`openssl rand -hex 32`); the placeholders and compose demo key are burned. |
@@ -216,6 +217,14 @@ class-data-sharing (AppCDS) archive, and setting it drops the archive. Build-tim
 | `TELEMETRY_STORAGE_INTERVAL_SECONDS` | `3600` | How often database/schema sizes are measured, 900..86400. |
 | `ADRS_EXPIRY_ENABLED` | `true` | The ADR expiry sweep: moves every `ACTIVE` ADR whose expiry date is before today (UTC) to `EXPIRED` (`.claude/docs/adr-model.md` "Expiry"); `false` starts no loop. |
 | `ADRS_EXPIRY_INTERVAL_SECONDS` | `3600` | How often the sweep runs, 1..86400 (validated on every boot). |
+| `ADRS_EXPORT_MAX_ADRS` | `500` | The most ADRs one bulk export (`GET /api/v1/adrs/export`) holds; over it the export answers `400` before the first byte (`.claude/docs/adr-model.md` "Export"). |
+| `ADRS_EXPORT_MAX_CONCURRENT` | `2` | The most exports one process streams at once; past it the export answers a typed `429`. |
+| `NOTIFICATIONS_RETENTION_DAYS` | `90` | How long a notice is kept before the sweep deletes it, 1..3650. |
+| `NOTIFICATIONS_SWEEP_INTERVAL_SECONDS` | `60` | How often the notification sweep wakes (reminders, the digest, the purge), 10..3600. |
+| `NOTIFICATIONS_SWEEP_ENABLED` | `true` | `false` starts no notification sweep (the test harness); the keys are validated either way. |
+| `NOTIFICATIONS_EMAIL_DELAY_SECONDS` | `300` | A notice still unseen after this many seconds is mailed in the digest, 0..86400 (0 = at the next tick); with `MAIL_TRANSPORT=disabled` no digest is sent and the bell is unaffected. |
+| `NOTIFICATIONS_EMAIL_MIN_INTERVAL_SECONDS` | `900` | At most one digest email per person per this many seconds, per process, 0..86400 (0 = no spacing). |
+| `NOTIFICATIONS_EMAIL_MAX_PER_RUN` | `100` | The most digest emails one sweep tick sends (the mailer is shared with MFA codes and password resets), 1..1000. |
 | `SEARCH_TIMEOUT_SECONDS` | `5` | The deadline of one full-text search request, 1..30; past it the search answers the typed `429` `search-timeout` (`.claude/docs/security.md` "Search"). |
 | `SEARCH_MAX_CONCURRENT` | `4` | The most full-text searches one process runs at once, 1..16 (production boot refuses a value that reaches the pool size); past it the typed `429` `search-busy`. |
 | `WEB_STATIC_DIR` | *(blank)* | Directory of the built SPA to serve; blank in local dev (Vite serves it). The image sets `/app/web`. |

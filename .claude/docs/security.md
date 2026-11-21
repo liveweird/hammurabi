@@ -465,7 +465,7 @@ throw, and the 500-vs-401 split would be an account-enumeration oracle, so login
 validators feature-local and enforce them **after** the authz guard (403 wins over 400). Covered
 by `PayloadValidationTest`. **Hidden formatting characters** (`isHiddenFormatting`, `infra/validation/Text.kt`: the bidirectional embeddings, overrides and isolates U+202A..U+202E and U+2066..U+2069, and the line and paragraph separators U+2028/U+2029, the "Trojan Source" family) are refused wherever a control character is: `sanitizeSingleLine` (names, titles) and `sanitizeMultiLine` (free text that wraps, `\n`/`\t` kept; `SanitizeMultiLineTest`). The zero-width joiner of an emoji sequence stays allowed.
 
-**Outbound HTTP calls (SSRF posture): not ported.** v0.1.0 makes no server-initiated HTTP call (SMTP aside), so Flow's `infra/outbound/` guard (the host allow-list, `GuardedDns`, the
+**Outbound HTTP calls (SSRF posture): not ported.** Hammurabi makes no server-initiated HTTP call (SMTP aside), so Flow's `infra/outbound/` guard (the host allow-list, `GuardedDns`, the
 blocked-address ranges, `outbound.blocked`) was left in Flow on purpose (`product.md` "Donors"). Port it, with its tests, in the commit that adds the first outbound call, and add its
 section and audit event here.
 
@@ -618,7 +618,7 @@ content layer (`LocalizedText`) lives beside the transports; `mail.appUrl` is va
 `ch.nokillswit.mail` LogCapture); production-mode boot tests must override `mail.transport` with
 `"disabled"`, since the dev-default `log` transport is refused in production.
 
-**Encryption at rest** (`infra/crypto/`, Lettuce's, ported; v0.1.0 stores no encrypted value yet — the first consumer will be a stored credential, e.g. a bot token). Sensitive columns are encrypted application-side with AES-256-GCM (`FieldCipher`: a
+**Encryption at rest** (`infra/crypto/`, Lettuce's, ported; no column stores an encrypted value yet (the field cipher has no consumer; its production boot check is live) — the first consumer will be a stored credential, e.g. a bot token). Sensitive columns are encrypted application-side with AES-256-GCM (`FieldCipher`: a
 fresh 12-byte nonce per value, 128-bit tag, envelope `enc:v1:<base64(nonce||ciphertext)>`), so a
 database-level attacker — SQL access, `pg_dump`, a stolen volume or backup — sees ciphertext; the
 key lives with the app (`DATA_ENCRYPTION_KEY`, 64 hex chars from `openssl rand -hex 32`; compose

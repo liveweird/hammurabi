@@ -11,7 +11,11 @@ import ch.nokillswit.users.UserRole
 import io.ktor.client.call.body
 import io.ktor.client.request.delete
 import io.ktor.client.request.get
+import io.ktor.client.request.put
+import io.ktor.client.request.setBody
+import io.ktor.http.ContentType
 import io.ktor.http.HttpStatusCode
+import io.ktor.http.contentType
 import io.ktor.server.testing.testApplication
 import kotlin.test.Test
 import kotlin.test.assertEquals
@@ -204,7 +208,12 @@ class NotificationRoutesTest {
         val admin = adrActor("adm", UserRole.ADMIN)
         val path = "/api/v1/users/${owner.id}/notification-preferences"
         assertEquals(HttpStatusCode.Forbidden, other.client.get(path).status)
-        assertEquals(HttpStatusCode.Forbidden, other.client.putJson(path, NotificationPreferencesUpdateRequest(emptyList())).status)
+        // An INVALID body (not the update's shape): the 403 must still win over the 400 the decode would raise.
+        val invalid = other.client.put(path) {
+            contentType(ContentType.Application.Json)
+            setBody("""{"disabled":[]}""")
+        }
+        assertEquals(HttpStatusCode.Forbidden, invalid.status)
         assertEquals(HttpStatusCode.OK, admin.client.get(path).status)
         assertEquals(HttpStatusCode.NoContent, admin.client.putJson(path, off(NotificationType.EXPIRY_REMINDER,
             email = false)).status)

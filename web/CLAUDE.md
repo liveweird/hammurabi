@@ -1,9 +1,9 @@
 # Frontend (`web/`)
 
 Vite + React 19 + TypeScript SPA: the shell + auth, user/feature management, MFA, password reset,
-the changelog, the flat-teams registry and the ADMIN telemetry panel — the v0.1.0 foundation, trimmed from Flow
+the changelog, the flat-teams registry and the ADMIN telemetry panel — the foundation, trimmed from Flow
 (`~/Sources/flow` @ 4e43e480, 1.57.1, the donor: port building blocks from there, don't reinvent; Astrolabe's trim of the same
-shell is the precedent) — plus the 0.2.0 ADR core and the 0.3.0 discussion (the list, create and detail pages, "The ADR pages" below) behind a Home that welcomes
+shell is the precedent) — plus the ADR pages (the list, create and detail pages, the discussion, find, the notifications, the decision log: "The ADR pages" below) behind a Home that welcomes
 and leads into them. Routes are lazy.
 
 - Dev server: `cd web && npm run dev` (port **5181** — not Vite's 5173 default, so Hammurabi can run
@@ -86,7 +86,7 @@ and leads into them. Routes are lazy.
 - **Page chrome**: every page is a `Stack gap="md"` on the canvas starting with
   `components/PageHeader.tsx` (`title` → the `order={2}` heading tests locate, `description?`,
   `backTo?`, right-aligned `actions?` — the ONE place a page's primary "New …" button lives — and
-  a `toolbar?` row).
+  a `toolbar?` row). `PageHeader` also titles the browser tab (`hooks/useDocumentTitle.ts`: "{title} · Hammurabi", `documentTitle?` when the tab needs more than the heading, e.g. an ADR's key; `AuthCard` does the same for the sign-in pages), so a new page gets its tab title from its header and never calls the hook itself.
   No `Container` and no page-wrapping `Paper`; widths come from
   `utils/layout.ts`: full-bleed lists, `Box maw={CONTENT_MAX_WIDTH}` for registry tables and the
   changelog, `Paper withBorder p="xl" maw={FORM_MAX_WIDTH}` (left-aligned) for the simple field
@@ -230,7 +230,7 @@ Every list page composes the same ported Lettuce blocks — copy `pages/Users.ts
 
 ## Notifications (0.6.0)
 
-Adder's bell, ported without its live channel, rooms and threads: **there is no push, the bell polls.** `components/NotificationsButton.tsx` sits in the shell header between the palette trigger and the `UserMenu`: a labelled `ActionIcon` ("Notifications (N unseen)", "Notifications (999+ unseen)" once the server's capped `total` reaches `NOTIFICATION_TOTAL_CAP` = 1000) with a red count `Indicator` (the same red as the account menu's what's-new dot) and a right-hand `Drawer` that lists the caller's notices newest first, 20 a page (Mantine `Pagination` with the `common.table.*Page` control names, as the discussion threads), read only while it is open. The count is `hooks/useUnseenNotifications.ts`: `GET /notifications?seen=false&page=1&pageSize=1`, only `total` read, `refetchInterval` 60 s (not in a background tab), enabled only with a token. Every key sits under the `["notifications"]` prefix (`utils/notificationKeys.ts`), so a write refreshes badge and list together via `refreshQueriesAfterMutation`; the session boundary needs nothing extra (`queryClient.clear()` on an identity change drops them, and the bell closes its drawer and stops reading when the token goes). A row is a `RouterLink` to `/adrs/{adrId}` (`adrPath`) with an unseen dot plus a visually hidden "Unseen"; a plain click marks it seen (fire-and-forget POST, re-read on settle) and closes the drawer, a modifier-click opens a new tab and changes nothing but the seen mark. "Mark all as seen" shows while anything is unseen. **The sentences** live in `locales/*/notifications.json` (`notifications.event.*`) and are chosen by `utils/notificationText.ts` (`describeNotification`): one per type, the actor's name or "the system" (null actor), the ADR key in the sentence and the ADR name + date/time in the subline; the role, status and entry-kind WORDS come from `adrs.role.*`, `adrs.status.*` and `adrs.discussion.kind.*` and are never copied (the PL sentences put them after a colon or in quotes, since the locale holds only the nominative); an unknown type shows its raw name and an unknown detail shows as sent. **Preferences:** `pages/NotificationPreferences.tsx` (`/notification-preferences`, lazy; the `UserMenu` item and the palette entry via `ACCOUNT_NAV`) is one table of the ten kinds with a Bell and an Email `Switch` per row (`aria-label`s "Bell: <kind>" / "Email: <kind>"); Save PUTs every kind the GET listed, `{type, inApp, email}` each (the GET's own shape); email needs the bell (a row whose bell is off has its email switch off and disabled), every email switch is disabled with a gray note when `emailAvailable` is false, and Save is the wholesale `PUT` of the SWITCHED-OFF `(type, channel)` pairs (a kind this build does not know is hidden but its stored pairs are sent back; the email choice of a bell-off row is stored as it was). Wrappers: `api/notifications.ts`.
+Adder's bell, ported without its live channel, rooms and threads: **there is no push, the bell polls.** `components/NotificationsButton.tsx` sits in the shell header between the palette trigger and the `UserMenu`: a labelled `ActionIcon` ("Notifications (N unseen)", "Notifications (999+ unseen)" once the server's capped `total` reaches `NOTIFICATION_TOTAL_CAP` = 1000) with a red count `Indicator` (the same red as the account menu's what's-new dot) and a right-hand `Drawer` that lists the caller's notices newest first, 20 a page (Mantine `Pagination` with the `common.table.*Page` control names, as the discussion threads), read only while it is open. The count is `hooks/useUnseenNotifications.ts`: `GET /notifications?seen=false&page=1&pageSize=1`, only `total` read, `refetchInterval` 60 s (not in a background tab), enabled only with a token. Every key sits under the `["notifications"]` prefix (`utils/notificationKeys.ts`), so a write refreshes badge and list together via `refreshQueriesAfterMutation`; the session boundary needs nothing extra (`queryClient.clear()` on an identity change drops them, and the bell closes its drawer and stops reading when the token goes). A row is a `RouterLink` to `/adrs/{adrId}` (`adrPath`) with an unseen dot plus a visually hidden "Unseen"; a plain click marks it seen (fire-and-forget POST, re-read on settle) and closes the drawer, a modifier-click opens a new tab and changes nothing but the seen mark. "Mark all as seen" shows while anything is unseen. **The sentences** live in `locales/*/notifications.json` (`notifications.event.*`) and are chosen by `utils/notificationText.ts` (`describeNotification`): one per type, the actor's name or "the system" (null actor), the ADR key in the sentence and the ADR name + date/time in the subline; the role, status and entry-kind WORDS come from `adrs.role.*`, `adrs.status.*` and `adrs.discussion.kind.*` and are never copied (the PL sentences put them after a colon or in quotes, since the locale holds only the nominative); an unknown type shows its raw name and an unknown detail shows as sent. **Preferences:** `pages/NotificationPreferences.tsx` (`/notification-preferences`, lazy; the `UserMenu` item and the palette entry via `ACCOUNT_NAV`) is one table of every notice kind (twelve today) with a Bell and an Email `Switch` per row (`aria-label`s "Bell: <kind>" / "Email: <kind>"); Save PUTs every kind the GET listed, `{type, inApp, email}` each (the GET's own shape); email needs the bell (a row whose bell is off has its email switch off and disabled), every email switch is disabled with a gray note when `emailAvailable` is false, and a kind this build does not know is hidden but sent back with its read switches (the email choice of a bell-off row is stored as it was). Wrappers: `api/notifications.ts`.
 
 ## Registries (the Teams.tsx template)
 
@@ -266,10 +266,10 @@ Passwords are generated client-side and revealed exactly once (`components/OneTi
 
 ## Per-feature rules (every page)
 
-The ADMIN telemetry panel (`components/Telemetry*.tsx`, the shell's right-hand aside: memory, storage, requests, JVM) is the only chart surface in 0.1.0. Rules that apply to every page:
+The ADMIN telemetry panel (`components/Telemetry*.tsx`, the shell's right-hand aside: memory, storage, requests, JVM) is the only chart surface. Rules that apply to every page:
 
 - **Charts** (any page): charts live only in lazy chunks, each chart component imports `@mantine/charts/styles.css` itself, a legend for two or more series, one axis (never dual), every chart has its numbers in a table beside it, colour is never the only carrier of identity, and colours come from the existing vocabulary in `utils/chartColors.ts` (no new hue for meaningful series; series keyed by arbitrary names — statuses, columns, people — draw from its `CATEGORY_PALETTE`; every mark clears WCAG 1.4.11, ≥ 3:1). Tests mock `@mantine/charts`. 
-- **Dates** render deterministically (`YYYY-MM-DD` / `YYYY-MM-DD HH:mm` via `utils/formatDate.ts`), never `toLocaleString()`.
+- **Dates** render deterministically (`YYYY-MM-DD` / `YYYY-MM-DD HH:mm` via `utils/formatDate.ts`), never `toLocaleString()`. **A timestamp is read in its reader's zone**: every ADR-page timestamp (updated, history, discussion, notices) passes `browserTimeZone()` as the `timeZone` of `formatDate`/`formatDateTime` (UTC is only the default); a date-only value (`expiresOn`, the `YYYY-MM-DD` filters) is a calendar day and is never shifted, and the telemetry panel stays UTC (the server's sampling clock). Tests that print a timestamp pin the zone through `test/timeZone.ts`.
 - **Failures render inline, never as a toast** (see "Error handling"); success toasts use the fixed vocabulary only.
 
 ## Internationalization (i18n)
@@ -318,7 +318,7 @@ are English (THE default and fallback everywhere) and Polish. All user-facing st
   `utils/chartColors.ts`'s): lapis marks only primary CTAs, the active nav item (a light tint + a
   3px accent bar) and focus — it is the interactive accent and nothing else (see the colour vocabulary). Everything else
   is neutral BY THEME DEFAULT — `Anchor` is text-coloured with a
-  hover underline, `Chip` is `variant="light"`, `Badge` is `variant="light"`, `ActionIcon` is
+  hover underline, `Chip` is `variant="light"`, `Badge` is `variant="light" color="gray"` (a colourless badge is neutral, never the brand), `ActionIcon` is
   `variant="subtle" color="gray"` (destructive ones pass `color="red"`), `Menu` is bottom-end in a
   portal, tables are `verticalSpacing="xs"` (≈40px rows). Pages never pass those props back. Teal
   is the SUCCESS colour, red the BLOCKING one, orange the warning one (soft findings, waived); the ADMIN role badge is
@@ -361,9 +361,9 @@ suite. Release convention:
 - Keep dates descending (same-day releases are fine — newest stays on top), versions unique, and
   both bodies non-empty — pinned by `src/changelog/entries.test.ts`.
 - Complete publication with the annotated version tag and bilingual GitHub release described in
-  [the application release process](../.claude/docs/app-releases.md). Every user-visible PR bumps
-  the version with its own entry (minor for a feature, patch for a fix). Documentation/test-only
-  changes may retain the version; published tags never move.
+  [the application release process](../.claude/docs/app-releases.md). A version is a roadmap
+  milestone: its release commit bumps the version with its one entry (a later fix is folded in before the tag, or ships as a patch).
+  Documentation/test-only changes keep the version; published tags never move.
 - Keep phrases that tests assert on in plain text runs: markdown formatting splits text nodes,
   and testing-library's `getByText` matches direct text nodes only.
 
@@ -371,4 +371,4 @@ Rendering & UI wiring (details: `.claude/docs/web-internals.md`): `pages/Changel
 
 ## Not yet ported from Toadie / Lettuce (port, don't reinvent)
 
-When a feature needs a Lettuce or Covenant `web/` building block (`safeBackParam`, `StatusPill`/`MetaStrip`/`FormFooter`/`ListToolbar`, `useDiscardGuard` / the `beforeunload` guard (Flow's `hooks/useBeforeUnloadGuard.ts`, dropped with the Capacity page), the catalog filter-set/facets, the CodeMirror editor), port the sibling's `web/` implementation and its `web/CLAUDE.md` section wholesale — the list is in `.claude/docs/web-internals.md`. `hooks/useRovingGrid.ts` is kept as prior art for later grid views' keyboard navigation (no consumer yet; its test keeps it live for knip).
+When a feature needs a Lettuce or Covenant `web/` building block (`safeBackParam`, `StatusPill`/`MetaStrip`/`FormFooter`/`ListToolbar`, `useDiscardGuard` / the `beforeunload` guard (Flow's `hooks/useBeforeUnloadGuard.ts`, dropped with the Capacity page), the catalog filter-set/facets, the CodeMirror editor), port the sibling's `web/` implementation and its `web/CLAUDE.md` section wholesale — the list is in `.claude/docs/web-internals.md`. (`hooks/useRovingGrid.ts`, kept as prior art, was deleted in the 1.0.0 checkup, C-SMELL-1: no grid view consumed it; Flow's implementation is the donor.)

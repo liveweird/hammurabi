@@ -8,7 +8,11 @@
 -- Upgrade rule (decision, `product.md` "Assumptions"): a link already IN EFFECT (the successor has its SUCCESSOR_ACTIVATED event, so the
 -- predecessor was superseded in the same transaction) is backfilled as accepted - it was applied under the old rules and stands. A link still
 -- PENDING stays unaccepted: its predecessor's Approver has to accept it before the successor can activate. Rolling back to 0.9.x ignores the
--- column (`persistence.md` "Successor acceptance (V19)").
+-- column, but 0.9.x re-pointing, unlinking or detaching an ACCEPTED pending link would trip the CHECK (a 500), so BEFORE the old release
+-- starts clear the pending markers only (clearing every marker would erase the backfill of the links in effect):
+--   UPDATE adrs SET supersedes_accepted_id = NULL WHERE NOT EXISTS
+--     (SELECT 1 FROM adr_events e WHERE e.adr_id = adrs.id AND e.event_type = 'SUCCESSOR_ACTIVATED');
+-- (`persistence.md` "Successor acceptance (V19)").
 ALTER TABLE adrs ADD COLUMN supersedes_accepted_id INTEGER REFERENCES adrs(id);
 ALTER TABLE adrs ADD CONSTRAINT ck_adrs_supersedes_accepted
     CHECK (supersedes_accepted_id IS NULL OR supersedes_accepted_id IS NOT DISTINCT FROM supersedes_id);

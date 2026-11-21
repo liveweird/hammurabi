@@ -11,7 +11,7 @@ Read on demand before changing a CI job, a Dependabot rule or a static-analysis 
   (`npm run test:coverage -- --sequence.shuffle --sequence.seed=<seed>`, which is also the `isolate: false` independence proof; `scripts/gates.sh web` mirrors it with a
   random seed it prints; CI picks the seed itself and writes it, with the replay command, to the job summary before the run, so a shuffle-order failure can be reproduced), `e2e-static` —
   lint/knip/typecheck/scenario parity/setup, the toolchain-pins check, `npm audit` (high+) on both npm workspaces, `k8s-static` (kubeconform over
-  `k8s/`, and the app deployment pinned to one replica), and `images`, an image build plus a Trivy scan of it, on `master` pushes and on every pull request that changes more than Markdown — the `changes` job decides it, as it does `server`); the blackbox Playwright
+  `k8s/`, the app deployment pinned to one replica, and "No path around the Ingress": no `LoadBalancer`/`NodePort`, `hostPort` or `hostNetwork`, the `app` Service a `ClusterIP`, the NetworkPolicy naming the `ingress-nginx` controller), and `images`, an image build plus a Trivy scan of it, on `master` pushes and on every pull request that changes more than Markdown — the `changes` job decides it, as it does `server`); the blackbox Playwright
   suite (`e2e.yml`) runs nightly and on demand, and re-scans the image it built with the same Trivy gate (its "Build images" step is a plain `docker compose build`, like `images`). Dependabot (`.github/dependabot.yml`) checks every
   workspace, Actions and container manifests weekly; `.claude/docs/dependencies.md` describes
   grouping, compatibility pins and runtime verification, and
@@ -82,7 +82,7 @@ app's password-reset and MFA email to it (`MAIL_TRANSPORT=smtp`). Ports delibera
 
 Kubernetes
 (OrbStack) deployment targets the dedicated `hammurabi` namespace — see `k8s/secret.yaml`'s header for
-the secret-creation command; the image is `hammurabi-app` and the cluster runs a single `app-deployment.yaml` (one process, one replica) beside postgres.
+the secret-creation command; the image is `hammurabi-app` and the cluster runs a single `app-deployment.yaml` (one process, one replica) beside postgres. **The front door is an ingress-nginx Ingress** (`k8s/ingress.yaml`; the `app` Service is a `ClusterIP` and `network-policies.yaml` admits only the controller's pods), because the app trusts the proxy's `X-Forwarded-For` for its per-IP keys: a LoadBalancer in front would let a client pick its own key (checkup C-SEC-6). Reach it at the Ingress host (`hammurabi.k8s.orb.local` on OrbStack, a self-signed certificate); `kubectl port-forward` bypasses the proxy and the policy, so it is for an operator's debugging only.
 
 **AppCDS (class-data sharing).**
 

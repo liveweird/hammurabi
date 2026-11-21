@@ -37,7 +37,10 @@ fun requireMayTransition(standing: AdrStanding) {
     }
 }
 
-/** Who may replace the participants (and, with `canEditExpiry`, set the expiry date): the Driver, the Approver, ADMIN. */
+/**
+ * Who may replace the participants: the Driver, the Approver, ADMIN. The expiry date has its own, narrower verdict ([canEditExpiry]): once
+ * the ADR is `ACTIVE` only the Approver or ADMIN may change it.
+ */
 fun requireMayManage(standing: AdrStanding) {
     if (!standing.holds(AdrRole.DRIVER, AdrRole.APPROVER)) {
         throw ForbiddenException("Only the Driver, the Approver or an administrator may change this ADR's participants")

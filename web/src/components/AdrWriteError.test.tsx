@@ -39,4 +39,11 @@ describe("AdrWriteError", () => {
     expect(screen.getByRole("alert")).toHaveTextContent("This ADR cannot move there from its current status");
     expect(screen.getByText("Move failed")).toBeInTheDocument();
   });
+
+  test("a successor that waits for its predecessor's Approver is not titled as a stale page", () => {
+    renderWithProviders(<AdrWriteError error={conflict("urn:hammurabi:problem:successor-not-accepted")} kind="transition" onReloaded={vi.fn()} />);
+    expect(screen.getByText("Waiting for the predecessor's Approver")).toBeInTheDocument();
+    expect(screen.queryByText("This ADR has moved on")).not.toBeInTheDocument();
+    expect(screen.getByRole("alert")).toHaveTextContent("the Approver of the decision it replaces has to accept it first");
+  });
 });

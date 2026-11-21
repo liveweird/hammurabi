@@ -85,8 +85,10 @@ side on one machine; host ports bind to 127.0.0.1:
   store, so no push is needed. Everything lives in the dedicated namespace so it coexists with
   other local stacks. PostgreSQL uses an exact version and multi-platform manifest
   digest, its argv-list exec probe also serves as the readiness gate. The app runs in production mode
-  (`KTOR_DEVELOPMENT=false`, `HTTP_BEHIND_PROXY=true` — it expects a TLS-terminating ingress/LB that sets
-  `X-Forwarded-For`/`-Proto`) behind `k8s/app-service.yaml`, one replica (the login lockout, MFA and reset throttles are
+  (`KTOR_DEVELOPMENT=false`, `HTTP_BEHIND_PROXY=true` — it expects the ingress-nginx Ingress, `k8s/ingress.yaml`, to set
+  `X-Forwarded-For`/`-Proto`) behind `k8s/app-service.yaml` (a `ClusterIP`: the Ingress is the only way in, the NetworkPolicy admits only the
+  controller's pods; `kubectl -n hammurabi port-forward svc/app 8090` bypasses both and answers plain HTTP with the 301 to https unless the
+  request sets `X-Forwarded-Proto: https`, so it is for debugging, never for a browser session), one replica (the login lockout, MFA and reset throttles are
   per-instance in-memory state; CI pins `replicas: 1`). `k8s/network-policies.yaml` (default-deny + the few allowed flows)
   is applied with the rest and OrbStack's cluster enforces it: an in-cluster SMTP relay is blocked until you add an
   egress policy for it (`.claude/docs/security.md`, "Kubernetes pod and network hardening"). For throwaway plain-HTTP

@@ -398,7 +398,11 @@ class AdrSuccessorAcceptTest {
     @Test
     fun `only AdrLinkWrites assigns the two link columns`() {
         val root = File(System.getProperty("repo.root") ?: "..", "server/src")
-        val writes = Regex("""(\bit\[\s*(\w+\.)*supersedes(Accepted)?Id\s*]\s*=[^=])|(\bsupersedes(_accepted)?_id\s*=[^=])""")
+        // `it[col] =`, `row[col] =`, `this[col] =` (any receiver), the raw column names, and the bulk writers naming the columns.
+        val writes = Regex(
+            """(\b\w+\[\s*(\w+\.)*supersedes(Accepted)?Id\s*]\s*=[^=])|(\bsupersedes(_accepted)?_id\s*=[^=])|""" +
+                """(\b(batchInsert|batchUpsert|upsert|insertIgnore)\b[^\n]*supersedes(Accepted)?Id)""",
+        )
         val strays = listOf("main/kotlin", "test/kotlin").flatMap { dir ->
             File(root, dir).walkTopDown().filter { it.isFile && it.extension == "kt" }
                 // The two tests below spell the columns in raw SQL on purpose (a scratch schema; a deliberately bad UPDATE).

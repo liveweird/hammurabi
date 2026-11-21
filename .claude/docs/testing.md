@@ -37,12 +37,12 @@ ran at all in this one. Class order is not a contract (with `-Pforks>=2` the cla
 - **Many failed logins** (rate limit, proxy trust): freshly seeded accounts with a wrong password (~1 ms; an UNKNOWN email costs ~225 ms), soft-deleted afterwards.
 - `TestSeedState.restoreSeedAccounts()` — bootstrap/production-mode tests rotate the seed admin's password in the
   SHARED container; call it afterwards. Production-mode boots must also override `"mail.transport" to "disabled"` and
-  `"security.encryption.key" to strongEncryptionKey()`; the checks fire in module order (JWT → mail → crypto → seed
-  passwords), so a test asserting a later check must satisfy every earlier one.
+  `"security.encryption.key" to strongEncryptionKey()`; the checks fire in module order (JWT → mail → crypto → DB password → seed
+  passwords; the test container's password is private), so a test asserting a later check must satisfy every earlier one.
 
 **Coverage gates.** Backend Kover enforces line- and branch-coverage floors in `server/build.gradle.kts` (the
 `minBound` floors, wired into `check` via `koverVerify`; `@kotlinx.serialization.Serializable` classes are excluded
-from the measurement). The floors (lines 97, branches 81) were re-baselined once after the trim and sit just below current actuals — **re-measure and raise** them as coverage improves
+from the measurement). The floors (lines 98, branches 87) were re-baselined at the 1.0.0 checkup to the measured 98.85 / 87.31 rounded down — **re-measure and raise** them as coverage improves
 (`./gradlew :server:koverXmlReport`), never lower them for new code; a tight-loop Kover disable is never committed. Frontend vitest enforces thresholds in `web/vite.config.ts` (`test.coverage.thresholds`,
 same convention); run `cd web && npm run test:coverage`.
 
@@ -69,7 +69,7 @@ file order is the bug, not the config.
 
 **Fork warm-up.** `ForkWarmup<k>Test` (k = 1..`-Pforks`) is pinned as the FIRST class of fork k, so the one-time Postgres + Flyway +
 first-boot cost lands outside `testApplication`'s hard 60 s limit and outside any real test; a full run fails if a warm-up did not run first in its own JVM
-(`test-fixtures.md` "Fork warm-up"). There are no shared heavyweight fixtures in v0.1.0: when an ADR increment adds one, a class that reads it
+(`test-fixtures.md` "Fork warm-up"). There are no shared heavyweight fixtures: when an ADR increment adds one, a class that reads it
 warms it in a `@BeforeClass` and a guard test fails a class that forgets (Flow's `SyncedStubFixture`/`StubFixtureWarmupGuardTest` pair is the donor shape).
 
 **Runtime OpenAPI conformance.** Every `/api/` interaction in the server suite is validated against

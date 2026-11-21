@@ -354,8 +354,8 @@ export interface paths {
         /**
          * Delete a user
          * @description ADMIN only, soft delete: the account can no longer sign in, outstanding refresh
-         *     tokens die (`user_gone`), the email is freed for reuse, and the user's catalog files
-         *     stay with a deleted-creator marker. Deleting YOURSELF is a `403`; deleting the LAST
+         *     tokens die (`user_gone`), the email is freed for reuse, and what the user wrote or created (ADRs, discussion
+         *     entries, lenses, history events) stays with a deleted-account marker. Deleting YOURSELF is a `403`; deleting the LAST
          *     active administrator is a `409`.
          */
         delete: operations["deleteUser"];
@@ -469,7 +469,7 @@ export interface paths {
         };
         /**
          * List teams
-         * @description Any authenticated user — teams are the shared ownership unit chat features scope to;
+         * @description Any authenticated user — teams are a flat, shared registry;
          *     every mutation is ADMIN only.
          *
          *     - Sortable fields: `id`, `name`, `createdAt`, `updatedAt`. Default `id` ascending.
@@ -1674,7 +1674,7 @@ export interface components {
             expiresOn: string | null;
             /**
              * Format: int64
-             * @description Send it back as `X-Expected-Revision` on the document PUT, a transition and the participants PUT; every real change of any of them bumps it.
+             * @description Send it back as `X-Expected-Revision` on the document PUT, a transition and the participants, tags and supersedes PUTs; every real change of any of them bumps it (accepting or detaching a successor writes a successor's revision only when it changes the link).
              */
             revision: number;
             /**
@@ -2490,7 +2490,7 @@ export interface components {
                 "application/problem+json": components["schemas"]["ProblemDetail"];
             };
         };
-        /** @description Throttled — either the per-IP rate-limit bucket is exhausted (generic detail), on a telemetry read (`/api/v1/telemetry/**`) the per-USER telemetry bucket is exhausted (30/min), on the user directory (`/api/v1/users/directory`) the per-USER directory bucket is exhausted (120/min), or, on /login, the per-account lockout is active (account-specific detail), or, on the ADR list's full-text `text` search, the search ran past its deadline (`urn:hammurabi:problem:search-timeout`) or the process's concurrent-search cap is reached (`urn:hammurabi:problem:search-busy`; both with `Retry-After`), or the bulk ADR export's concurrency cap is reached (`urn:hammurabi:problem:export-busy`, `Retry-After`). All carry a ProblemDetail body. */
+        /** @description Throttled — either the per-IP rate-limit bucket is exhausted (generic detail), on a telemetry read (`/api/v1/telemetry/**`) the per-USER telemetry bucket is exhausted (30/min), on the user directory (`/api/v1/users/directory`) the per-USER directory bucket is exhausted (120/min), on the notification routes the per-USER read-state bucket is exhausted (240/min), on the ADR exports the per-USER export bucket is exhausted (20/min), on a password change the per-USER password-change bucket is exhausted (5/min), or, on /login, the per-account lockout is active (account-specific detail), or, on the ADR list's full-text `text` search, the search ran past its deadline (`urn:hammurabi:problem:search-timeout`) or the process's concurrent-search cap is reached (`urn:hammurabi:problem:search-busy`; both with `Retry-After`), or the bulk ADR export's concurrency cap is reached (`urn:hammurabi:problem:export-busy`, `Retry-After`). All carry a ProblemDetail body. */
         TooManyRequests: {
             headers: {
                 [name: string]: unknown;

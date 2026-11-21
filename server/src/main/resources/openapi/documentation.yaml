@@ -47,7 +47,7 @@ tags:
   - name: users
     description: Hammurabi's own login accounts - ADMIN-managed CRUD, per-user feature flags, language and password change, plus the user-picker directory open to any signed-in user.
   - name: teams
-    description: Flat teams, the ownership unit chat features scope to - readable by any authenticated user, written by ADMIN only.
+    description: Flat teams, each with an optional manager - readable by any authenticated user, written by ADMIN only.
   - name: tags
     description: The ADR tag registry - categories of tags curated by ADMIN, readable by any authenticated user; an ADR may carry only registered tags.
   - name: adrs
@@ -533,8 +533,8 @@ paths:
       summary: Delete a user
       description: |
         ADMIN only, soft delete: the account can no longer sign in, outstanding refresh
-        tokens die (`user_gone`), the email is freed for reuse, and the user's catalog files
-        stay with a deleted-creator marker. Deleting YOURSELF is a `403`; deleting the LAST
+        tokens die (`user_gone`), the email is freed for reuse, and what the user wrote or created (ADRs, discussion
+        entries, lenses, history events) stays with a deleted-account marker. Deleting YOURSELF is a `403`; deleting the LAST
         active administrator is a `409`.
       responses:
         '204': { description: Deleted }
@@ -677,7 +677,7 @@ paths:
       operationId: listTeams
       summary: List teams
       description: |
-        Any authenticated user — teams are the shared ownership unit chat features scope to;
+        Any authenticated user — teams are a flat, shared registry;
         every mutation is ADMIN only.
 
         - Sortable fields: `id`, `name`, `createdAt`, `updatedAt`. Default `id` ascending.
@@ -1379,7 +1379,6 @@ paths:
             schema:
               $ref: '#/components/schemas/AdrSuccessorAcceptRequest'
       responses:
-        '415': { $ref: '#/components/responses/UnsupportedMediaType' }
         '204':
           description: Accepted (or already accepted)
         '400': { $ref: '#/components/responses/BadRequest' }
@@ -1388,6 +1387,7 @@ paths:
         '404': { $ref: '#/components/responses/NotFound' }
         '409': { $ref: '#/components/responses/Conflict' }
         '413': { $ref: '#/components/responses/PayloadTooLarge' }
+        '415': { $ref: '#/components/responses/UnsupportedMediaType' }
         '500': { $ref: '#/components/responses/InternalServerError' }
 
   /api/v1/adrs/{id}/events:
@@ -2146,7 +2146,9 @@ components:
       description: >-
         Throttled — either the per-IP rate-limit bucket is exhausted (generic detail), on a telemetry read
         (`/api/v1/telemetry/**`) the per-USER telemetry bucket is exhausted (30/min), on the user directory
-        (`/api/v1/users/directory`) the per-USER directory bucket is exhausted (120/min), or, on /login, the
+        (`/api/v1/users/directory`) the per-USER directory bucket is exhausted (120/min), on the notification routes the per-USER
+        read-state bucket is exhausted (240/min), on the ADR exports the per-USER export bucket is exhausted (20/min), on a password
+        change the per-USER password-change bucket is exhausted (5/min), or, on /login, the
         per-account lockout is active (account-specific detail), or, on the ADR list's full-text `text` search, the search ran past its deadline
         (`urn:hammurabi:problem:search-timeout`) or the process's concurrent-search cap is reached (`urn:hammurabi:problem:search-busy`; both
         with `Retry-After`), or the bulk ADR export's concurrency cap is reached (`urn:hammurabi:problem:export-busy`, `Retry-After`).
@@ -2670,7 +2672,7 @@ components:
         consequences: { type: string }
         status: { $ref: '#/components/schemas/AdrStatus' }
         expiresOn: { type: string, format: date, nullable: true, description: "The last day the decision is in force; the sweep expires an `ACTIVE` ADR the day after." }
-        revision: { type: integer, format: int64, minimum: 1, description: "Send it back as `X-Expected-Revision` on the document PUT, a transition and the participants PUT; every real change of any of them bumps it." }
+        revision: { type: integer, format: int64, minimum: 1, description: "Send it back as `X-Expected-Revision` on the document PUT, a transition and the participants, tags and supersedes PUTs; every real change of any of them bumps it (accepting or detaching a successor writes a successor's revision only when it changes the link)." }
         createdAt: { type: integer, format: int64, description: "Epoch millis" }
         createdById: { type: integer, format: int32, minimum: 0, description: "The creating user (the first Driver)." }
         updatedAt: { type: integer, format: int64, description: "Epoch millis" }

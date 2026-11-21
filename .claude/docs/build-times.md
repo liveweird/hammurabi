@@ -6,9 +6,8 @@ budgets and the investigation log. Read it before you change a gate, a CI job, t
 test harness (fixtures, forks, Kover) or anything that makes a gate slower.
 
 > **Restart at v0.1.0.** Flow's history (its WHY investigations, status checks and measured figures, ~430 KB) was not carried over: the numbers described a different app and
-> would mislead here. The method and the budget mechanics below are kept. **Every budget in `scripts/timings/budgets.json` is PROVISIONAL** (each row says so) until the
-> first CI run on GitHub (there is no remote yet, `BACKLOG.md`) and the first local `scripts/gates.sh all` series are measured: record the series, set targets from it, and
-> add the first dated "Status check" entry below. Flow's `~/Sources/flow/.claude/docs/build-times.md` is the donor for any technique (statement-timeout cache, batched inserts,
+> would mislead here. The method and the budget mechanics below are kept. **Every budget in `scripts/timings/budgets.json` was re-baselined on 2026-11-21** (1.0.0 checkup) from the
+> measured CI series (11 `ci` runs, the first nightly `e2e`) and the local `scripts/gates.sh` series; each row's `why` names what it was measured from. Flow's `~/Sources/flow/.claude/docs/build-times.md` is the donor for any technique (statement-timeout cache, batched inserts,
 > fork balancing, the ESLint cache, AppCDS): read its WHY before re-inventing one, port it when the same symptom shows up.
 >
 > **"WHY n" in a code or workflow comment** (e.g. `build-times.md WHY 3`, 17, 24, 26, 27) is the donor's numbering: it points at that WHY entry in Flow's file, not at this one. Hammurabi's own
@@ -78,27 +77,27 @@ It uses the runner's preinstalled `node` (the scripts need node >= 18; ubuntu-24
 
 The ONE place for the numbers is `scripts/timings/budgets.json` (`target` = what it SHOULD take for this app; `alarm` = the hard ceiling; a `why` per row; `ci`, `ci-steps` and
 `local` sections). A target is a claim about the app ("tiny DB, no integrations → this cheap"), and a miss is a question to answer, not a number to adjust. CI runners are
-public-repo `ubuntu-24.04` (4 vCPU, 16 GB); local figures are for the dev machine. The rows (all PROVISIONAL, seconds target/alarm — the JSON is the source of truth, this table only
+public-repo `ubuntu-24.04` (4 vCPU, 16 GB); local figures are for the dev machine. The rows (re-baselined 2026-11-21, target/alarm — the JSON is the source of truth, this table only
 orients you):
 
 | Activity | Target | Alarm |
 |---|---|---|
 | CI `changes` | 15 s | 30 s |
 | CI `server-tests` (the test task alone; the CI warning compares test time with this) | 3 min | 8 min |
-| CI `server` (compile + detekt + tests + Kover) | 5 min | 10 min |
-| CI `web` | 1.5 min | 3 min |
-| CI `e2e-static` | 30 s | 1 min |
+| CI `server` (compile + detekt + tests + Kover) | 4.5 min | 9 min |
+| CI `web` | 2 min | 4 min |
+| CI `e2e-static` | 1 min | 2 min |
 | CI `gradle-vulnerability-scan` | 1 min | 2 min |
-| CI `images` (plain `docker compose build`, no layer cache, + Trivy) | 2.5 min | 4 min |
+| CI `images` (plain `docker compose build`, no layer cache, + Trivy) | 3 min | 5 min |
 | CI `k8s-static` | 20 s | 45 s |
-| CI `e2e` (nightly) and its five steps (`ci-steps`) | 7 min | 15 min |
-| local `server-build` (`cleanTest check :server:installDist -Pforks=2`) | 3 min | 6 min |
-| local `server-test` | 2 min | 5 min |
-| local `web-gates` | 1.5 min | 3 min |
-| local `e2e-static` | 30 s | 1 min |
-| local `e2e-playwright` | 5 min | 10 min |
+| CI `e2e` (nightly) and its five steps (`ci-steps`) | 7 min | 15 min (one run measured so far) |
+| local `server-build` (`cleanTest check :server:installDist -Pforks=2`) | 75 s | 2.5 min |
+| local `server-test` | 1 min | 2.5 min |
+| local `web-gates` | 20 s | 1 min |
+| local `e2e-static` | 10 s | 30 s |
+| local `e2e-playwright` | 2.5 min | 6 min |
 
-Nothing here is measured yet: they are Flow's per-gate claims scaled down for a foundation-sized suite. The rule for changing one is below ("Review cadence").
+Every row cites its measurement in the JSON; the nightly `e2e` rows rest on one run and the local `e2e-playwright` on the CI step, so re-baseline them after a few more. The rule for changing one is below ("Review cadence").
 
 **Fork balancing (ported).** The `-Pforks` default is 1; `scripts/gates.sh` runs 2 (`HAMMURABI_FORKS`, 1..3) and CI runs `-Pforks=2` (`TEST_FORKS`). The class order is weight-balanced from
 `server/test-weights.tsv` (`test-fixtures.md` "Balanced fork order"); the committed weights are the donor's, pruned to Hammurabi's classes, so **re-measure them** after the first full
@@ -106,9 +105,7 @@ local run (`node scripts/timings/local-times.mjs test-weights`) and again whenev
 
 ## Investigation log
 
-Empty. The first entry is the re-baseline ("Status check, <date>"): the recorded `server-build` / `web-gates` / `e2e-static` series, the first CI medians, and the
-Kover/coverage floors measured at the same time. A later TREND flag or budget breach gets a dated entry here (the symptom, the evidence, the cause, the outcome), keyed by a
-running WHY number so a code comment can point at it (`Hammurabi WHY n`).
+**Status check, 2026-11-21 (the 1.0.0 checkup; the re-baseline).** Local gates (`scripts/gates.sh all`, one clean run): `server-build` 60 s (134 classes, 890 tests, `-Pforks=2`), `web-gates` 13 s, `e2e-static` 3 s. CI (`ci-times.mjs`, 11 successful `ci` runs 2026-11-20..21): run wall 3m50s median of 5 (max 4m31s); `server` 3m34s, `images` 2m31s, `web` 1m35s, `e2e-static` 54 s, `gradle-vulnerability-scan` 54 s, `changes` 10 s, `k8s-static` 5 s; the first nightly `e2e` run 5m49s (Build images 1m51s, Run E2E 1m45s, Install e2e deps 36 s, Install Playwright browser 35 s, scan 28 s, Start the stack 15 s). The budgets were set from these (a few seconds' headroom over the observed maxima, the alarm about twice the target). `e2e-static` and `web` sit close to their budgets because `npm ci` dominates them (the cache, not the code). The Kover and vitest floors were re-measured the same day (`testing.md`). No WHY entries yet: a later TREND flag or budget breach gets a dated entry here (the symptom, the evidence, the cause, the outcome), keyed by a running WHY number so a code comment can point at it (`Hammurabi WHY n`).
 
 ## Review cadence
 

@@ -23,7 +23,17 @@ The `backlog` mod (`liveweird/claude-mods`) summarises the tags on the status li
 
 ## Foundation follow-ups
 
-- [new] **Raise the coverage floors back.** The trim re-baselined them to lines 97 / branches 81 (Flow had 98 / 85 with its cut features' tests);
-  raise them as the ADR features add tests.
 - [new] **External systems writing ADRs.** Port Flow's `integration/` service tokens when an external system should create or update ADRs.
-- [new] **GitHub remote.** Create `liveweird/hammurabi` and push; CI only runs once it exists.
+
+## 1.0.0 checkup follow-ups
+
+Source: `.claude/docs/audit-status.md` (the findings table has the evidence and the proposed fix of every id).
+
+- [new] **C-SEC-4: bound the notice volume.** No ADR-domain write rides a rate bucket and notices have no per-actor bound; one user re-adding 98 participants every 15 minutes mails each of them 96 times a day through the mailer MFA and reset share. Port Adder's per-actor digest budget (V24) plus one per-user write bucket.
+- [new] **Checkup tier 2.** The findings that can follow 1.0.0: C-SEC-8 (hardening lows), C-SEC-9 (export slots, search shares, the successor chain walk); C-ARCH-2 (backup and restore runbook), C-ARCH-3 (regenerate the AppCDS list with a workload that calls the ADR routes, and assert every main package has a listed class), C-ARCH-4 (direct-memory cap, `preStop`); C-GATE-5 (the Dependabot round; alerts are the owner's call), C-GATE-7 (re-measure `server/test-weights.tsv`); C-TEST-2 (a migration test on a populated database), C-TEST-3 (two concurrent sweeps), C-TEST-4, C-TEST-5 (e2e journeys); C-UI-3 (axe states), C-UI-4 (heading outline on the ADR pages); C-DRY-1 (one guarded-write block), C-DRY-2 (`catchingFailures` everywhere), C-DRY-3 (`ExpiringIndex`, `optionalBoundedString`), C-DRY-4 (`useAdrWrite`, one word module); C-API-4 (declare the 400s, type the four 409s); C-CONV-1 (publish the preference service).
+- [new] **C-GATE-6: guardrail gaps.** The 400-line cap covers server main only; no feature-to-feature import rule; no `noUncheckedIndexedAccess`; no lock-drift check locally.
+- [new] **C-TEST-6: brittle test assertions.** Assertions on globally capped sections, wall-clock bounds, twelve fixed-delay e2e checks, a 2031 date, the scenario check skipping the axe spec, no machine-readable web coverage, no console-error guard.
+- [new] **C-UI-6: UI consistency leftovers.** Three bare paginations, four hand-rolled empty lines, a red unread cue, an English-text match on a server detail, a swallowed identity error, one untranslated label.
+- [new] **C-DRY-5: small duplications.** A `users` and `auth` import cycle, status words in two files, ZIP streaming in a routes file, a non-reactive `isAdmin()`, repeated e2e helpers.
+- [new] **C-SMELL-2: donor leftovers.** Comments citing files that do not exist here, 35 "WHY n" citations into Flow's file, stale ignore entries, package versions 0.0.0 and 1.0.0.
+- [new] **C-ARCH-5: list the per-process state behind "one replica".** One list in `security.md` (export slots, search permits, refresh rotations, the rate buckets).

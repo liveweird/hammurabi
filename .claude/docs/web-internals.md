@@ -78,9 +78,8 @@ user is sent home), so no page redirects itself; their queries additionally stay
 
 ## Feature flags (`pages/FeatureFlags.tsx`, `pages/UserFeatures.tsx`)
 
-Lettuce's per-user flag surfaces, ported with the MFA feature: `hasFeature()` (`api/session.ts`,
-reading the `hammurabi.auth.disabledFeatures` localStorage set — currently awaiting its first
-area-gating consumer; MFA gates only the login flow server-side), the per-user editor at
+Lettuce's per-user flag surfaces, ported with the MFA feature: the `hammurabi.auth.disabledFeatures` localStorage set
+(`api/session.ts`; no area-gating consumer yet, so its reader `hasFeature()` was deleted in the 1.0.0 checkup; MFA gates only the login flow server-side), the per-user editor at
 `/users/:id/features` (the Users table's Features button — a checkbox per `Feature`, wholesale-
 replace PUT), and the ADMIN per-feature screen at `/feature-flags` (`adminOnly` nav leaf; state
 filter + bulk enable/disable over every row matching the current filters behind a count-stating
@@ -185,8 +184,8 @@ When a feature needs one of these, port the sibling's `web/` implementation and 
   dirty-form navigation (its in-app half is the data router's `useBlocker`, which the plain `BrowserRouter` does not have; only the `beforeunload` half,
   `hooks/useBeforeUnloadGuard.ts`, was ported in Flow — port it again with the first dirty-form page that needs it — the ADR editor (0.2.0) does not guard a dirty leave yet).
 - **Covenant's catalog surface** (`covenant/web/src/`) — the filter-set/facets pattern
-  (`hooks/useContractFilterState.ts` + `components/ContractFilterControls.tsx`) — port it with 0.4 Organise and find when the ADR list needs filters; today's Teams/Users lists are the
-  `useRegistryListControls`/`Users.tsx` templates above, which is as far as the foundation goes.
+  (`hooks/useContractFilterState.ts` + `components/ContractFilterControls.tsx`) — not ported: the ADR list built its own filters (`hooks/useAdrListParams.ts`, the Filters panel, 0.5.0); the Teams/Users lists stay the
+  `useRegistryListControls`/`Users.tsx` templates above.
 
 ## Storage keys, Web Locks and telemetry (reference)
 

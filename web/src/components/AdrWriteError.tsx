@@ -23,9 +23,12 @@ export default function AdrWriteError({
   const { t } = useTranslation();
   const queryClient = useQueryClient();
   const message = adrWriteError(error, t, kind);
-  if (adrConflict(error) === null) return <FormErrorAlert title={title}>{message}</FormErrorAlert>;
+  const conflict = adrConflict(error);
+  if (conflict === null) return <FormErrorAlert title={title}>{message}</FormErrorAlert>;
+  // The one conflict that is not a stale page: the ADR is current, the predecessor's Approver has yet to accept it.
+  const defaultTitle = conflict === "successorNotAccepted" ? t("adrs.error.successorNotAcceptedTitle") : t("adrs.error.conflictTitle");
   return (
-    <Alert color="orange" variant="light" title={title ?? t("adrs.error.conflictTitle")} role="alert">
+    <Alert color="orange" variant="light" title={title ?? defaultTitle} role="alert">
       {message}
       <Group mt="xs">
         <Button

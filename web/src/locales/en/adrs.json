@@ -232,6 +232,7 @@
   },
   "error": {
     "conflictTitle": "This ADR has moved on",
+    "successorNotAcceptedTitle": "Waiting for the predecessor's Approver",
     "reload": "Reload the ADR",
     "createInvalid": "Check the fields: the problem is required, the lengths are limited and the people you name must be active users.",
     "saveInvalid": "Check the fields: the name and the problem are required, the lengths are limited and the expiry date must not be in the past.",

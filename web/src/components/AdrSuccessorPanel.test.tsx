@@ -62,6 +62,12 @@ describe("AdrSuccessorPanel", () => {
     expect(screen.getByText(/ADR-0003 is not in force yet/)).toBeInTheDocument();
   });
 
+  test("a predecessor that ended is never described as not in force yet", () => {
+    renderWithProviders(<AdrSuccessorPanel adr={adrFixture({ status: "IN_REVIEW", supersedes: { ...OLD, status: "EXPIRED" } })} />);
+    expect(screen.queryByText(/not in force yet/)).not.toBeInTheDocument();
+    expect(screen.getByText(/ADR-0003 is no longer in force \(Expired\)/)).toBeInTheDocument();
+  });
+
   test("a superseded ADR names its successor as the one that replaced it", () => {
     renderWithProviders(
       <AdrSuccessorPanel adr={adrFixture({ status: "SUPERSEDED", canEditSuccessor: false, supersededBy: { id: 9, key: "ADR-0009", name: "Next", status: "ACTIVE" } })} />,

@@ -17,8 +17,8 @@ their pins need individual compatibility review before integration. Exclusion fr
 not ignore an update or exempt it from review.
 
 Dependabot vulnerability alerts and security update PRs are separate GitHub repository settings
-from the version-update configuration, and are not set up here: Hammurabi has no GitHub remote yet (`BACKLOG.md`), and Flow's were **disabled** when last checked (2026-10-06). Once
-`liveweird/hammurabi` exists, check `gh api repos/liveweird/hammurabi --jq .security_and_analysis` and the `vulnerability-alerts` endpoint; enabling them is the owner's call.
+from the version-update configuration, and are **off** on `liveweird/hammurabi` (the `vulnerability-alerts` endpoint answers 404, checked 2026-11-21, checkup C-GATE-5); Flow's were disabled too when last checked (2026-10-06).
+Check with `gh api repos/liveweird/hammurabi --jq .security_and_analysis` and the `vulnerability-alerts` endpoint; enabling them is the owner's call.
 Once on, security updates still need the normal checks; never auto-merge a breaking migration to
 clear an alert.
 

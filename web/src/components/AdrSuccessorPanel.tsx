@@ -48,6 +48,8 @@ function AcceptanceLine({ adr }: { adr: AdrResponse }) {
       </Text>
     );
   }
+  // A predecessor that ended has its own orange notice below; "not in force yet" would be false of it.
+  if (adr.supersedes && isTerminal(adr.supersedes.status)) return null;
   return (
     <Text size="xs" c="dimmed">
       {t("adrs.successor.notYet", { key })}

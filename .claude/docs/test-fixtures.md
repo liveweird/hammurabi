@@ -115,7 +115,7 @@ coverage improves, never to lower them for new code: `check` runs only `koverVer
 Kover costs roughly a tenth of the test wall and stays on everywhere `check` runs — the floors are a gate. There is **no
 Gradle property to switch it off**; for a timing run or a tight dev loop over `:server:test` alone, temporarily add
 `kover { currentProject { instrumentation { disabledForTestTasks.add("test") } } }` to `server/build.gradle.kts` and never commit
-it (no `test.ic` is written, so `koverVerify` would have nothing to check). The floors (lines 97, branches 81) were re-baselined once after the trim and are to be raised as the ADR features add tests (`BACKLOG.md`). Frontend vitest enforces thresholds in
+it (no `test.ic` is written, so `koverVerify` would have nothing to check). The floors (lines 98, branches 87) were re-baselined at the 1.0.0 checkup (measured 98.85 / 87.31, rounded down); raise them as tests are added, never lower. Frontend vitest enforces thresholds in
 `web/vite.config.ts` (`test.coverage.thresholds`, same re-measure convention — the current
 actuals are noted in a comment beside them); run `cd web && npm run test:coverage`.
 
@@ -212,8 +212,9 @@ above any legitimate statement (a lock wait behind another transaction) and belo
   pristine V3 state. Production-mode boots must also override `"mail.transport" to "disabled"` —
   the dev-default `log` transport is refused in production (`MailTransportTest`) — and
   `"security.encryption.key" to strongEncryptionKey()` — the dev-default data-encryption key is
-  burned (`CryptoBootTest`); the checks fire in module order (JWT → mail → crypto → seed
-  passwords), so a test asserting a later check must satisfy every earlier one.
+  burned (`CryptoBootTest`); the checks fire in module order (JWT → mail → crypto → DB password → seed
+  passwords), so a test asserting a later check must satisfy every earlier one; the shared test container carries a private
+  password (`hammurabi-test-db-password`, `PostgresTestSupport`), so the database-password check passes without an override.
 
 **Frontend test internals** (moved from `testing.md`; the binding rules stay there).
 

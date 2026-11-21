@@ -232,6 +232,7 @@
   },
   "error": {
     "conflictTitle": "Ten ADR się zmienił",
+    "successorNotAcceptedTitle": "Czeka na osobę zatwierdzającą poprzednika",
     "reload": "Wczytaj ADR ponownie",
     "createInvalid": "Sprawdź pola: problem jest wymagany, długości są ograniczone, a wskazane osoby muszą mieć aktywne konta.",
     "saveInvalid": "Sprawdź pola: nazwa i problem są wymagane, długości są ograniczone, a data wygaśnięcia nie może być z przeszłości.",

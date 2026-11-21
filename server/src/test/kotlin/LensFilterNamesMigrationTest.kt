@@ -3,6 +3,16 @@ package ch.nokillswit
 import ch.nokillswit.adrs.AdrFilterDocument
 import ch.nokillswit.adrs.AdrRole
 import ch.nokillswit.adrs.AdrStatus
+import ch.nokillswit.lenses.LensRequest
+import ch.nokillswit.lenses.LensResponse
+import ch.nokillswit.lenses.LensService
+import ch.nokillswit.lenses.LensVisibility
+import io.ktor.client.call.body
+import io.ktor.client.request.get
+import io.ktor.server.testing.testApplication
+import org.jetbrains.exposed.v1.core.eq
+import org.jetbrains.exposed.v1.r2dbc.transactions.suspendTransaction
+import org.jetbrains.exposed.v1.r2dbc.update
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.jsonObject
@@ -18,7 +28,8 @@ import kotlin.test.assertTrue
  * V20 on a populated database (`persistence.md` "Lens filter names (V20)"): a scratch database is built at V19 with raw lens rows - all
  * four old filter keys, one, none, a soft-deleted lens - then migrated on. The four keys are renamed with their JSON values untouched,
  * every other key stays, a document without an old key is left byte-identical (odd spacing and all), and the rewritten documents decode
- * as the list's current filter document. The scratch database is the fork's own and is dropped after.
+ * as the list's current filter document (and through the real lenient reader, `GET /lenses/{id}`); a document holding BOTH spellings
+ * keeps the new key's value. The scratch database is the fork's own and is dropped after.
  */
 class LensFilterNamesMigrationTest {
     private val oldKeys = listOf("participant", "role", "supersedes", "supersededBy")
@@ -48,7 +59,8 @@ class LensFilterNamesMigrationTest {
         query(database, "SELECT \"name\", filters FROM lenses") { it.getString(1) to it.getString(2) }.toMap()
 
     @Test
-    fun `the four old keys are renamed in every lens, values keep their types and untouched documents stay byte-identical`() {
+    fun `the four old keys are renamed in every lens, other keys and untouched documents stay as they were`() = testApplication {
+        usePostgresTestcontainer()
         val database = "lenses_" + UUID.randomUUID().toString().replace("-", "").take(12)
         execute("CREATE DATABASE $database")
         try {
@@ -67,11 +79,13 @@ class LensFilterNamesMigrationTest {
                     lens("empty", "{}"),
                     lens("deleted", """{"participant":3,"supersededBy":false}""", deleted = true),
                     lens("already new", """{"participantId":4,"hasSuccessor":true}"""),
+                    // A lens saved by 0.9.x after a rollback and migrated again: both spellings in one document, the new key wins.
+                    lens("both spellings", """{"supersededBy":false,"hasSuccessor":true,"participant":1,"participantId":2}"""),
                 ).joinToString("\n"),
                 database,
             )
 
-            val migrated = flywayFor(database).migrate()
+            val migrated = flywayFor(database, target = "20").migrate()
             assertTrue(migrated.success)
             assertEquals(1, migrated.migrationsExecuted, "exactly V20 ran on the populated database")
             flywayFor(database).validate()
@@ -103,8 +117,33 @@ class LensFilterNamesMigrationTest {
             assertEquals(json.parseToJsonElement("""{"participantRole":"APPROVER","participantId":9}"""), doc("role only"))
             assertEquals(json.parseToJsonElement("""{"participantId":3,"hasSuccessor":false}"""), doc("deleted"), "a soft-deleted lens too")
             assertEquals(untouched, after.getValue("none"), "a document with no old key is byte-identical")
+            assertEquals(
+                json.parseToJsonElement("""{"hasSuccessor":true,"participantId":2}"""),
+                doc("both spellings"),
+                "a document holding both spellings keeps the new key's value, whatever the key order",
+            )
             assertEquals("{}", after.getValue("empty"))
             assertEquals("""{"participantId":4,"hasSuccessor":true}""", after.getValue("already new"))
+            // The real reader: the migrated text planted into a lens of the shared database comes back through GET /lenses/{id}.
+            val owner = adrActor("lens-v20")
+            val seed = LensRequest("V20 ${UUID.randomUUID().toString().take(8)}", LensVisibility.PRIVATE, AdrFilterDocument(q = "x"))
+            val planted = owner.client.postJson("/api/v1/lenses", seed).body<LensResponse>()
+            suspendTransaction(sharedDatabaseForTests()) {
+                LensService.Lenses.update({ LensService.Lenses.id eq planted.id }) { it[filters] = after.getValue("all four") }
+            }
+            assertEquals(
+                AdrFilterDocument(
+                    status = listOf(AdrStatus.ACTIVE, AdrStatus.IN_REVIEW),
+                    q = "x",
+                    participantId = 7u,
+                    participantRole = AdrRole.DRIVER,
+                    tag = listOf("data"),
+                    hasPredecessor = false,
+                    hasSuccessor = true,
+                ),
+                owner.client.get("/api/v1/lenses/${planted.id}").body<LensResponse>().filters,
+                "the lenient reader serves the migrated document with every filter in force",
+            )
             assertTrue(
                 after.values.none { text -> oldKeys.any { "\"$it\"" in text } },
                 "no old key is left anywhere",

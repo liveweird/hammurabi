@@ -1,5 +1,6 @@
 import { describe, expect, test } from "vitest";
-import { formatDate, formatDateTime } from "./formatDate";
+import { browserTimeZone, formatDate, formatDateTime } from "./formatDate";
+import { usePinnedBrowserTimeZone } from "../test/timeZone";
 
 describe("formatDate", () => {
   test("slices the UTC ISO date", () => {
@@ -28,5 +29,26 @@ describe("formatDateTime", () => {
     expect(formatDateTime(at)).toBe("2026-09-29 22:05");
     expect(formatDateTime(at, "Europe/Warsaw")).toBe("2026-09-30 00:05");
     expect(formatDateTime(Date.UTC(2026, 0, 10, 23, 30), "Europe/Warsaw")).toBe("2026-01-11 00:30");
+  });
+});
+
+describe("browserTimeZone", () => {
+  test("is an IANA zone the date formatter accepts", () => {
+    const zone = browserTimeZone();
+    expect(zone).not.toBe("");
+    expect(formatDateTime(Date.UTC(2026, 8, 29, 22, 5), zone)).toMatch(/^\d{4}-\d{2}-\d{2} \d{2}:\d{2}$/);
+  });
+
+  describe("under a non-UTC browser zone", () => {
+    usePinnedBrowserTimeZone("Pacific/Auckland");
+
+    test("timestamps move into the zone while UTC stays the default", () => {
+      // 22:05Z on the 29th is 11:05 on the 30th in Auckland (NZDT, +13).
+      const at = Date.UTC(2026, 8, 29, 22, 5);
+      expect(browserTimeZone()).toBe("Pacific/Auckland");
+      expect(formatDateTime(at, browserTimeZone())).toBe("2026-09-30 11:05");
+      expect(formatDate(at, "—", browserTimeZone())).toBe("2026-09-30");
+      expect(formatDateTime(at)).toBe("2026-09-29 22:05");
+    });
   });
 });

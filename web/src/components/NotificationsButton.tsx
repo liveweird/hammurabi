@@ -8,7 +8,7 @@ import { listNotifications, markAllNotificationsSeen, markNotificationSeen, NOTI
 import { getToken } from "../api/session";
 import { useUnseenNotifications } from "../hooks/useUnseenNotifications";
 import { adrPath } from "../utils/adrLinks";
-import { formatDateTime } from "../utils/formatDate";
+import { browserTimeZone, formatDateTime } from "../utils/formatDate";
 import { badgeText, notificationKeys } from "../utils/notificationKeys";
 import { describeNotification } from "../utils/notificationText";
 import { refreshQueriesAfterMutation } from "../utils/queryRefresh";
@@ -37,7 +37,7 @@ function NoticeRow({ n, onOpen }: { n: NotificationItem; onOpen: (n: Notificatio
               {describeNotification(n, t)}
             </Text>
             <Text size="xs" c="dimmed" style={{ overflowWrap: "anywhere" }}>
-              {t("notifications.subline", { key: n.adrKey, name: n.adrName, when: formatDateTime(n.createdAt) })}
+              {t("notifications.subline", { key: n.adrKey, name: n.adrName, when: formatDateTime(n.createdAt, browserTimeZone()) })}
             </Text>
           </Stack>
         </Group>

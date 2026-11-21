@@ -76,6 +76,7 @@ export default function AdrDetails() {
     <Stack gap="md">
       <PageHeader
         title={data.name}
+        documentTitle={`${data.key} · ${data.name}`}
         description={data.key}
         backTo={{ to: adrsPath, label: t("adrs.backToList") }}
         actions={

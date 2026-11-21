@@ -26,7 +26,7 @@ import { activeAdrFilterCount, hasAdrFilters, isInvertedRange, NO_ADR_FILTERS, S
 import { adrPath, newAdrPath } from "../utils/adrLinks";
 import { ADR_ROLES, ADR_STATUSES, isAdrRole, isAdrStatus } from "../utils/adrStatus";
 import { MAX_TAG_FILTERS, tagOptionGroups } from "../utils/adrTags";
-import { formatDate } from "../utils/formatDate";
+import { browserTimeZone, formatDate } from "../utils/formatDate";
 import { filtersFromParams, paramsFromFilters } from "../utils/lensFilters";
 
 // `number` is the key's order (ADR-0042 is number 42); the default is newest first, like the server's.
@@ -295,7 +295,7 @@ export default function Adrs() {
               )}
             </Table.Td>
             <Table.Td>
-              <Text size="sm">{formatDate(adr.updatedAt)}</Text>
+              <Text size="sm">{formatDate(adr.updatedAt, "—", browserTimeZone())}</Text>
             </Table.Td>
           </Table.Tr>
         ))}

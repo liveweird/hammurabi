@@ -2,6 +2,7 @@ import { describe, expect, test, vi } from "vitest";
 import userEvent from "@testing-library/user-event";
 import { ApiError } from "../api/http";
 import { renderWithProviders, screen } from "../test/render";
+import { usePinnedBrowserTimeZone } from "../test/timeZone";
 import EventTimeline, { type TimelineItem } from "./EventTimeline";
 
 const ITEM: TimelineItem = { key: 1, title: "ADR raised", lines: ["ADR-0001 \"Use X\""], who: "Dana", when: Date.UTC(2026, 10, 1, 9, 30) };
@@ -25,11 +26,13 @@ function renderTimeline(props: Partial<React.ComponentProps<typeof EventTimeline
 }
 
 describe("EventTimeline", () => {
+  usePinnedBrowserTimeZone("America/Los_Angeles");
+
   test("an entry shows its sentence, its lines and a who · when meta line", () => {
     renderTimeline();
     expect(screen.getByText("ADR raised")).toBeInTheDocument();
     expect(screen.getByText('ADR-0001 "Use X"')).toBeInTheDocument();
-    expect(screen.getByText("Dana · 2026-11-01 09:30")).toBeInTheDocument();
+    expect(screen.getByText("Dana · 2026-11-01 01:30")).toBeInTheDocument();
     expect(screen.queryByRole("navigation")).not.toBeInTheDocument();
   });
 

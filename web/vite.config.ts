@@ -88,12 +88,13 @@ export default defineConfig({
       // Floors set just below current measured coverage so they gate regressions without
       // blocking unrelated work. Raise as coverage improves, never lower.
       // (2026-11-17: measured after trimming Flow 1.57 to Hammurabi's 0.1.0 foundation, the floors inherited unchanged:
-      // lines 99.70 / statements 98.33 / functions 98.85 / branches 94.07.)
+      // lines 99.70 / statements 98.33 / functions 98.85 / branches 94.07; branches raised to 96 after the 1.0.0 checkup removed the dead code its
+      // tests alone covered, at lines 99.56 / statements 98.66 / functions 98.63 / branches 96.33 on 2026-11-21.)
       thresholds: {
         lines: 99,
         statements: 98,
         functions: 98,
-        branches: 94,
+        branches: 96,
       },
     },
   },

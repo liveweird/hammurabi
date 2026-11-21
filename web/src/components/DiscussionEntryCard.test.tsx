@@ -4,11 +4,13 @@ import { entryFixture } from "../test/adrFixtures";
 import { noContent, problem, stubFetch } from "../test/fetchStub";
 import { jsonResponse } from "../test/http";
 import { renderWithProviders, screen, waitFor, within } from "../test/render";
+import { usePinnedBrowserTimeZone } from "../test/timeZone";
 import DiscussionEntryCard from "./DiscussionEntryCard";
 
 const ALL = { canEdit: true, canDelete: true, canChangeState: true };
 
 describe("DiscussionEntryCard", () => {
+  usePinnedBrowserTimeZone("America/Los_Angeles");
   beforeEach(() => localStorage.setItem("hammurabi.auth.token", "fake-token"));
   afterEach(() => {
     vi.unstubAllGlobals();
@@ -22,7 +24,7 @@ describe("DiscussionEntryCard", () => {
     expect(within(card).getByText("Question")).toBeInTheDocument();
     expect(within(card).getByText("Open")).toBeInTheDocument();
     expect(within(card).getByText("Cora Contributor")).toBeInTheDocument();
-    expect(within(card).getByText("2026-11-03 09:05")).toBeInTheDocument();
+    expect(within(card).getByText("2026-11-03 01:05")).toBeInTheDocument();
     expect(within(card).getByText("not", { selector: "strong" })).toBeInTheDocument();
     expect(within(card).queryByRole("button")).not.toBeInTheDocument();
   });
@@ -83,7 +85,7 @@ describe("DiscussionEntryCard", () => {
         entry={entryFixture({ canChangeState: true, status: "ANSWERED", stateChangedBy: { id: 5, name: "Dana Driver", deleted: false }, stateChangedAt: Date.UTC(2026, 10, 5) })}
       />,
     );
-    expect(screen.getByText("Answered by Dana Driver on 2026-11-05")).toBeInTheDocument();
+    expect(screen.getByText("Answered by Dana Driver on 2026-11-04")).toBeInTheDocument();
     await user.click(screen.getByRole("button", { name: "Reopen question" }));
     await waitFor(() => expect(stub.requests.filter((r) => r.method === "PUT").map((r) => r.body)).toContainEqual({ status: "OPEN" }));
   });
@@ -111,7 +113,7 @@ describe("DiscussionEntryCard", () => {
       />,
     );
     expect(screen.getByText("Fixed in 2.1")).toBeInTheDocument();
-    expect(screen.getByText("Resolved by Alex Approver on 2026-11-06")).toBeInTheDocument();
+    expect(screen.getByText("Resolved by Alex Approver on 2026-11-05")).toBeInTheDocument();
     await user.click(screen.getByRole("button", { name: "Reopen" }));
     await waitFor(() => expect(stub.requests.filter((r) => r.method === "PUT").map((r) => r.body)).toContainEqual({ status: "OPEN" }));
   });

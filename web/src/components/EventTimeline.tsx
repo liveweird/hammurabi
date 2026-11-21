@@ -1,6 +1,6 @@
 import { useTranslation } from "react-i18next";
 import { Button, Group, Pagination, Stack, Text, Timeline } from "@mantine/core";
-import { formatDateTime } from "../utils/formatDate";
+import { browserTimeZone, formatDateTime } from "../utils/formatDate";
 import ErrorAlert from "./ErrorAlert";
 import LoadingBlock from "./LoadingBlock";
 
@@ -103,7 +103,7 @@ export default function EventTimeline({
               </Text>
             ))}
             <Text size="xs" c="dimmed">
-              {item.who} · {formatDateTime(item.when)}
+              {item.who} · {formatDateTime(item.when, browserTimeZone())}
             </Text>
           </Timeline.Item>
         ))}

@@ -4,7 +4,7 @@ import { ActionIcon, Button, Group, Paper, Stack, Text } from "@mantine/core";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { IconPencil, IconTrash } from "@tabler/icons-react";
 import { deleteDiscussionEntry, setDiscussionEntryState, type DiscussionEntry, type DiscussionStatus } from "../api/adrDiscussion";
-import { formatDate, formatDateTime } from "../utils/formatDate";
+import { browserTimeZone, formatDate, formatDateTime } from "../utils/formatDate";
 import { refreshQueriesAfterMutation } from "../utils/queryRefresh";
 import { showSuccessToast } from "../utils/toast";
 import AdrWriteError from "./AdrWriteError";
@@ -56,7 +56,7 @@ export default function DiscussionEntryCard({ entry }: { entry: DiscussionEntry 
     else if (question) move.mutate({ status: "ANSWERED" });
     else setResolving(true);
   };
-  const settledBy = entry.stateChangedBy && entry.stateChangedAt != null ? { name: entry.stateChangedBy.name, date: formatDate(entry.stateChangedAt) } : null;
+  const settledBy = entry.stateChangedBy && entry.stateChangedAt != null ? { name: entry.stateChangedBy.name, date: formatDate(entry.stateChangedAt, "—", browserTimeZone()) } : null;
 
   return (
     <Paper withBorder p="md" component="article" aria-label={t("adrs.discussion.entryAria", { kind: t(`adrs.discussion.kind.${entry.kind}`), name: entry.author.name })}>
@@ -69,7 +69,7 @@ export default function DiscussionEntryCard({ entry }: { entry: DiscussionEntry 
               {entry.author.deleted ? t("adrs.history.userDeleted", { name: entry.author.name }) : entry.author.name}
             </Text>
             <Text size="xs" c="dimmed">
-              {formatDateTime(entry.createdAt)}
+              {formatDateTime(entry.createdAt, browserTimeZone())}
               {entry.editedAt != null && !entry.deleted ? ` · ${t("adrs.discussion.edited")}` : ""}
             </Text>
           </Group>

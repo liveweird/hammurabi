@@ -1,6 +1,7 @@
 import { type ReactNode } from "react";
 import { useTranslation } from "react-i18next";
 import { Center, Group, Paper, Stack, Title } from "@mantine/core";
+import { useDocumentTitle } from "../hooks/useDocumentTitle";
 import BrandLogo from "./BrandLogo";
 import VersionStamp from "./VersionStamp";
 
@@ -12,12 +13,13 @@ interface Props {
 
 /**
  * The shared scaffold of the unauthenticated pages (Login): a soft brand-tinted canvas
- * (scheme-aware — a faint radial blue wash) holding a lifted card with the brand lockup,
+ * (scheme-aware — a faint radial lapis wash, from the brand tuple's tokens only) holding a lifted card with the brand lockup,
  * a dimmed page title, and the VersionStamp underneath. The child structure and all text
  * are pinned by tests; only the frame is decorative.
  */
 export default function AuthCard({ title, children }: Props) {
   const { t } = useTranslation();
+  useDocumentTitle(title);
 
   return (
     <Center
@@ -26,7 +28,7 @@ export default function AuthCard({ title, children }: Props) {
       style={{
         background:
           "radial-gradient(80rem 40rem at 50% -10%, " +
-          "light-dark(var(--mantine-color-hammurabi-0), rgba(51, 154, 240, 0.06)) 0%, " +
+          "light-dark(var(--mantine-color-hammurabi-0), color-mix(in srgb, var(--mantine-color-hammurabi-9) 14%, transparent)) 0%, " +
           "light-dark(var(--mantine-color-gray-0), var(--mantine-color-dark-8)) 70%)",
       }}
     >

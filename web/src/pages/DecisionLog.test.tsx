@@ -5,6 +5,7 @@ import { problem, stubFetch } from "../test/fetchStub";
 import { headingOutline } from "../test/headings";
 import { jsonResponse } from "../test/http";
 import { renderWithProviders, screen, within } from "../test/render";
+import { usePinnedBrowserTimeZone } from "../test/timeZone";
 import DecisionLog from "./DecisionLog";
 
 const serve = (log: AdrOverview) => stubFetch(() => jsonResponse(200, log));
@@ -18,6 +19,8 @@ const EMPTY: AdrOverview = overviewFixture({
 });
 
 describe("DecisionLog", () => {
+  // Timestamps read in the browser's zone (a day behind UTC here); "today" stays the server's UTC day.
+  usePinnedBrowserTimeZone("America/Los_Angeles");
   beforeEach(() => {
     vi.useFakeTimers({ toFake: ["Date"] });
     // The browser clock is deliberately NOT the server's day: "today" must come from the response's generatedAt (2026-11-21).
@@ -67,7 +70,7 @@ describe("DecisionLog", () => {
     expect(row).toHaveAttribute("href", "/adrs/5");
     const item = row.closest("li")!;
     expect(within(item).getByText("Needs your decision")).toBeInTheDocument();
-    expect(within(item).getByText("in review since 2026-11-01")).toBeInTheDocument();
+    expect(within(item).getByText("in review since 2026-10-31")).toBeInTheDocument();
     expect(within(item).getByText("Approver: Alex Approver")).toBeInTheDocument();
     expect(within(card).getByRole("link", { name: "1 ADR is waiting for your decision" })).toHaveAttribute(
       "href",

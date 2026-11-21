@@ -20,6 +20,35 @@ const ROUTE_PATTERNS = [...appSource.matchAll(/<Route\s+(?:index|path="([^"]+)")
   .map((m) => m[1] ?? "")
   .filter((p) => p !== "*");
 
+// The tab title each route settles on (WCAG 2.4.2: "{page} · Hammurabi", the bare brand for Home). The detail routes answer
+// 404 here, so they show their load-state title (the area name), not a record's.
+const TAB_TITLES: Record<string, string> = {
+  "/": "Hammurabi",
+  "/login": "Sign in · Hammurabi",
+  "/reset-password": "Reset password · Hammurabi",
+  "/reset-password/confirm": "Choose a new password · Hammurabi",
+  "/decision-log": "Decision log · Hammurabi",
+  "/adrs": "ADRs · Hammurabi",
+  "/adrs/new": "Raise an ADR · Hammurabi",
+  "/adrs/:id": "ADRs · Hammurabi",
+  "/teams": "Teams · Hammurabi",
+  "/teams/:id": "Teams · Hammurabi",
+  "/tags": "Tags · Hammurabi",
+  "/users": "Users · Hammurabi",
+  "/users/new": "New user · Hammurabi",
+  "/users/:id/edit": "Edit user · Hammurabi",
+  "/users/:id/features": "Feature flags · Hammurabi",
+  "/feature-flags": "Feature flags · Hammurabi",
+  "/change-password": "Change password · Hammurabi",
+  "/notification-preferences": "Notification preferences · Hammurabi",
+  "/changelog": "Changelog · Hammurabi",
+};
+
+/** The route as App.tsx spells it, rooted: the index route is "/". */
+function routeKey(pattern: string): string {
+  return pattern === "" ? "/" : `/${pattern.replace(/^\//, "")}`;
+}
+
 // Pages outside the shell (the auth cards) render signed OUT; the rest need a session.
 const SIGNED_OUT = new Set(["/login", "/reset-password", "/reset-password/confirm"]);
 
@@ -45,7 +74,11 @@ describe("heading outline of every registered page", () => {
     expect(ROUTE_PATTERNS.length).toBeGreaterThanOrEqual(12);
   });
 
-  test.each(ROUTE_PATTERNS.map((p) => [p === "" ? "/" : `/${p.replace(/^\//, "")}`] as const))(
+  test("every route has an expected tab title, and none is stale", () => {
+    expect(Object.keys(TAB_TITLES).sort()).toEqual(ROUTE_PATTERNS.map(routeKey).sort());
+  });
+
+  test.each(ROUTE_PATTERNS.map((p) => [routeKey(p)] as const))(
     "%s starts at h2 and never skips a level",
     async (pattern) => {
       if (!SIGNED_OUT.has(pattern)) {
@@ -59,6 +92,7 @@ describe("heading outline of every registered page", () => {
         expect(screen.getAllByRole("heading").length).toBeGreaterThan(0);
         expect(document.querySelector('[aria-busy="true"], .mantine-Loader-root')).toBeNull();
       });
+      expect(document.title).toBe(TAB_TITLES[pattern]);
       const outline = headingOutline();
       expect(outline[0][0], JSON.stringify(outline)).toBe(2);
       outline.forEach(([level], i) => {

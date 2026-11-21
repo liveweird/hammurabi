@@ -30,3 +30,12 @@ export function formatDateTime(epochMillis: number, timeZone = "UTC"): string {
   const part = (type: Intl.DateTimeFormatPartTypes) => parts.find((p) => p.type === type)?.value ?? "";
   return `${part("year")}-${part("month")}-${part("day")} ${part("hour")}:${part("minute")}`;
 }
+
+/**
+ * The browser's own IANA time zone. A timestamp on an ADR page (updated, history, discussion, notices) is read where its reader is:
+ * callers pass this as the `timeZone` of [formatDate]/[formatDateTime]. Date-only values (`expiresOn`, the `YYYY-MM-DD` filters) are
+ * calendar days and are never shifted; the telemetry panel keeps UTC (the server's own sampling clock).
+ */
+export function browserTimeZone(): string {
+  return Intl.DateTimeFormat().resolvedOptions().timeZone;
+}

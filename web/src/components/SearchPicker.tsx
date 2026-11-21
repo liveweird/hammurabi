@@ -21,13 +21,10 @@ export default function SearchPicker({
   noMatchLabel,
   queryKey,
   search,
-  enabled = true,
   disabled,
   error,
   picked,
   onPick,
-  compact = false,
-  clearable = true,
   minTermLength = 0,
   minTermHint,
   exclude,
@@ -44,17 +41,12 @@ export default function SearchPicker({
   queryKey: readonly unknown[];
   /** Runs the server-side search (page size and sort belong to the caller); `term` is "" for the unfiltered head. */
   search: (term: string) => Promise<PickedOption[]>;
-  enabled?: boolean;
   /** The control is read-only for this session (a plan editor the caller may only look at). */
   disabled?: boolean;
   /** A field error (a server conflict the form maps onto this control). */
   error?: ReactNode;
   picked: PickedOption | null;
   onPick: (picked: PickedOption | null) => void;
-  /** An inline cell (a table row): the small size, and the label is the control's accessible name, not a visible caption. */
-  compact?: boolean;
-  /** Whether the clear button is offered (default). A caller whose empty pick means "nothing chosen yet" shows it only once there is one. */
-  clearable?: boolean;
   /**
    * A server that REQUIRES a search term (the user directory): the search runs only once the trimmed term has this many characters
    * (code points) and `minTermHint` shows below that, in place of the options and of "No matching …". Default 0: the unfiltered head is searched too.
@@ -90,7 +82,7 @@ export default function SearchPicker({
     queryKey: [...queryKey, debounced],
     queryFn: () => search(debounced),
     placeholderData: keepPreviousData,
-    enabled: enabled && engaged && codePoints(debounced) >= minTermLength,
+    enabled: engaged && codePoints(debounced) >= minTermLength,
   });
   const loading = results.isLoading || results.isPlaceholderData;
   // The picked entry leads the options under its own (stable) label: a new term replaces the rows
@@ -106,16 +98,14 @@ export default function SearchPicker({
   return (
     <>
       <Select
-        label={compact ? undefined : label}
-        aria-label={compact ? label : undefined}
-        size={compact ? "xs" : undefined}
+        label={label}
         // The hint is a standing description (aria-describedby), not only the empty dropdown's message: a screen reader hears the minimum on focus.
         description={[description, minTermHint].filter(Boolean).join(" ") || undefined}
         maxLength={maxLength}
         placeholder={placeholder}
         data={options}
         searchable
-        clearable={clearable}
+        clearable
         clearButtonProps={{ "aria-label": clearLabel }}
         searchValue={searchValue}
         onSearchChange={(value) => {
@@ -127,11 +117,10 @@ export default function SearchPicker({
         onChange={(value, option) => onPick(value !== null && option ? { value: option.value, label: option.label } : null)}
         nothingFoundMessage={nothingFound}
         disabled={disabled}
-        // A compact cell has a fixed height: a failed search is the red border (no message under it, no alert after it).
-        error={error ?? (compact && results.isError ? true : undefined)}
+        error={error}
         aria-busy={loading}
       />
-      {results.isError && !compact && !belowMin && <ErrorAlert error={results.error} />}
+      {results.isError && !belowMin && <ErrorAlert error={results.error} />}
     </>
   );
 }

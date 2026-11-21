@@ -3,7 +3,7 @@ import { useTranslation } from "react-i18next";
 import { Button, Group, Stack, Text } from "@mantine/core";
 import { IconCalendarEvent } from "@tabler/icons-react";
 import type { AdrResponse } from "../api/adrs";
-import { formatDateTime } from "../utils/formatDate";
+import { browserTimeZone, formatDateTime } from "../utils/formatDate";
 import AdrExpiryEditor from "./AdrExpiryEditor";
 
 function Row({ label, children }: { label: string; children: ReactNode }) {
@@ -30,9 +30,9 @@ export default function AdrDetailsSection({ adr }: { adr: AdrResponse }) {
   return (
     <Stack gap="xs">
       <Row label={t("adrs.details.key")}>{adr.key}</Row>
-      <Row label={t("adrs.details.created")}>{formatDateTime(adr.createdAt)}</Row>
-      <Row label={t("adrs.details.updated")}>{formatDateTime(adr.updatedAt)}</Row>
-      <Row label={t("adrs.details.statusChanged")}>{formatDateTime(adr.statusChangedAt)}</Row>
+      <Row label={t("adrs.details.created")}>{formatDateTime(adr.createdAt, browserTimeZone())}</Row>
+      <Row label={t("adrs.details.updated")}>{formatDateTime(adr.updatedAt, browserTimeZone())}</Row>
+      <Row label={t("adrs.details.statusChanged")}>{formatDateTime(adr.statusChangedAt, browserTimeZone())}</Row>
       {editing ? (
         <AdrExpiryEditor adr={adr} onClose={() => setEditing(false)} />
       ) : (

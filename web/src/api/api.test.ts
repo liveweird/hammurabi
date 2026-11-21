@@ -22,7 +22,7 @@ import {
   isAdmin,
   persistSession,
 } from "./session";
-import { getDisabledFeatures, hasFeature } from "./session";
+import { getDisabledFeatures } from "./session";
 import i18n from "../i18n";
 
 const SESSION = {
@@ -75,18 +75,16 @@ describe("session", () => {
     expect(getUserId()).toBeNull();
   });
 
-  test("disabled features persist with the session and drive hasFeature", () => {
+  test("disabled features persist with the session and are read back", () => {
     persistSession({ ...SESSION, disabledFeatures: ["MFA"] });
     expect(getDisabledFeatures()).toEqual(["MFA"]);
-    expect(hasFeature("MFA")).toBe(false);
 
     persistSession(SESSION); // empty set = full access
-    expect(hasFeature("MFA")).toBe(true);
+    expect(getDisabledFeatures()).toEqual([]);
 
     // Corrupt storage degrades to the safe default (everything enabled).
     localStorage.setItem("hammurabi.auth.disabledFeatures", "{not json");
     expect(getDisabledFeatures()).toEqual([]);
-    expect(hasFeature("MFA")).toBe(true);
   });
 
   test("stored roles or flags that are valid JSON but not an array degrade to the safe defaults", () => {

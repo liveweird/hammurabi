@@ -17,8 +17,6 @@ function Harness({
 }: {
   search?: (term: string) => Promise<PickedOption[]>;
   initial?: PickedOption | null;
-  compact?: boolean;
-  clearable?: boolean;
   disabled?: boolean;
   error?: string;
   lazy?: boolean;
@@ -62,18 +60,6 @@ describe("SearchPicker", () => {
     await waitFor(() => expect(search).toHaveBeenCalledWith(""));
   });
 
-  test("a compact picker names its control by the label and has no visible caption", async () => {
-    renderWithProviders(<Harness compact />);
-    expect(screen.getByRole("combobox", { name: "Thing" })).toBeInTheDocument();
-    expect(screen.queryByText("Thing")).not.toBeInTheDocument();
-  });
-
-  test("a compact picker marks a failed search with the red border instead of an alert", async () => {
-    renderWithProviders(<Harness compact search={() => Promise.reject(new Error("boom"))} />);
-    await waitFor(() => expect(screen.getByRole("combobox", { name: "Thing" })).toHaveAttribute("aria-invalid", "true"));
-    expect(screen.queryByRole("alert")).not.toBeInTheDocument();
-  });
-
   test("a caller's field error wins and a disabled picker cannot be opened", async () => {
     renderWithProviders(<Harness error="Pick something" disabled />);
     expect(screen.getByText("Pick something")).toBeInTheDocument();
@@ -92,11 +78,6 @@ describe("SearchPicker", () => {
     expect(box).toHaveValue("Beta");
     await user.click(screen.getByLabelText("Clear thing"));
     expect(box).toHaveValue("");
-  });
-
-  test("clearable=false offers no clear button", async () => {
-    renderWithProviders(<Harness initial={ROWS[1]} clearable={false} />);
-    expect(screen.queryByLabelText("Clear thing")).not.toBeInTheDocument();
   });
 
   test("while a changed term settles the previous rows stay and no 'No matching' is claimed yet", async () => {

@@ -9,6 +9,7 @@ import { clearSession } from "../api/session";
 import i18n from "../i18n";
 import { jsonResponse } from "../test/http";
 import { renderWithProviders } from "../test/render";
+import { usePinnedBrowserTimeZone } from "../test/timeZone";
 import { formatDateTime } from "../utils/formatDate";
 import { bindSessionQueryCache } from "../utils/sessionQueryCache";
 
@@ -78,6 +79,8 @@ const bell = () => screen.findByRole("button", { name: /^Notifications/ });
 const unseenReads = () => calls.filter((call) => call.includes("seen=false")).length;
 
 describe("NotificationsButton", () => {
+  usePinnedBrowserTimeZone("America/Los_Angeles");
+
   beforeEach(() => {
     unseenPage = page([], 1);
     listPage = page([notice(), seenNotice]);
@@ -153,7 +156,7 @@ describe("NotificationsButton", () => {
     const drawer = await screen.findByRole("dialog", { name: "Notifications" });
     const list = await within(drawer).findByRole("list", { name: "Your notifications" });
     const status = within(list).getByRole("link", { name: /<b>Ada<\/b> changed the status of ADR-0042 to Active/ });
-    expect(status).toHaveTextContent(`ADR-0042 · **Use Postgres** · ${formatDateTime(AT)}`);
+    expect(status).toHaveTextContent(`ADR-0042 · **Use Postgres** · ${formatDateTime(AT, "America/Los_Angeles")}`);
     expect(status).toHaveAttribute("href", "/adrs/42");
     expect(within(status).getByText("Unseen")).toBeInTheDocument();
     // The unseen row carries the dot; the seen one has neither the dot nor the word.

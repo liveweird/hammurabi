@@ -7,6 +7,7 @@ import { stubFetch } from "../test/fetchStub";
 import { jsonResponse } from "../test/http";
 import { fireEvent, renderWithProviders, screen, waitFor, within } from "../test/render";
 import { headingOutline } from "../test/headings";
+import { usePinnedBrowserTimeZone } from "../test/timeZone";
 import Adrs from "./Adrs";
 
 const saveFile = vi.fn();
@@ -68,6 +69,7 @@ const settle = (ms = 450) => new Promise((resolve) => setTimeout(resolve, ms));
 const listUrls = (stub: ReturnType<typeof stubFetch>) => stub.requests.filter((r) => r.url.startsWith("/api/v1/adrs?")).map((r) => r.url);
 
 describe("Adrs list page", () => {
+  usePinnedBrowserTimeZone("Pacific/Auckland");
   let page: AdrPage;
   beforeEach(() => {
     page = adrPageFixture([ROW, ROW_WITHOUT_PEOPLE]);
@@ -89,7 +91,7 @@ describe("Adrs list page", () => {
     expect(within(row).getByText("In review")).toBeInTheDocument();
     expect(within(row).getByText("Dana Driver")).toBeInTheDocument();
     expect(within(row).getByText("Alex Approver")).toBeInTheDocument();
-    expect(within(row).getByText("2026-11-03")).toBeInTheDocument();
+    expect(within(row).getByText("2026-11-04")).toBeInTheDocument();
     // A row with nobody recorded shows dashes.
     const other = screen.getByRole("link", { name: "Open ADR-0008: Pick a queue" }).closest("tr")!;
     expect(within(other).getAllByText("—")).toHaveLength(3);

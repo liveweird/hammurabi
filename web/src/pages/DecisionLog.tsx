@@ -12,7 +12,7 @@ import ErrorAlert from "../components/ErrorAlert";
 import LoadingBlock from "../components/LoadingBlock";
 import PageHeader from "../components/PageHeader";
 import { adrListPath } from "../utils/adrListParams";
-import { formatDate } from "../utils/formatDate";
+import { browserTimeZone, formatDate } from "../utils/formatDate";
 import { addDays, epochMillisToIsoDate } from "../utils/isoDate";
 
 function Dim({ children }: { children: string }) {
@@ -68,7 +68,7 @@ function Awaiting({ awaiting }: { awaiting: AdrOverview["awaitingDecision"] }) {
                       {t("decisionLog.awaiting.mine")}
                     </Badge>
                   )}
-                  <Dim>{t("decisionLog.awaiting.since", { date: formatDate(item.statusChangedAt) })}</Dim>
+                  <Dim>{t("decisionLog.awaiting.since", { date: formatDate(item.statusChangedAt, "—", browserTimeZone()) })}</Dim>
                   <Dim>{item.approver ? t("decisionLog.awaiting.approver", { name: item.approver.name }) : t("decisionLog.awaiting.noApprover")}</Dim>
                 </Stack>
               }
@@ -84,7 +84,8 @@ function Awaiting({ awaiting }: { awaiting: AdrOverview["awaitingDecision"] }) {
 /** "Expiring soon": the decisions in force whose last day is within the server's horizon, overdue ones (the sweep has not acted yet) first and red. */
 function Expiring({ expiring, generatedAt }: { expiring: AdrOverview["expiringSoon"]; generatedAt: number }) {
   const { t } = useTranslation();
-  // "Today" is the server's (the UTC day it generated the answer on, the day its horizon counts from), not this browser's clock.
+  // "Today" is the server's (the UTC day it generated the answer on, the day its horizon counts from), not this browser's clock: it stays a UTC calendar
+  // date on purpose, because the server judges expiry in UTC and `expiresOn` is a calendar day, even though timestamps elsewhere render in the browser's zone.
   const today = epochMillisToIsoDate(generatedAt);
   // "Strictly before" the day after the horizon, so the list link shows exactly the span the section covers.
   const beyond = addDays(today, expiring.days + 1);
@@ -127,7 +128,7 @@ function Recent({ recent }: { recent: AdrOverview["recentlyDecided"] }) {
       ) : (
         <LogList label={t("decisionLog.recent.title")}>
           {recent.items.map((item) => (
-            <AdrLogRow key={item.id} item={item} note={<Dim>{t("decisionLog.recent.on", { date: formatDate(item.statusChangedAt) })}</Dim>} />
+            <AdrLogRow key={item.id} item={item} note={<Dim>{t("decisionLog.recent.on", { date: formatDate(item.statusChangedAt, "—", browserTimeZone()) })}</Dim>} />
           ))}
         </LogList>
       )}

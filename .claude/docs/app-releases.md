@@ -24,7 +24,7 @@ when the user asks for them.
 
 `web/src/changelog/version.ts` is the source of the application version. A release changes
 `APP_VERSION` and adds the matching English and Polish entry to `web/src/changelog/entries.ts` in
-the same commit. Gradle and npm package versions are separate.
+the same commit. Gradle and npm package versions are separate: `web/package.json` and `e2e/package.json` are `"private": true` workspaces that are never published, so their `version` is the placeholder `0.0.0` (lockfile roots included) and is not bumped with a release; nothing reads it (`APP_VERSION` is the one product version).
 
 ## Publishing a new version
 

@@ -10,7 +10,7 @@ test harness (fixtures, forks, Kover) or anything that makes a gate slower.
 > measured CI series (11 `ci` runs, the first nightly `e2e`) and the local `scripts/gates.sh` series; each row's `why` names what it was measured from. Flow's `~/Sources/flow/.claude/docs/build-times.md` is the donor for any technique (statement-timeout cache, batched inserts,
 > fork balancing, the ESLint cache, AppCDS): read its WHY before re-inventing one, port it when the same symptom shows up.
 >
-> **"WHY n" in a code or workflow comment** (e.g. `build-times.md WHY 3`, 17, 24, 26, 27) is the donor's numbering: it points at that WHY entry in Flow's file, not at this one. Hammurabi's own
+> **No comment cites a donor "WHY n"** (the 1.2.1 sweep, C-SMELL-2): a code or workflow comment states its reason itself, and a donor measurement is described as the donor's. Hammurabi's own
 > entries start a fresh series below and are cited as `Hammurabi WHY n`.
 
 ## How to measure

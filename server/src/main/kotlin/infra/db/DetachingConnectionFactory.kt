@@ -14,12 +14,12 @@ private val log = LoggerFactory.getLogger("ch.nokillswit.infra.db.DetachingConne
 
 /**
  * Cuts the reference by which a pooled connection pins the caller that happened to CREATE it (`.claude/docs/persistence.md`
- * "Connection pool", `build-times.md` WHY 51). reactor-netty keeps the subscriber chain of the `create()` that opened a channel on
+ * "Connection pool"). reactor-netty keeps the subscriber chain of the `create()` that opened a channel on
  * that channel's attributes (`ChannelOperations.listener`, a `NewConnectionProvider$NewConnectionObserver` whose `sink` leads to
  * its `actual` subscriber) for the channel's whole life - until the pool closes the connection after `maxIdleTimeSeconds` of
  * idleness, and never while it is reused. That chain ended at r2dbc-pool's allocator and, through the pool's borrower and Exposed's
- * `awaitOne`, at the continuation of the coroutine that triggered the creation: a finished job's frame (here a whole 25,000-row
- * worklog batch, +10 MiB) stayed reachable from the netty selector for minutes. Up to `maxSize` connections could each pin one.
+ * `awaitOne`, at the continuation of the coroutine that triggered the creation: a finished job's frame (in the donor project a whole
+ * 25,000-row batch, +10 MiB) stayed reachable from the netty selector for minutes. Up to `maxSize` connections could each pin one.
  *
  * This decorator subscribes to the real `create()` with a [DetachingBridge] that forwards the one connection, error or completion
  * to the pool and then drops the pool's subscriber, and offers the driver an EMPTY Reactor context, so what the channel retains ends

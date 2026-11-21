@@ -1,10 +1,9 @@
 package ch.nokillswit.users
 
 import ch.nokillswit.audit.audit
-import ch.nokillswit.auth.LoginThrottleKey
-import ch.nokillswit.auth.MAX_PASSWORD_BYTES
-import ch.nokillswit.auth.exceedsBcryptLimit
-import ch.nokillswit.auth.hashPassword
+import ch.nokillswit.infra.crypto.MAX_PASSWORD_BYTES
+import ch.nokillswit.infra.crypto.exceedsBcryptLimit
+import ch.nokillswit.infra.crypto.hashPassword
 import ch.nokillswit.authz.ConflictException
 import ch.nokillswit.authz.ForbiddenException
 import ch.nokillswit.authz.NotFoundException
@@ -50,7 +49,7 @@ internal fun validatePassword(password: String) {
     if (password.length < MIN_PASSWORD_LENGTH) {
         throw BadRequestException("Password must be at least $MIN_PASSWORD_LENGTH characters")
     }
-    // Longer input would make bcrypt throw (a 500) — see MAX_PASSWORD_BYTES in auth/Passwords.kt.
+    // Longer input would make bcrypt throw (a 500) — see MAX_PASSWORD_BYTES in infra/crypto/PasswordHashing.kt.
     if (exceedsBcryptLimit(password)) {
         throw BadRequestException("Password must be at most $MAX_PASSWORD_BYTES bytes in UTF-8")
     }
@@ -108,8 +107,6 @@ class Users {
 
 fun Application.configureUserRoutes() {
     val userService = attributes[UserServiceKey]
-    // Published by configureLoginThrottle, which application.yaml loads before this module.
-    val loginThrottle = attributes[LoginThrottleKey]
 
     routing {
         authenticate {
@@ -117,9 +114,7 @@ fun Application.configureUserRoutes() {
             userDirectory(userService)
             userCreate(userService)
             userReadUpdateDelete(userService)
-            // The self change verifies a bcrypt per request: per-USER bucket (RateLimits.PASSWORD_CHANGE) before the guards, and the
-            // per-account lockout inside the handler (users/UserPasswordRoutes.kt).
-            rateLimit(RateLimitName(RateLimits.PASSWORD_CHANGE)) { userPassword(userService, loginThrottle) }
+            // PUT /users/{id}/password is mounted by auth/PasswordChangeRoutes.kt (it shares the login lockout counter).
             userFeaturesAndLanguage(userService)
         }
     }

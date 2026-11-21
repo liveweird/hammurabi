@@ -1,8 +1,8 @@
 package ch.nokillswit.infra.db
 
 import ch.nokillswit.audit.audit
-import ch.nokillswit.auth.hashPassword
-import ch.nokillswit.auth.verifyPassword
+import ch.nokillswit.infra.crypto.hashPassword
+import ch.nokillswit.infra.crypto.verifyPassword
 import ch.nokillswit.users.UserServiceKey
 import ch.nokillswit.users.validatePassword
 import io.ktor.server.application.*

@@ -20,7 +20,7 @@ import kotlin.test.assertTrue
 
 /**
  * A pooled connection must not keep the coroutine frame of the caller that CREATED it reachable (`.claude/docs/persistence.md`
- * "Connection pool", `build-times.md` WHY 51). Before `DetachingConnectionFactory`, reactor-netty kept the subscriber chain of
+ * "Connection pool"). Before `DetachingConnectionFactory`, reactor-netty kept the subscriber chain of
  * the acquire that created a connection (`NewConnectionProvider$NewConnectionObserver` on the channel's attributes -> the pool's
  * borrower -> the caller's `awaitOne` continuation) for the connection's whole life, so a 25,000-row batch held in the frame of a
  * job that had long returned stayed on the heap while the connection sat idle in the pool.

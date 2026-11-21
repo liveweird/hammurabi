@@ -4,6 +4,7 @@ import ch.nokillswit.audit.audit
 import ch.nokillswit.authz.UnauthorizedException
 import ch.nokillswit.infra.config.requireConfigInt
 import ch.nokillswit.infra.config.requireConfigLong
+import ch.nokillswit.infra.crypto.verifyPassword
 import ch.nokillswit.infra.db.nowMillis
 import ch.nokillswit.infra.mail.mailer
 import ch.nokillswit.plugins.JwtConfig
@@ -100,7 +101,7 @@ fun Application.configureAuthRoutes() {
         blocklist = attributes[TokenBlocklistServiceKey],
         // Per-account lockout, complementing the per-IP bucket (which rotating hosts sidestep): N consecutive failures (a wrong
         // password here or on the password change, a wrong MFA code) for one email → locked for the configured window. Built by
-        // configureLoginThrottle (auth/AccountLockout.kt), which runs before the user routes that share it.
+        // configureLoginThrottle (auth/AccountLockout.kt), which runs before the password-change route that shares it.
         loginThrottle = attributes[LoginThrottleKey],
         mailer = mailer(),
         // Email MFA: pending challenges for MFA-enabled accounts mid-login. In-memory, per-instance,

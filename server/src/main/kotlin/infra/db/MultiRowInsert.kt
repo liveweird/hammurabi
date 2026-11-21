@@ -103,8 +103,8 @@ class InsertRow {
  * while the statement that carries it is assembled ([lazyStatements]): rows are built until the next statement is decided (the row cap
  * reached, or the payload budget overflowed by one row, the payload of a row being known once it is built) and the rest wait for the
  * next one, so the rows in flight are one statement's cap ([maxRowsPerStatement]), not the call's: the `InsertRow` maps, the boxed
- * numbers and the payload texts `body` renders for the rest of a large call do not exist yet (WORKLOGS batches of up to ~30,000 rows,
- * `build-times.md` WHY 51). The statements are EXACTLY [payloadChunkSizes]' over the full list, power-of-two rounding included. `body`
+ * numbers and the payload texts `body` renders for the rest of a large call do not exist yet (a donor batch of up to ~30,000 rows).
+ * The statements are EXACTLY [payloadChunkSizes]' over the full list, power-of-two rounding included. `body`
  * therefore runs lazily, exactly once per row, and must be pure (the first row, built to read the columns, is handed to the first
  * statement, not built again, and is not kept for the call). A row that sets other columns than the first fails the call when its statement
  * is assembled, after the earlier statements ran: the caller's transaction rolls them back. A writer may bound its own groups tighter

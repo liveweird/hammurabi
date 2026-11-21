@@ -5,7 +5,7 @@ import ch.nokillswit.auth.LoginResponse
 import ch.nokillswit.auth.PasswordResetConfirmRequest
 import ch.nokillswit.auth.PasswordResetRequest
 import ch.nokillswit.auth.RefreshRequest
-import ch.nokillswit.auth.hashPassword
+import ch.nokillswit.infra.crypto.hashPassword
 import ch.nokillswit.auth.processPasswordReset
 import ch.nokillswit.infra.mail.Mailer
 import io.ktor.client.call.body

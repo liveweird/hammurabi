@@ -9,7 +9,7 @@ import kotlin.test.assertNotNull
 import kotlin.test.assertTrue
 
 /**
- * Pins the JVM memory sizing carried over from the donor project (`.claude/docs/build-times.md` WHY 17, 26, 27), which used to live in
+ * Pins the JVM memory sizing carried over from the donor project, which used to live in
  * comments only: the baked `applicationDefaultJvmArgs` (`server/build.gradle.kts`), any `JAVA_OPTS` override, the
  * container limits (`docker-compose.yaml`, `k8s/app-deployment.yaml`) and the Dockerfile's ENV lines.
  * Pure file parsing (no Docker, no classpath tricks).
@@ -17,8 +17,8 @@ import kotlin.test.assertTrue
  * The headroom rule: a container's memory limit is at least its EFFECTIVE `-Xmx` plus [HEADROOM_MIB]. The effective `-Xmx` is the LAST
  * one on the java command line: the Gradle launcher assembles `$DEFAULT_JVM_OPTS $JAVA_OPTS $SERVER_OPTS`, i.e. the baked flags, then
  * `JAVA_OPTS`. 256 MiB comes from the measured non-heap budget: ~150 MiB (metaspace 55, class space 10, code 22, symbols 25, thread
- * stacks 12, the rest <= 5 each; WHY 17) plus <= ~30 MiB outside NMT (glibc malloc) is ~180 MiB that no heap flag moves (AppCDS only
- * lowers it, WHY 27), and the remaining ~76 MiB is the slack the kernel needs for page cache and a transient spike. The shipped pair
+ * stacks 12, the rest <= 5 each) plus <= ~30 MiB outside NMT (glibc malloc) is ~180 MiB that no heap flag moves (AppCDS only
+ * lowers it), and the remaining ~76 MiB is the slack the kernel needs for page cache and a transient spike. The shipped pair
  * sits exactly on the rule (256m in 512Mi, no worker heap override), so raising `-Xmx` without the limit - "raise both together, never
  * one alone" -
  * fails here. The rule is a floor, not a recipe: lowering a limit below `-Xmx` + 256 MiB needs a new measurement and a new constant.
@@ -130,7 +130,10 @@ class JvmMemoryFlagsTest {
             listOf("docker-compose.yaml app", "k8s/app-deployment.yaml/hammurabi-app"),
             names,
         )
-        assertTrue("-Xmx256m" in bakedFlags(), "the baked heap moved: re-read WHY 26 and update this pin together with every limit")
+        assertTrue(
+            "-Xmx256m" in bakedFlags(),
+            "the baked heap moved: re-read the JVM sizing notes in build.gradle.kts and update this pin together with every limit",
+        )
     }
 
     @Test
@@ -183,7 +186,7 @@ class JvmMemoryFlagsTest {
 
     @Test
     fun `DisableExplicitGC is set nowhere`() {
-        // An idle heap give-back relies on System.gc(); the flag would turn it into a no-op (WHY 26).
+        // An idle heap give-back relies on System.gc(); the flag would turn it into a no-op.
         assertTrue(shippedJvms().none { jvm -> jvm.tokens.any { it.contains("DisableExplicitGC") } }, "a launched JVM disables explicit GC")
         val files = listOf("Dockerfile", "docker-compose.yaml", "server/build.gradle.kts") +
             File(repoRoot, "k8s").listFiles { f -> f.extension == "yaml" }.orEmpty().map { "k8s/${it.name}" }
@@ -242,7 +245,7 @@ class JvmMemoryFlagsTest {
     private companion object {
         const val KIB_PER_MIB = 1024L
 
-        /** Non-heap ~150 MiB + <= ~30 MiB outside NMT, plus ~76 MiB of slack (class comment, WHY 17/26). */
+        /** Non-heap ~150 MiB + <= ~30 MiB outside NMT, plus ~76 MiB of slack (class comment). */
         const val HEADROOM_MIB = 256L
 
         /** The OpenTelemetry SDK's own bounded `close()` (`plugins/OpenTelemetry.kt` KDoc). */

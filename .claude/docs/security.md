@@ -108,7 +108,7 @@ exchanges the captured refresh token for a new pair without touching the already
 refresh fails the sign-out stays local only and the refresh token lives until its own expiry (<= 1 h). A direct API caller
 that logs out with an expired access token gets the plain `401` and revokes nothing. Known limitation: a refresh and a
 logout racing within the same few milliseconds can leave the freshly minted pair unrevoked, bounded by the refresh TTL. The rotation records (`auth/RefreshRotations.kt`, `RefreshRotationsTest`) are in memory
-and per instance like the lockout/MFA state (single replica) and capacity-bounded at 10,000: when full, records whose
+and per instance like the lockout/MFA state (single replica, see "Per-process state") and capacity-bounded at 10,000: when full, records whose
 token has expired or whose grace has passed are evicted first and, if it is still full, the NEW record is dropped. A
 restart, or a dropped record, loses them and the behaviour falls back to strict. Outside the grace, a replay of a rotated token the instance still remembers is a `401`
 audited as `refresh.rejected reason=replayed`; a token blocklisted by logout (or whose rotation is not remembered) is
@@ -361,7 +361,7 @@ bound is for a runaway client. The rejection is the generic `429` problem and th
 
 **No bucket on the decision log** (`GET /api/v1/adrs/overview`, 0.9.0): like `GET /adrs` it rides `authenticate {}` alone. Every section is capped (`list-endpoints.md`), the answer is a constant number of indexed statements in one transaction with no user text in any of them, and the SPA reads it once per page load; a per-user bucket would add a 429 path for a read that costs about what one list page does.
 
-**`password-change`, 5/min (`RateLimits.PASSWORD_CHANGE`, C-SEC-5),** per signed-in user, fixed in every mode (the telemetry idiom, no config key): `PUT /api/v1/users/{id}/password`, mounted INSIDE `authenticate {}` by `configureUserRoutes`. The self change runs a bcrypt verify of `currentPassword` per request, so the bucket stops a stolen session guessing at dispatcher speed and any user occupying the small default dispatcher; the per-account lockout above is the actual guessing bound. The bucket sits BEFORE the guards (a refused or invalid change spends a token; it is also an admin's budget for resetting others, a few a minute at the very most). Rejection: the generic `429` problem plus the coalesced `rate_limit.exceeded` (bucket `password-change`, `byUserId`). Pinned by `PasswordChangeTest`.
+**`password-change`, 5/min (`RateLimits.PASSWORD_CHANGE`, C-SEC-5),** per signed-in user, fixed in every mode (the telemetry idiom, no config key): `PUT /api/v1/users/{id}/password`, mounted INSIDE `authenticate {}` by `configurePasswordChangeRoutes` (`auth/PasswordChangeRoutes.kt`: it shares the login counter, so `users/` never imports `auth/`; `PackageBoundaryTest` pins the no-cycle rule). The self change runs a bcrypt verify of `currentPassword` per request, so the bucket stops a stolen session guessing at dispatcher speed and any user occupying the small default dispatcher; the per-account lockout above is the actual guessing bound. The bucket sits BEFORE the guards (a refused or invalid change spends a token; it is also an admin's budget for resetting others, a few a minute at the very most). Rejection: the generic `429` problem plus the coalesced `rate_limit.exceeded` (bucket `password-change`, `byUserId`). Pinned by `PasswordChangeTest`.
 
 **`adr-write`, 120/min (`RateLimits.ADR_WRITE`, C-SEC-4, 1.2.0),** per signed-in user, fixed in every mode (the `directory` idiom, no config key): ONE bucket for the 13 writes under `/api/v1/adrs` — `POST /adrs`, the document `PUT` and the ADMIN `DELETE`, the transitions, the participants, tags and successor-link `PUT`s, the successor `DELETE` and its accept, and the four discussion writes (post, edit, delete, state) — mounted INSIDE `authenticate {}` and BEFORE every guard by `configureAdrRoutes` and `configureAdrDiscussionRoutes` around the write groups only (the reads on the same paths stay outside). Every one takes the ADR's row lock and a pooled connection and makes history rows and notices, so before this bucket one account's script could queue unlimited writers and flood the notice table and the mail digest. 120 is the `directory` figure: a person drafts, moves and discusses a few times a minute, 2 a second is a script. A refused or invalid write spends a token too (the bucket is checked before the ADR is looked up, so a write now answers 401, then 429, then 404/403/400/409). Lenses and tag categories stay unbucketed (guard-gated, one row each). The rejection is the generic `429` problem with `Retry-After` plus the coalesced `rate_limit.exceeded` event (bucket `adr-write`, `byUserId`). Pinned by `AdrWriteLimitsTest` (120 across the 13, then `429` on each, the audit line, another account and every read untouched).
 
@@ -461,7 +461,7 @@ ceiling as its plain spelling instead of slipping to the global one (`PayloadVal
 payloads up-front and throw `BadRequestException` (→ `400` + `ProblemDetail`) instead of letting
 oversized/blank values die in the DB as `500`s. One cross-cutting example: password ≥
 `MIN_PASSWORD_LENGTH` (10) chars AND ≤ 71 UTF-8 bytes (`validatePassword` in `users/UserRoutes.kt`
-+ `MAX_PASSWORD_BYTES` in `auth/Passwords.kt` — **the bcrypt ceiling**: longer input makes bcrypt
++ `MAX_PASSWORD_BYTES` in `infra/crypto/PasswordHashing.kt` — **the bcrypt ceiling**: longer input makes bcrypt
 throw, and the 500-vs-401 split would be an account-enumeration oracle, so login's
 `verifyPassword` guards it too). Declare limits as `maxLength` in the OpenAPI spec. Keep new
 validators feature-local and enforce them **after** the authz guard (403 wins over 400). Covered
@@ -669,6 +669,28 @@ strings included. So `plugins/Monitoring.kt`'s `TelemetryRegistry` registers NO 
 unregistered instrument), caps the whole `ktor.calls.` family at 2,000 registered names (past it: detached instruments and one WARN), and the reporter
 filters out any name with a `?` as defence in depth. Pinned by `TelemetryRegistryTest` (a flood of unrouted, 405 and rate-limited requests with varying
 query strings registers none). The sampler reads the registry's timers and meters only, so detached instruments cost it nothing.
+
+### Per-process state (why the deployment is ONE replica)
+
+The ONE list of what lives in a process's memory (checkup C-ARCH-5; the sections above, `persistence.md`, `ci.md`, `README.md` and `application.yaml` point here instead of repeating it). `k8s/app-deployment.yaml` pins `replicas: 1` with `Recreate` updates and `ci.yml` `k8s-static` checks it; every row below says what N processes behind one address would do instead. Nothing in the list is persisted: a restart empties all of it.
+
+| State | Where | Holds | With N replicas |
+|---|---|---|---|
+| Login lockout | `auth/LoginThrottle.kt` (`security.lockout.*`, three maps over `ExpiringIndex`) | failure counters, active locks, the MFA-code escalation level and code-guess counts, per identity digest; at most `maxTracked` | each replica counts alone: a guesser gets the threshold times N, and a lock set on one replica is not seen by the others (the password change and the MFA step share the counter, so they weaken together) |
+| MFA challenges | `auth/MfaChallenges.kt` (`security.mfa.*`) | pending emailed-code challenges, their attempt counts, at most `maxTracked` | a code posted to another replica finds no challenge: the user signs in again; the attempt cap is per replica |
+| Password-reset cooldown | `auth/PasswordResetThrottle.kt` (`security.passwordReset.*`) | one cooldown stamp per requested identity | the cooldown is per replica: N requests per cooldown reach the mailbox |
+| Refresh rotations | `auth/RefreshRotations.kt` (`security.refresh.*`) | which `jti`s this process rotated, for whom and when, at most 10,000 (the replay grace and `replayed` vs `revoked`) | the revocation itself is a database row and holds everywhere; only the grace is local: a replay landing on another replica is strict (a `401`, `reason=revoked`) |
+| Rate buckets | `plugins/RateLimits.kt` (Ktor `RateLimit`, one limiter per key) and `RateLimitAuditThrottle` | the per-IP and per-user token buckets and the coalescing window of `rate_limit.exceeded` | every limit is multiplied by N, and so is the audit line per window |
+| Export slots | `adrs/AdrExportRoutes.kt` (`adrs.export.maxConcurrent`) | the semaphore of running bulk exports | N times as many streams, each parking a blocking IO thread |
+| Search permits | `adrs/AdrListService.kt` (`search.maxConcurrent`) | the semaphore of running full-text searches | N times as many; the pool size must still cover `maxConcurrent` per replica |
+| Digest spacing | `notifications/NotificationDigest.kt` (`mailedAt`, `notifications.email.minIntervalSeconds`) | who this process mailed inside the interval | the claim is row-locked in the database (`FOR UPDATE SKIP LOCKED`, `emailed_at`), so a notice is mailed once; the SPACING per person is per replica |
+| Request timers and samples | `plugins/Monitoring.kt` (`TelemetryRegistry`), `telemetry/` | the sliding-window timers, the JVM deltas, the collector failure log | by design per process: every row is keyed by the process instance and merged on read (`observability.md` "Telemetry") |
+| Per-IP log throttle | `infra/ClientAddress.kt` | two counters that rate-limit the "junk address" warning | one warning per replica |
+| Statement-timeout cache | `infra/db/StatementTimeoutCache.kt` | the value last set on each PHYSICAL pooled connection | per pool, harmless; the pool itself is `maxSize x replicas` against Postgres (`persistence.md` "Connection pool") |
+
+**Background loops** (`Application.backgroundScope`: the ADR expiry sweep, the notification sweep with the digest, the expiry reminders and the retention purge, the telemetry sampler) run in EVERY replica and are safe to: each re-reads what it changes under the row lock (`FOR NO KEY UPDATE`) and the telemetry cluster work takes an advisory try-lock, so two replicas do the work once (`adr-model.md` "Expiry", `observability.md`). What N replicas multiply is the work they look for, not what they write.
+
+**What is already shared** (so it needs no row above): the access-token verdict (one uncached statement, `TokenBlocklistService.accessVerdict`), the token blocklist, the credential revision, the per-actor mail budget (V21), the ADR number (advisory lock), every row lock, the audit-digest key (derived from the JWT secret, identical everywhere) and the Flyway migration (its own database lock). **To scale out**, move the first five rows (lockout, MFA, reset cooldown, rotations, rate buckets) to a shared store first, then re-read the export and search rows against the pool size; the loops need nothing.
 
 ### Not yet ported
 

@@ -4,7 +4,7 @@ import kotlinx.serialization.Serializable
 
 /**
  * The shared list-endpoint envelope: `{ items, page, pageSize, total }`. Every resource's
- * `XPageResponse` is a typealias over this (see e.g. `catalog/CatalogFile.kt`), so the JSON wire
+ * `XPageResponse` is a typealias over this (see e.g. `TeamPageResponse` in `teams/Team.kt`), so the JSON wire
  * shape and the OpenAPI `*Page` schemas stay identical while the Kotlin type is defined once.
  */
 @Serializable

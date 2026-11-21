@@ -8,8 +8,8 @@ import kotlin.test.Test
 import kotlin.test.assertEquals
 
 /**
- * `insertRowsIgnoringConflicts` must not let a long transaction's memory grow with the rows it has written (`.claude/docs/build-times.md`
- * WHY 14). Exposed R2DBC 1.5.0's `R2dbcTransaction` keeps every statement it executed in
+ * `insertRowsIgnoringConflicts` must not let a long transaction's memory grow with the rows it has written.
+ * Exposed R2DBC 1.5.0's `R2dbcTransaction` keeps every statement it executed in
  * `executedStatements` until the transaction ends (`closeStatementsAndConnection`, at commit or rollback, only clears the list — it closes
  * nothing; `executeIn` itself clears it before a statement when `!supportsMultipleResultSets`). Each
  * multi-row statement (up to 32,000 bind parameters) drags its driver `PostgresqlStatement` with it: ~100,000 parsed SQL

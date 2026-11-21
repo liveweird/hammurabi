@@ -2,7 +2,7 @@ package ch.nokillswit
 
 import ch.nokillswit.auth.LoginRequest
 import ch.nokillswit.auth.LoginResponse
-import ch.nokillswit.auth.hashPassword
+import ch.nokillswit.infra.crypto.hashPassword
 import ch.nokillswit.infra.db.SEED_ADMIN_EMAIL
 import ch.nokillswit.infra.db.SEED_PASSWORD_HASH
 import io.ktor.client.call.body

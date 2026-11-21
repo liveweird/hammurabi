@@ -19,7 +19,7 @@ import kotlin.test.assertTrue
 /**
  * `infra/db/MultiRowInsert.kt`'s `insertRowsIgnoringConflicts` writes exactly what Exposed's `batchInsert` writes, only as multi-row
  * `VALUES`
- * statements (`.claude/docs/build-times.md` WHY 3). Every case inserts the SAME rows through both into two owners of the scratch table
+ * statements. Every case inserts the SAME rows through both into two owners of the scratch table
  * (`MultiRowScratch`) and compares what the database holds, so a difference in value conversion, null handling, the client-side
  * defaults or the chunking shows up as a row difference, not a guess. The donor project's version ran against its bulk tables, which
  * Hammurabi does not carry; the writers are generic and ported as they were.

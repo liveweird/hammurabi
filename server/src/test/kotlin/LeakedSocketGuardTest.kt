@@ -24,8 +24,8 @@ import kotlin.test.assertNotNull
 import kotlin.test.assertTrue
 
 /**
- * The defences against a backend left holding its transaction by a client that stopped talking to it (`build-times.md`
- * WHY 24, `.claude/docs/persistence.md` "Connection pool"): `LeakedSocketGuard.kt` (r2dbc-postgresql 1.1.3 leaves the socket
+ * The defences against a backend left holding its transaction by a client that stopped talking to it
+ * (`.claude/docs/persistence.md` "Connection pool"): `LeakedSocketGuard.kt` (r2dbc-postgresql 1.1.3 leaves the socket
  * open after a "Response queue is full") and the pool's `idle_in_transaction_session_timeout`. Each test builds its own
  * small pool under a unique `application_name` and watches its backends from a plain JDBC session; the row it locks is a
  * team row it seeded itself.

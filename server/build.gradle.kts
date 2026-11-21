@@ -76,7 +76,7 @@ application {
     //   Not set on purpose: -Xss. The default 1 MiB stack stays (CanonicalJsonTest pins the margin canonicalJson/toString
     //                          can store for a deeply nested payload).
     //   AppCDS is NOT a flag here: the Docker image dumps a class-data-sharing archive and enables it through `ENV SERVER_OPTS`
-    //                          (Dockerfile, build-times.md WHY 27). A missing archive file would switch CDS off altogether, which would
+    //                          (Dockerfile). A missing archive file would switch CDS off altogether, which would
     //                          slow every `:server:run`, so the flag lives only where the file is guaranteed to exist. Adding
     //                          `-XX:-UseCompressedOops` / `-XX:ObjectAlignmentInBytes` (or any flag that changes pointer layout) HERE silently
     //                          disables the archive - the app still starts, just slower; CI's scripts/check-cds-archive.sh catches it.
@@ -253,7 +253,7 @@ val DEFAULT_TEST_STALL_MINUTES = 5
 // The test classes in the order the `Test` task should see them when it runs several forks (`-Pforks=N`, N > 1).
 // Why: Gradle's MaxNParallelTestDefinitionProcessor deals candidate classes to the forks ROUND-ROBIN in visit order
 // (position p -> fork p % forks), all up front, with no work stealing; an alphabetical visit let one fork draw most
-// of the heavy classes and run alone for the second half of the suite (build-times.md WHY 18). So the order we emit
+// of the heavy classes and run alone for the second half of the suite. So the order we emit
 // IS the fork assignment: classes sorted by weight (`test-weights.tsv`, seconds per class) are dealt greedily
 // (LPT) to the least loaded fork that still has a free slot, and each fork's queue is then laid out at the
 // positions p % forks == fork. The per-fork slot count is capped at its round-robin share, so the interleaving
@@ -482,8 +482,8 @@ tasks.test {
     // Parallel JVM forks (`-Pforks=2` in CI; default 1 = the classic single fork). Every fork is its own JVM, so it
     // gets its OWN Testcontainers Postgres and its own `object` fixture singletons — all the shared-database
     // hazards (withSoloAdmins, restoreSeedAccounts) stay intra-fork.
-    // `forkEvery` is deliberately NOT set (one JVM per fork for the whole run). Measured in build-times.md WHY 5.
-    // `-Pforks` must be an integer 1..8 (more forks only add a container each, WHY 5); anything else
+    // `forkEvery` is deliberately NOT set (one JVM per fork for the whole run).
+    // `-Pforks` must be an integer 1..8 (more forks only add a container each); anything else
     // fails any build that configures the test task, instead of a NumberFormatException or an unbounded fan-out.
     val forks: Int = (findProperty("forks") as String?).let { raw ->
         if (raw == null) {
@@ -495,7 +495,7 @@ tasks.test {
     }
     maxParallelForks = forks
     // The test fork HEAP stays at Gradle's default (512 MiB): a fork's post-GC floor is flat at ~130-290 MiB over a full run since the
-    // OpenAPI validator's schema cache was capped (`OpenApiConformance.kt` SCHEMA_CACHE_ENTRIES; build-times.md WHY 62). Do not raise
+    // OpenAPI validator's schema cache was capped (`OpenApiConformance.kt` SCHEMA_CACHE_ENTRIES). Do not raise
     // it to hide growth - a floor that climbs again means something else is retaining data; measure it with `-Xlog:gc` first.
     // Candidates are selected by FILE NAME, not by scanning class files for @Test (Gradle's documented pairing: with
     // scanning off, `include` patterns decide). A later change relies on the exact candidate set; the naming rule

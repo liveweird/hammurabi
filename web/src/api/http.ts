@@ -253,7 +253,7 @@ export async function safeJson(res: Response): Promise<unknown> {
 
 /**
  * The two standard wrapper shapes: every ordinary endpoint wrapper in `api/users.ts` and
- * `api/catalogFiles.ts` is one call to these (ok-check + ProblemDetail body + parse);
+ * `api/teams.ts` is one call to these (ok-check + ProblemDetail body + parse);
  * `authedFetch`/`ApiError`/`safeJson` stay exported for the special cases (extra response
  * logic, non-authed auth flows).
  */
@@ -270,12 +270,12 @@ export async function voidRequest(input: string, init?: RequestInit): Promise<vo
 }
 
 /**
- * The query-string builder behind the list/export wrappers (`listUsers`, `listCatalogFiles`,
- * `exportCatalogFiles`). Skips null/undefined/"" (an absent or cleared filter); `false` and
+ * The query-string builder behind the list/export wrappers (`listUsers`, `listAdrs`,
+ * `exportAdrs`). Skips null/undefined/"" (an absent or cleared filter); `false` and
  * `0` ARE sent — a param that must be OMITTED rather than sent as false/empty is passed as
  * `value || undefined` at the call site (the pages' `filter || undefined` idiom). An array
  * value appends one repeated key per non-empty entry (the server's documented IN idiom —
- * `labelValue`); an empty array is an absent filter.
+ * `GET /adrs?status=`); an empty array is an absent filter.
  */
 export function buildQuery(
   params: Record<string, string | number | boolean | readonly string[] | null | undefined>,

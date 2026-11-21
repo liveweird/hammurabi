@@ -22,7 +22,7 @@ import java.util.concurrent.ConcurrentHashMap
 /**
  * Entries of the validator's compiled-schema cache (the library default is 100). Each entry holds a compiled schema WITH a
  * copy of every `components/schemas` definition injected for `$ref` resolution - ~2.6 MiB of Jackson trees for this spec,
- * so the default grows a test fork's live heap to ~500 MiB over a full run (`build-times.md` WHY 62). A test class touches
+ * so the default grows a test fork's live heap to ~500 MiB over a full run. A test class touches
  * a handful of response schemas, so a small cache keeps the hit rate. MEASURED (clean `-Pforks=2` runs at the default heap; per
  * fork with 6,161 / 6,308 validations: summed `validate` time, late post-GC floor): 100 -> 3.1 s, 434 MiB / 3.8 s, 412 MiB;
  * 20 -> 2.6 s, 257 / 4.0 s, 288; 12 -> 3.1 s, 271 / 4.6 s, 223; 8 -> 3.7 s, 226 / 5.9 s, 212 (6: 8.5-9.0 s). 20 is

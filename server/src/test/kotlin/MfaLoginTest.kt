@@ -410,7 +410,7 @@ class MfaLoginTest {
             // atomically, so the old challenge cannot mint tokens for revision 1.
             TestUsers.service.updatePassword(
                 userId,
-                ch.nokillswit.auth.hashPassword("changed-password", cost = 4),
+                ch.nokillswit.infra.crypto.hashPassword("changed-password", cost = 4),
             )
 
             assertEquals(HttpStatusCode.Unauthorized, client.verify(challenge.challengeId, code).status)

@@ -32,8 +32,8 @@ internal fun chunkSizes(total: Int, maxRows: Int): List<Int> {
 }
 
 /**
- * `infra/db/MultiRowInsert.kt` bounds a statement's payload as well as its bind parameters (`MAX_PAYLOAD_CHARS`; `build-times.md`
- * WHY 48, "Postgres memory under dense raw inserts"): the pure planner `payloadChunkSizes` and its lazy statement assembly.
+ * `infra/db/MultiRowInsert.kt` bounds a statement's payload as well as its bind parameters (`MAX_PAYLOAD_CHARS`, so a dense insert cannot
+ * balloon Postgres memory): the pure planner `payloadChunkSizes` and its lazy statement assembly.
  */
 class MultiRowInsertPayloadTest {
     private val max = 100

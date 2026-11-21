@@ -3,7 +3,7 @@ import { nameRule } from "./formRules";
 import { utf8ByteLength } from "./password";
 import type { SupportedLanguage } from "../i18n";
 
-// Server limits (users/Validation.kt + auth/Passwords.kt) mirrored client-side.
+// Server limits (users/Validation.kt + infra/crypto/PasswordHashing.kt) mirrored client-side.
 export const MAX_USER_NAME_LENGTH = 50;
 export const MAX_EMAIL_LENGTH = 254;
 export const MIN_PASSWORD_LENGTH = 10;

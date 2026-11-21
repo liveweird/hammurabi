@@ -412,7 +412,7 @@ default `hammurabi`/`hammurabi`; the value is word-split on purpose):
   come back as they were), so a token revoked after the dump is valid again until it expires and a changed password reverts: after an incident
   rotate `JWT_SECRET` (every outstanding token dies) and have affected users reset their passwords. Notices the digest mailed after the dump are
   unclaimed again (`emailed_at` reverts) and are mailed a second time if still unseen; the per-actor mail budget's counters revert with them.
-  In-memory state (lockouts, MFA codes, refresh rotations, rate buckets, export slots) starts empty.
+  In-memory state starts empty (the list: `security.md` "Per-process state").
 - **Drill.** `node scripts/db-drill.mjs [--image TAG] [--keep]` proves all of the above on a throwaway compose project
   (`hammurabi-backup-drill`, own containers and volume, ports 8592 / 5943 / 8536, the pattern of `scripts/cds-classlist.mjs`; it never touches
   the default project: one `compose()` helper hard-codes `-p`, and each script call asserts the drill's `HAMMURABI_PG_EXEC` and the container's

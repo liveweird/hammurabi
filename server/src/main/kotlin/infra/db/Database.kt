@@ -147,7 +147,7 @@ internal const val PREPARED_STATEMENT_CACHE_QUERIES = 256
  * sent as a startup parameter, so it is the session default — it also overrides an `ALTER ROLE/DATABASE … SET` of the same
  * setting — and no `SET` ever touches it): the server ends a session that sits idle INSIDE a transaction for longer, rolling the
  * transaction back and releasing its locks. It is the backstop for a session whose client stopped talking to it with a
- * transaction open — the r2dbc-postgresql socket leak `LeakedSocketGuard.kt` closes is the one seen (build-times WHY 24), a
+ * transaction open — the r2dbc-postgresql socket leak `LeakedSocketGuard.kt` closes is the one seen, a
  * frozen request thread or a coroutine stuck mid-transaction are the others. An idle gap inside a transaction can never be longer than
  * the transaction, and no transaction spans an outbound call or a mail send, and every one is a few statements, so 5 minutes is
  * far beyond any legitimate gap. It ends only an IDLE session — one stuck `active` (in `ClientWrite`) is the guard's job.
@@ -208,7 +208,7 @@ internal fun connectPooledDatabase(
     // The decorators sit below the pool: the remembered statement timeout belongs to one physical connection
     // (StatementTimeoutCache.kt), and the pool's destroy of a broken connection must reach the socket guard (LeakedSocketGuard.kt).
     // The detaching one ends the subscriber chain reactor-netty keeps on each channel at its bridge, so it never reaches the pool's
-    // borrower and the creating caller's frame (DetachingConnectionFactory.kt, build-times WHY 51 and 52); it is OUTERMOST so an
+    // borrower and the creating caller's frame (DetachingConnectionFactory.kt); it is OUTERMOST so an
     // orphan it closes is the decorated connection, whose close reaches the socket guard.
     val rawFactory = DetachingConnectionFactory(
         StatementTimeoutCachingConnectionFactory(

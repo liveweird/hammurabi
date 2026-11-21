@@ -10,7 +10,7 @@ import java.util.concurrent.atomic.AtomicLong
 
 /**
  * Skips the driver's `SET STATEMENT_TIMEOUT` round trip when the PHYSICAL connection already has the requested value
- * (`.claude/docs/persistence.md` "Statement timeouts", `build-times.md` WHY 13).
+ * (`.claude/docs/persistence.md` "Statement timeouts").
  *
  * Exposed's R2DBC executor calls `setTimeout(transaction.queryTimeout)` before EVERY statement, and r2dbc-postgresql
  * answers each call with a separate simple query that Exposed awaits, even at the default 0: about half of all the

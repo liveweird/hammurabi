@@ -6,7 +6,7 @@ import kotlin.test.assertEquals
 import kotlin.test.assertTrue
 
 /**
- * Keeps `server/cds/classlist.txt`, the class list the Dockerfile dumps its AppCDS archive from (build-times.md WHY 27),
+ * Keeps `server/cds/classlist.txt`, the class list the Dockerfile dumps its AppCDS archive from,
  * honest. A stale list never breaks the image (a class missing from it is loaded from the jars at run time), it only
  * costs startup and the metaspace the archive would have saved, so this is a tripwire for gross drift: the file keeps
  * the canonical shape `scripts/cds-classlist.mjs` writes, and most of the application classes it names still exist.

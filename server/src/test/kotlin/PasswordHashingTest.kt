@@ -1,12 +1,15 @@
-package ch.nokillswit.auth
+package ch.nokillswit
 
+import ch.nokillswit.infra.crypto.exceedsBcryptLimit
+import ch.nokillswit.infra.crypto.hashPassword
+import ch.nokillswit.infra.crypto.verifyPassword
 import kotlinx.coroutines.runBlocking
 import kotlin.test.Test
 import kotlin.test.assertFalse
 import kotlin.test.assertTrue
 
 /** Pure unit tests for the bcrypt helpers (no server, no database). */
-class PasswordsTest {
+class PasswordHashingTest {
 
     @Test
     fun `hash and verify round-trip`() = runBlocking<Unit> {

@@ -41,9 +41,11 @@ ktor:
       # the database/monitoring seams it reads.
       - ch.nokillswit.telemetry.TelemetryKt.configureTelemetry
       # — features
-      # The per-account failure counter (login lockout) BEFORE the user routes: the self password change shares it with /login and /login/mfa.
+      # The per-account failure counter (login lockout) BEFORE the password change: it shares the counter with /login and /login/mfa.
       - ch.nokillswit.auth.AccountLockoutKt.configureLoginThrottle
       - ch.nokillswit.users.UserRoutesKt.configureUserRoutes
+      # PUT /api/v1/users/{id}/password (auth/, not users/: a credential check on the login counter, so users/ never imports auth/).
+      - ch.nokillswit.auth.PasswordChangeRoutesKt.configurePasswordChangeRoutes
       - ch.nokillswit.teams.TeamRoutesKt.configureTeamRoutes
       # The ADMIN-curated tag registry (0.4.0, `.claude/docs/adr-model.md` "Tags"): /api/v1/tag-categories.
       - ch.nokillswit.tags.TagCategoryRoutesKt.configureTagCategoryRoutes
@@ -105,9 +107,9 @@ security:
   # (auth/TokenBlocklistService.accessVerdict, plugins/Security.kt) is ONE uncached database
   # statement (revocation, account liveness, credential revision, roles), so a logout, a delete,
   # a demotion or a password change ends the token on its next request on ANY replica. The
-  # per-instance in-memory state is the lockout, the reset throttle, the MFA challenges and the
-  # refresh-rotation records: the deployment is single-replica (k8s/app-deployment.yaml), like
-  # those assume; scale out only after moving them to a shared store.
+  # per-process in-memory state (lockout, reset cooldown, MFA challenges, refresh rotations, rate
+  # buckets, export slots, search permits) is listed in `.claude/docs/security.md` "Per-process state":
+  # the deployment is single-replica (k8s/app-deployment.yaml), like it assumes.
   # Refresh-token rotation (auth/TokenBlocklistService.kt): every /refresh blocklists the presented
   # token. A replay of a token this instance rotated less than `replayGraceSeconds` ago still gets a
   # fresh pair (covers a /refresh response lost in flight; must exceed the SPA's 30 s request deadline);

@@ -13,7 +13,7 @@ private val log = LoggerFactory.getLogger("ch.nokillswit.infra.db.LeakedSocketGu
 
 /**
  * Closes the socket r2dbc-postgresql leaves OPEN after a protocol-level connection error (`.claude/docs/persistence.md`
- * "Connection pool", `build-times.md` WHY 24). In r2dbc-postgresql 1.1.3, `ReactorNettyClient.BackendMessageSubscriber.onError`
+ * "Connection pool"). In r2dbc-postgresql 1.1.3, `ReactorNettyClient.BackendMessageSubscriber.onError`
  * (reached by "Response queue is full", ReactorNettyClient.java:884) completes the request sink, whose `doAfterTerminate`
  * runs `handleClose()` synchronously and sets `isClosed`; the `close()` it calls next then sees `isClosed` already set and
  * does nothing, and so does every later `Connection.close()` (the pool's destroy included). The channel stays open with

@@ -1,9 +1,8 @@
 /**
- * `YYYY-MM-DD` ISO-date helpers shared by the metrics settings form (holidays), the reports (days
- * in the configured zone) and D1's dated Jira-user team membership (valid-from/valid-to, which are
- * calendar days in that same zone). The plain conversions are UTC; the `…InZone` ones take the
- * configured IANA zone. Neither reads the browser's local time zone, so results are the same in every
- * test/CI locale (the `utils/dataSourceState.ts` `formatEpochMillis` convention: never `toLocaleString()`).
+ * `YYYY-MM-DD` ISO-date helpers shared by the ADR filters and lenses (validation), the decision log
+ * (day arithmetic) and `formatDate` (a day in a zone). The plain conversions are UTC; the `…InZone` ones take the
+ * given IANA zone. Neither reads the browser's local time zone, so results are the same in every
+ * test/CI locale (never `toLocaleString()`).
  */
 
 /** One fixed 24-hour day in millis — UTC calendar arithmetic only (zone days go through the `…InZone` helpers). */
@@ -38,8 +37,8 @@ export function addDays(iso: string, days: number): string {
 }
 
 /**
- * Epoch millis to the `YYYY-MM-DD` calendar date it falls on in an IANA `timeZone` (the reports
- * read and cut their days in `metrics.settings.time_zone`, not UTC). `en-CA` because its date
+ * Epoch millis to the `YYYY-MM-DD` calendar date it falls on in an IANA `timeZone` (the caller names the zone; the
+ * default of `formatDate` is UTC). `en-CA` because its date
  * format IS the ISO one; the parts are read individually rather than trusting that formatting.
  */
 export function epochMillisToIsoDateInZone(epochMillis: number, timeZone: string): string {

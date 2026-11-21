@@ -6,7 +6,7 @@ import { theme } from "./theme";
 import { cssVariablesResolver, DARK_TOKENS, LIGHT_TOKENS, LIGHT_VARIANT_INKS } from "./themeVariables";
 
 // Mantine's own `darken(color, alpha)`: each channel scaled by (1 - alpha), rounded — the dark
-// scheme's light-variant surface is `darken(<hue>-9, 0.5)` (get-css-color-variables.mjs).
+// scheme's light-variant surface is `darken(<hue>-9, 0.5)`.
 function darken(hex: string, alpha: number): string {
   const scaled = [1, 3, 5].map((o) => Math.round(Number.parseInt(hex.slice(o, o + 2), 16) * (1 - alpha)));
   return `#${scaled.map((c) => c.toString(16).padStart(2, "0")).join("")}`;

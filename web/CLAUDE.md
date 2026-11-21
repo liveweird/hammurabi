@@ -23,8 +23,7 @@ and leads into them. Routes are lazy.
   `eslint-plugin-sonarjs` (recommended) plus core size/complexity backstops — zero-findings gate;
   rule tuning lives in `eslint.config.js` ONLY, one commented override per deliberate idiom, and
   any inline `eslint-disable` needs a justifying comment. `npm run lint` runs with `--cache --cache-strategy content`
-  (`web/.eslintcache`, gitignored; a warm run is ~0.6 s against ~12 s, CI restores the file between runs —
-  Flow's `build-times.md` WHY 20); the config is not type-aware, so a per-file cache is sound, and a config change or an
+  (`web/.eslintcache`, gitignored; a warm run is ~0.6 s against ~12 s, CI restores the file between runs); the config is not type-aware, so a per-file cache is sound, and a config change or an
   ESLint/node upgrade re-lints everything on its own. `npm run knip` is the dead-code gate
   (unused files/exports/dependencies; `knip.json` ignores the generated `schema.ts` and the
   `ajv` devDependency pinned only for `@stoplight/spectral-cli`'s resolution) — keep exports that

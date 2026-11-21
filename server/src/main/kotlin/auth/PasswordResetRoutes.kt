@@ -3,6 +3,7 @@ package ch.nokillswit.auth
 import ch.nokillswit.audit.audit
 import ch.nokillswit.authz.TooManyRequestsException
 import ch.nokillswit.authz.UnauthorizedException
+import ch.nokillswit.infra.crypto.hashPassword
 import ch.nokillswit.users.UserServiceKey
 import ch.nokillswit.infra.validation.canonicalEmail
 import ch.nokillswit.users.validateEmail

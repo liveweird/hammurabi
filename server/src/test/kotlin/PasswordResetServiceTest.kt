@@ -2,8 +2,8 @@ package ch.nokillswit
 
 import ch.nokillswit.auth.PasswordResetService
 import ch.nokillswit.auth.PasswordResetService.IssueOutcome
-import ch.nokillswit.auth.hashPassword
-import ch.nokillswit.auth.verifyPassword
+import ch.nokillswit.infra.crypto.hashPassword
+import ch.nokillswit.infra.crypto.verifyPassword
 import ch.nokillswit.users.UserRole
 import ch.nokillswit.users.updatePasswordInTransaction
 import io.ktor.server.testing.testApplication

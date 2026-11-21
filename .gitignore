@@ -42,12 +42,7 @@ logs/
 *.local
 local.properties
 
-# Generated API docs (swagger-codegen output from the OpenAPI spec — never hand-edited,
-# regenerate rather than commit). Covers both the repo-root and server/ generation dirs.
-/docs/
-server/docs/
-
-# Schemathesis run cache (the manual fuzz pass documented in CLAUDE.md runs from the repo root).
+# Schemathesis run cache (the manual fuzz pass in `.claude/docs/test-fixtures.md` runs from the repo root).
 .schemathesis/
 
 # Node (web/ and e2e/ have their own ignores; this backstops stray root-level caches —

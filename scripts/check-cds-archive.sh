@@ -1,5 +1,5 @@
 #!/bin/sh
-# Tripwire for a silently unused AppCDS archive (build-times.md WHY 27, ci.md): a mismatching archive (another JVM, a changed jar,
+# Tripwire for a silently unused AppCDS archive (`ci.md`): a mismatching archive (another JVM, a changed jar,
 # `-XX:-UseCompressedOops`/`ObjectAlignmentInBytes` added to the baked flags) never fails a start - the app boots with no classes
 # shared and is SLOWER than without the archive - so CI could not tell. This runs the image's own launcher (so the classpath and the
 # baked JVM flags are the runtime's exact ones, plus the image's SERVER_OPTS archive flag) with `-XX:+PrintSharedArchiveAndExit`:

@@ -2,7 +2,7 @@ package ch.nokillswit
 
 import ch.nokillswit.auth.LoginRequest
 import ch.nokillswit.auth.LoginResponse
-import ch.nokillswit.auth.hashPassword
+import ch.nokillswit.infra.crypto.hashPassword
 import ch.nokillswit.infra.db.SEED_ADMIN_EMAIL
 import ch.nokillswit.infra.db.SEED_PASSWORD_HASH
 import ch.nokillswit.infra.db.connectPooledDatabase
@@ -231,7 +231,7 @@ internal suspend fun resetTokenHashes(userId: UInt): List<String> = suspendTrans
 fun sharedDatabaseForTests(): R2dbcDatabase = sharedTestDatabase
 
 /**
- * POOLED like production (`connectPooledDatabase`, `.claude/docs/build-times.md` WHY 10): an unpooled
+ * POOLED like production (`connectPooledDatabase`): an unpooled
  * connect opened a fresh PostgreSQL backend per `suspendTransaction`. Small — the suite's test-side
  * calls are sequential, and a test holding a transaction open while another test-side call runs
  * needs a second connection; 8 leaves headroom and the acquire timeout turns a real deadlock into

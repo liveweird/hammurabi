@@ -5,7 +5,7 @@ import type { CSSVariablesResolver } from "@mantine/core";
  * is chosen for WCAG AA (≥ 4.5:1) on the surface it sits on, in BOTH schemes, and
  * `theme.test.ts` guards the ratios. Mantine 9.5's stock light-variant ink in the LIGHT scheme
  * is the hue's 9-shade over the solid 1-shade tint (orange 3.6:1, green 3.8, teal 4.3, yellow
- * 2.7 — see `get-css-color-variables.mjs`), and its `dimmed` is gray-6 (3.3:1) — the reason
+ * 2.7 — the ratios `theme.test.ts` computes), and its `dimmed` is gray-6 (3.3:1) — the reason
  * the axe colour-contrast rule used to be waived. In the DARK scheme Mantine paints the
  * 0-shade over a 50%-darkened 9-shade, which clears 8:1 for every hue, so only the light
  * inks are overridden below.

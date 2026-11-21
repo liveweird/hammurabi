@@ -11,7 +11,7 @@ import io.ktor.util.AttributeKey
  * The ONE per-account failure counter, shared by every route that verifies a credential for an account: `/login` (the
  * password), `/login/mfa` (the emailed code) and the self password change (`currentPassword`). N wrong guesses across all
  * three lock the account exactly as N failed logins would. Published as an attribute (not built inside `configureAuthRoutes`)
- * because `configureUserRoutes` registers earlier in `application.yaml` than the auth routes and reads it per request.
+ * because `configurePasswordChangeRoutes` registers earlier in `application.yaml` than the auth routes and reads it at boot.
  */
 val LoginThrottleKey = AttributeKey<LoginThrottle>("LoginThrottle")
 

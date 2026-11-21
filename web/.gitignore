@@ -24,5 +24,5 @@ coverage
 *.sln
 *.sw?
 
-# ESLint result cache (npm run lint --cache; CI persists it between runs, build-times.md WHY 20)
+# ESLint result cache (npm run lint --cache; CI persists it between runs)
 .eslintcache

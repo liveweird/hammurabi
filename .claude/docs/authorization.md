@@ -129,7 +129,7 @@ Layered RBAC. Implemented in the `server/src/main/kotlin/authz/` package.
     `user.language_changed` on an actual change. Tests: `UserLanguageTest`.
   - `PUT /api/v1/users/{id}/password` → target user or ADMIN (`requireSelfOrAdmin`). New password
     must be ≥ 10 chars (`MIN_PASSWORD_LENGTH` in `users/UserRoutes.kt`) and ≤ 71 UTF-8 bytes
-    (`MAX_PASSWORD_BYTES`, `auth/Passwords.kt` — the bcrypt ceiling), else `400`. A **self-change**
+    (`MAX_PASSWORD_BYTES`, `infra/crypto/PasswordHashing.kt` — the bcrypt ceiling), else `400`. A **self-change**
     (even by an admin) additionally requires a correct `currentPassword` in the body (else `403`,
     audited `password.change_denied`) — checked BEFORE the length validation, so 403 wins over
     400 (the convention everywhere); an admin resetting **another** user's password does not. The route rides the

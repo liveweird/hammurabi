@@ -54,7 +54,7 @@ describe("shared vocabulary", () => {
     expect(EMPTY_USER_FORM).toEqual({ name: "", email: "", admin: false, language: "en" });
   });
 
-  test("the limits mirror the server's (users/Validation.kt + auth/Passwords.kt)", () => {
+  test("the limits mirror the server's (users/Validation.kt + infra/crypto/PasswordHashing.kt)", () => {
     expect(MAX_USER_NAME_LENGTH).toBe(50);
     expect(MAX_EMAIL_LENGTH).toBe(254);
     expect(MIN_PASSWORD_LENGTH).toBe(10);

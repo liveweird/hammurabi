@@ -102,7 +102,7 @@ a dump does not hold (`JWT_SECRET`, `DATA_ENCRYPTION_KEY`, the Postgres password
 ## Running on Kubernetes (local)
 
 Two Deployments, each a single replica with `Recreate` updates (the old pod stops before the
-new one starts, so an upgrade briefly interrupts it): `postgres` and `app` (the HTTP API and the SPA; one process). The application pod migrates on boot and runs in production mode
+new one starts, so an upgrade briefly interrupts it): `postgres` and `app` (the HTTP API and the SPA; one process, because of the in-memory state listed in `.claude/docs/security.md` "Per-process state"). The application pod migrates on boot and runs in production mode
 (`KTOR_DEVELOPMENT=false`), in the `hammurabi` namespace.
 
 With a local cluster that shares the Docker image store (e.g. OrbStack):

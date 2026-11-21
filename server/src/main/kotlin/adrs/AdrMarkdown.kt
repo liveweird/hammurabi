@@ -80,16 +80,7 @@ private fun fileNameOf(key: String, name: String): String {
     return if (slug.isEmpty()) "$key.md" else "$key-$slug.md"
 }
 
-private fun statusWords(status: AdrStatus): String = when (status) {
-    AdrStatus.PROBLEM_RAISED -> "Problem raised"
-    AdrStatus.SOLUTION_DRAFT -> "Solution draft"
-    AdrStatus.IN_REVIEW -> "In review"
-    AdrStatus.ACTIVE -> "Active"
-    AdrStatus.CANCELLED -> "Cancelled"
-    AdrStatus.WITHDRAWN -> "Withdrawn"
-    AdrStatus.EXPIRED -> "Expired"
-    AdrStatus.SUPERSEDED -> "Superseded"
-}
+private fun statusWords(status: AdrStatus): String = status.words().en
 
 /** A body field as written: line endings normalised, the blank lines around it dropped, a whitespace-only field is empty. */
 private fun body(text: String): String = text.replace("\r\n", "\n").replace('\r', '\n').let { if (it.isBlank()) "" else it.trim('\n') }

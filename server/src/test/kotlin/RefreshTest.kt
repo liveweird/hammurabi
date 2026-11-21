@@ -5,7 +5,7 @@ import ch.nokillswit.auth.LoginResponse
 import ch.nokillswit.auth.LogoutRequest
 import ch.nokillswit.auth.MAX_GRACE_REUSES
 import ch.nokillswit.auth.RefreshRequest
-import ch.nokillswit.auth.hashPassword
+import ch.nokillswit.infra.crypto.hashPassword
 import ch.nokillswit.users.PasswordUpdateRequest
 import ch.nokillswit.plugins.ProblemDetail
 import io.ktor.client.call.body

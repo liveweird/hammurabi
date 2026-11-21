@@ -2,6 +2,7 @@ package ch.nokillswit.notifications
 
 import ch.nokillswit.adrs.AdrRole
 import ch.nokillswit.adrs.AdrStatus
+import ch.nokillswit.adrs.words
 import ch.nokillswit.infra.mail.LocalizedText
 import java.text.Normalizer
 import java.util.Locale
@@ -40,17 +41,6 @@ private val ROLES: Map<AdrRole, LocalizedText> = mapOf(
     AdrRole.INFORMED to LocalizedText("Informed", "Informowany/a"),
 )
 
-private val STATUSES: Map<AdrStatus, LocalizedText> = mapOf(
-    AdrStatus.PROBLEM_RAISED to LocalizedText("Problem raised", "Zg\u0142oszony problem"),
-    AdrStatus.SOLUTION_DRAFT to LocalizedText("Solution draft", "Szkic rozwi\u0105zania"),
-    AdrStatus.IN_REVIEW to LocalizedText("In review", "W przegl\u0105dzie"),
-    AdrStatus.ACTIVE to LocalizedText("Active", "Obowi\u0105zuj\u0105cy"),
-    AdrStatus.CANCELLED to LocalizedText("Cancelled", "Anulowany"),
-    AdrStatus.WITHDRAWN to LocalizedText("Withdrawn", "Wycofany"),
-    AdrStatus.EXPIRED to LocalizedText("Expired", "Wygas\u0142y"),
-    AdrStatus.SUPERSEDED to LocalizedText("Superseded", "Zast\u0105piony"),
-)
-
 private val KINDS: Map<String, LocalizedText> = mapOf(
     "COMMENT" to LocalizedText("comment", "komentarz"),
     "QUESTION" to LocalizedText("question", "pytanie"),
@@ -65,7 +55,7 @@ private fun roleWord(detail: String?, language: String): String =
     AdrRole.entries.firstOrNull { it.name == detail }?.let { ROLES.getValue(it) }.orRaw(detail, language)
 
 private fun statusWord(detail: String?, language: String): String =
-    AdrStatus.entries.firstOrNull { it.name == detail }?.let { STATUSES.getValue(it) }.orRaw(detail, language)
+    AdrStatus.entries.firstOrNull { it.name == detail }?.words().orRaw(detail, language)
 
 private fun kindWord(detail: String?, language: String): String = KINDS[detail].orRaw(detail, language)
 
@@ -182,7 +172,7 @@ private const val AT_LOOKALIKE = '＠'
 private fun isDot(c: Int): Boolean = c == '.'.code || c == 0x3002 || c == 0xFF0E || c == 0xFF61
 
 /**
- * Text chosen by someone else (a room's name, a person's name) made safe for Adder's OWN mail, where a mail client turns a bare address
+ * Text chosen by someone else (a person's name) made safe for Hammurabi's own mail, where a mail client turns a bare address
  * or domain into a link: the result can contain no address and no link. Deterministic:
  *
  * - every format character (Unicode category `Cf`: zero-width spaces and joiners, the soft hyphen, bidirectional controls) is DROPPED,

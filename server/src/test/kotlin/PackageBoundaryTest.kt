@@ -29,13 +29,13 @@ class PackageBoundaryTest {
 
     /**
      * Composition-root exceptions to "infra never references a feature": `infra/db/Database.kt` builds and publishes the feature
-     * services (`teams`, `users`, `auth`) and `infra/db/Bootstrap.kt` seeds the admin through `users`/`auth`. Keyed by path under
+     * services (`teams`, `users`, `auth`) and `infra/db/Bootstrap.kt` seeds the admin through `users`. Keyed by path under
      * `server/src/main/kotlin`, valued by the feature packages that file may import;
      * a listed package the file no longer uses fails the test (a stale exception is dead permission).
      */
     private val infraCompositionRoot: Map<String, Set<String>> = mapOf(
         "infra/db/Database.kt" to setOf("adrs", "auth", "lenses", "notifications", "tags", "teams", "users"),
-        "infra/db/Bootstrap.kt" to setOf("auth", "users"),
+        "infra/db/Bootstrap.kt" to setOf("users"),
     )
 
     private val featurePackages = listOf(
@@ -97,6 +97,35 @@ class PackageBoundaryTest {
                 assertTrue(forbiddenReferences(text, listOf(pkg)).isNotEmpty(), "$name no longer references $pkg: drop the exception")
             }
         }
+    }
+
+    /** The packages that own a domain and its routes; `authz`, `plugins` and `audit` are the cross-cutting seams they reach. */
+    private val domainFeatures = listOf("adrs", "auth", "lenses", "notifications", "tags", "teams", "users")
+
+    /** The domain features each domain feature names in code (an import or an inline qualified reference), by package. */
+    private fun domainDependencies(): Map<String, Set<String>> = domainFeatures.associateWith { feature ->
+        mainSources.filter { packageOf(it.readText()) == "ch.nokillswit.$feature" }.flatMap { file ->
+            (domainFeatures - feature).filter { forbiddenReferences(file.readText(), listOf(it)).isNotEmpty() }
+        }.toSet()
+    }
+
+    @Test
+    fun `the domain features form no import cycle`() {
+        // `users` and `auth` used to import each other (C-DRY-5); layering is users, then auth / teams / tags, then adrs, then
+        // lenses / notifications. `authz` and `plugins` are deliberately outside this rule: they sit beside `users` (the role enum,
+        // the rate buckets) and are not domains.
+        val dependencies = domainDependencies()
+        assertTrue(dependencies.getValue("auth").contains("users"), "the scan must see auth naming users, or an empty graph proves nothing")
+        val cycles = mutableListOf<String>()
+        fun visit(feature: String, path: List<String>) {
+            if (feature in path) {
+                cycles += (path.dropWhile { it != feature } + feature).joinToString(" -> ")
+                return
+            }
+            dependencies.getValue(feature).forEach { visit(it, path + feature) }
+        }
+        domainFeatures.forEach { visit(it, emptyList()) }
+        assertEquals(emptyList(), cycles.distinct())
     }
 
     @Test

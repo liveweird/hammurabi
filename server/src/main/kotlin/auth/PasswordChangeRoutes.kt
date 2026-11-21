@@ -1,26 +1,55 @@
-package ch.nokillswit.users
+package ch.nokillswit.auth
 
 import ch.nokillswit.audit.audit
-import ch.nokillswit.auth.AccountGuess
-import ch.nokillswit.auth.LoginThrottle
-import ch.nokillswit.auth.hashPassword
-import ch.nokillswit.auth.verifyPassword
+import ch.nokillswit.infra.crypto.hashPassword
+import ch.nokillswit.infra.crypto.verifyPassword
 import ch.nokillswit.authz.ForbiddenException
 import ch.nokillswit.authz.caller
 import ch.nokillswit.authz.orNotFound
 import ch.nokillswit.authz.requireSelfOrAdmin
+import ch.nokillswit.plugins.RateLimits
+import ch.nokillswit.users.PasswordUpdateRequest
+import ch.nokillswit.users.UserService
+import ch.nokillswit.users.UserServiceKey
+import ch.nokillswit.users.Users
+import ch.nokillswit.users.validatePassword
 import io.ktor.http.HttpStatusCode
+import io.ktor.server.application.Application
 import io.ktor.server.application.call
+import io.ktor.server.auth.authenticate
+import io.ktor.server.plugins.ratelimit.RateLimitName
+import io.ktor.server.plugins.ratelimit.rateLimit
 import io.ktor.server.request.receive
 import io.ktor.server.resources.put
 import io.ktor.server.response.respond
 import io.ktor.server.routing.Route
+import io.ktor.server.routing.routing
+
+/**
+ * The self password change lives in `auth/` (not beside the other `/users` routes) because it is a credential check: it shares the
+ * [LoginThrottle] counter with `/login`, so `users/` never imports `auth/` (the import cycle of checkup C-DRY-5). Registered in
+ * `application.yaml` right after the user routes; the bucket (per-USER `password-change`, before the guards) and the guards are as
+ * documented in `security.md`.
+ */
+fun Application.configurePasswordChangeRoutes() {
+    val userService = attributes[UserServiceKey]
+    // Published by configureLoginThrottle, which application.yaml loads before this module.
+    val loginThrottle = attributes[LoginThrottleKey]
+    routing {
+        authenticate {
+            // The self change verifies a bcrypt per request: per-USER bucket (RateLimits.PASSWORD_CHANGE) before the guards, and the
+            // per-account lockout inside the handler.
+            rateLimit(RateLimitName(RateLimits.PASSWORD_CHANGE)) { passwordChange(userService, loginThrottle) }
+        }
+    }
+}
 
 /** `password.change_rejected_locked`: a self password change refused because the account is locked out (`security.md`). */
 private const val EVENT_PASSWORD_CHANGE_REJECTED_LOCKED = "password.change_rejected_locked"
 
 /**
- * `PUT /users/{id}/password`. Mounted by `configureUserRoutes` inside `authenticate {}` and the per-USER `password-change` bucket.
+ * `PUT /users/{id}/password`. Mounted by [configurePasswordChangeRoutes] inside `authenticate {}` and the per-USER `password-change`
+ * bucket.
  *
  * Changing one's OWN password verifies `currentPassword` (a bcrypt per request), so the route is a guessing oracle for whoever
  * holds a session (a stolen token) and a way to occupy the small default dispatcher. Two bounds: the bucket (per request, before
@@ -29,7 +58,7 @@ private const val EVENT_PASSWORD_CHANGE_REJECTED_LOCKED = "password.change_rejec
  * what `/login` answers, the specific `429`, BEFORE any bcrypt. An admin resetting somebody ELSE's password verifies nothing, so
  * it neither counts nor is refused by the target's lock.
  */
-internal fun Route.userPassword(userService: UserService, loginThrottle: LoginThrottle) {
+private fun Route.passwordChange(userService: UserService, loginThrottle: LoginThrottle) {
     put<Users.Id.Password> { route ->
         val caller = call.caller()
         requireSelfOrAdmin(caller, route.parent.id)

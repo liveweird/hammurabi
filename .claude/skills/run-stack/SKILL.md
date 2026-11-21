@@ -19,7 +19,7 @@ Flyway's `ServiceLoader` discovery works exactly as under `:server:run`.
 JVM footprint tuning is baked into the `application {}` block in `server/build.gradle.kts` via
 `applicationDefaultJvmArgs` = `-XX:+UseSerialGC -Xmx256m -XX:TieredStopAtLevel=1 -XX:+ExitOnOutOfMemoryError`
 plus the heap/thread sizing `-Xmn64m -XX:SurvivorRatio=2 -XX:MinHeapFreeRatio=10 -XX:MaxHeapFreeRatio=30
--XX:-ShrinkHeapInSteps -XX:ActiveProcessorCount=2` (build-times.md WHY 26), so it flows
+-XX:-ShrinkHeapInSteps -XX:ActiveProcessorCount=2`, so it flows
 into both `bin/server` (-> Docker image) and `:server:run` (the Gradle `test` task is unaffected). The image
 also sets `MALLOC_ARENA_MAX=2` (Dockerfile `ENV`; compose and k8s inherit it). These flags were measured in the
 donor project; re-measure when Hammurabi carries real data. SerialGC removes G1's per-heap overhead (~75 MiB);
@@ -29,7 +29,7 @@ memory (~50 MiB) at the cost of peak CPU-bound throughput (**remove that flag if
 is worse than a restart; `restart: unless-stopped`/k8s restarts it); `-Xmn64m -XX:SurvivorRatio=2` fix the young
 generation; the `Min/MaxHeapFreeRatio` 10/30 and `-ShrinkHeapInSteps` let a full collection shrink the heap back
 (**never set `-XX:+DisableExplicitGC`**); `-XX:ActiveProcessorCount=2` stops the JVM sizing Netty/reactor/ForkJoin
-pools from every core of the node. **AppCDS (build-times.md WHY 27):** the Docker image also carries a class-data-sharing
+pools from every core of the node. **AppCDS:** the Docker image also carries a class-data-sharing
 archive (`/app/cds/hammurabi.jsa`, dumped at image build from the committed class list `server/cds/classlist.txt`) that the
 image turns on through `ENV SERVER_OPTS=-XX:SharedArchiveFile=/app/cds/hammurabi.jsa`. It is image-only: `:server:run` and
 the Gradle `test` task run without it (a missing archive file would switch CDS off altogether, so the flag is NOT in

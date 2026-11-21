@@ -16,7 +16,7 @@ export default async function globalSetup(): Promise<void> {
   await requireReadyTarget(targetProblems(process.env), target, {
     // 200 only once the app answers AND its database round trip works.
     app: (url) => answers(url, "/api/v1/ready"),
-    // The list the two email specs read; Mailpit is REQUIRED (their old self-skip hid a missing catcher as a green run).
+    // The list the three email specs read; Mailpit is REQUIRED (their old self-skip hid a missing catcher as a green run).
     mailpit: (url) => answers(url, "/api/v1/messages"),
   });
   console.log(`[e2e] Using app ${target.baseUrl}, Mailpit ${target.mailpitUrl}; nothing is started or stopped, and the stack's data is left intact.`);

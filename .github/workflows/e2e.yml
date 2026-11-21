@@ -32,6 +32,10 @@ jobs:
       # THIS job builds and starts below (the host ports docker-compose.yaml publishes).
       E2E_BASE_URL: http://localhost:8090
       E2E_MAILPIT_URL: http://localhost:8031
+      # The notification digest of this stack mails within seconds (the `notifications` spec waits for it in Mailpit); compose passes these on.
+      NOTIFICATIONS_EMAIL_DELAY_SECONDS: '0'
+      NOTIFICATIONS_EMAIL_MIN_INTERVAL_SECONDS: '0'
+      NOTIFICATIONS_SWEEP_INTERVAL_SECONDS: '10'
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:

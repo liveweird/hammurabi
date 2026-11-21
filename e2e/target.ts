@@ -11,7 +11,7 @@ type TargetEnv = Readonly<Record<string, string | undefined>>;
 export interface Target {
   /** The app (SPA + API, single origin). */
   baseUrl: string;
-  /** The stack's Mailpit catcher (the two email specs read it). */
+  /** The stack's Mailpit catcher (the three email specs read it). */
   mailpitUrl: string;
 }
 

@@ -74,6 +74,11 @@ services:
       MAIL_FROM: hammurabi@localhost
       # The password-reset link's origin; the isolated e2e stack points it at its own port.
       MAIL_APP_URL: ${MAIL_APP_URL:-http://localhost:8090}
+      # The notification digest (notifications/NotificationDigest.kt): the defaults mail a notice still unseen after 5 minutes, at most one
+      # mail per person per 15 minutes, checked every minute. The e2e stack shortens them (e2e/README.md "Run") so a mail lands in seconds.
+      NOTIFICATIONS_EMAIL_DELAY_SECONDS: "${NOTIFICATIONS_EMAIL_DELAY_SECONDS:-300}"
+      NOTIFICATIONS_EMAIL_MIN_INTERVAL_SECONDS: "${NOTIFICATIONS_EMAIL_MIN_INTERVAL_SECONDS:-900}"
+      NOTIFICATIONS_SWEEP_INTERVAL_SECONDS: "${NOTIFICATIONS_SWEEP_INTERVAL_SECONDS:-60}"
     ports:
       - "127.0.0.1:8090:8090"
     # Mirrors the image's HEALTHCHECK (stated here so `depends_on: service_healthy` and the e2e

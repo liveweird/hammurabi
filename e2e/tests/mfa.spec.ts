@@ -4,11 +4,11 @@ import {
   deleteUserRow,
   expect,
   login,
+  mailText,
   openFilters,
   signOut,
   test,
 } from "./helpers";
-import { MAILPIT_URL } from "../playwright.config";
 
 // Email MFA (opt-in via the per-user MFA feature flag) + the feature-flags admin surfaces.
 // The full sign-in roundtrip needs the stack's Mailpit catcher (E2E_MAILPIT_URL), which global setup REQUIRES
@@ -73,16 +73,8 @@ test("an MFA-enabled account signs in with the emailed code", async ({ page }) =
   await expect
     .poll(
       async () => {
-        const list = await fetch(`${MAILPIT_URL}/api/v1/messages`).then((r) => r.json());
-        const msg = list.messages?.find(
-          (m: { To?: { Address: string }[]; Subject?: string }) =>
-            m.To?.some((t) => t.Address === user.email) && m.Subject?.includes("sign-in code"),
-        );
-        if (!msg) return undefined;
-        const text: string = (
-          await fetch(`${MAILPIT_URL}/api/v1/message/${msg.ID}`).then((r) => r.json())
-        ).Text;
-        code = text.match(/^\d{6}$/m)?.[0];
+        const text = await mailText(user.email, (subject) => subject.includes("sign-in code"));
+        code = text?.match(/^\d{6}$/m)?.[0];
         return code;
       },
       { timeout: 15_000 },

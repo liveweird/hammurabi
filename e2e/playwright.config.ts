@@ -6,7 +6,7 @@ import { readTarget } from "./target.ts";
 // to run without them. Services and data remain intact after the run.
 const target = readTarget(process.env);
 export const BASE_URL = target.baseUrl;
-/** The Mailpit catcher of the stack under test (the two email specs read it). */
+/** The Mailpit catcher of the stack under test (the three email specs read it). */
 export const MAILPIT_URL = target.mailpitUrl;
 
 const desktopChrome = { ...devices["Desktop Chrome"] };

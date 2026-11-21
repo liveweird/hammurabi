@@ -1,5 +1,4 @@
-import { createUserViaUi, deleteUserRow, expect, login, loginViaForm, signOut, test, uniqueText } from "./helpers";
-import { MAILPIT_URL } from "../playwright.config";
+import { createUserViaUi, deleteUserRow, expect, login, loginViaForm, mailText, signOut, test, uniqueText } from "./helpers";
 
 // Self-service password reset: the "Forgot password?" flow on the login screen.
 // The full email roundtrip needs the stack's Mailpit catcher (E2E_MAILPIT_URL), which global setup REQUIRES (the suite refuses to
@@ -52,13 +51,7 @@ test("a reset link preserves the old password until confirmation and cannot be r
     await expect
       .poll(
         async () => {
-          const list = await fetch(`${MAILPIT_URL}/api/v1/messages`).then((r) => r.json());
-          const msg = list.messages?.find(
-            (m: { Subject: string; To?: { Address: string }[] }) =>
-              m.Subject === "Reset your Hammurabi password" && m.To?.some((t) => t.Address === user.email),
-          );
-          if (!msg) return undefined;
-          body = (await fetch(`${MAILPIT_URL}/api/v1/message/${msg.ID}`).then((r) => r.json())).Text as string;
+          body = await mailText(user.email, (subject) => subject === "Reset your Hammurabi password");
           return body;
         },
         { timeout: 15_000 },

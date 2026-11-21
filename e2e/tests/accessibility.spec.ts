@@ -31,6 +31,7 @@ const AUTHED_PAGES: { path: string; heading: string }[] = [
   { path: "/users/new", heading: "New user" },
   { path: "/feature-flags", heading: "Feature flags" },
   { path: "/change-password", heading: "Change password" },
+  { path: "/notification-preferences", heading: "Notification preferences" },
   { path: "/changelog", heading: "Changelog" },
 ];
 

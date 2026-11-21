@@ -19,7 +19,7 @@ function refusal(problems: readonly string[]): string {
 export interface StackProbes {
   /** True once the app answers AND its database round trip works. */
   app: (url: string) => Promise<boolean>;
-  /** True once Mailpit answers: the two email specs cannot pass without it, so a stack with no catcher is refused up front. */
+  /** True once Mailpit answers: the three email specs (mfa, password-reset, notifications) cannot pass without it, so a stack with no catcher is refused up front. */
   mailpit: (url: string) => Promise<boolean>;
 }
 
@@ -28,7 +28,7 @@ export async function requireReadyTarget(problems: readonly string[], target: Ta
   if (!(await probes.app(target.baseUrl))) throw new Error(`E2E_BASE_URL (${target.baseUrl}) is not ready: start that stack first`);
   if (!(await probes.mailpit(target.mailpitUrl))) {
     throw new Error(
-      `E2E_MAILPIT_URL (${target.mailpitUrl}) is not reachable: the mfa and password-reset specs read the emailed code and link from the ` +
+      `E2E_MAILPIT_URL (${target.mailpitUrl}) is not reachable: the mfa, password-reset and notifications specs read the emailed code, link and digest from the ` +
         "stack's Mailpit and cannot run without it. Start the stack's mailpit service, or name the Mailpit of the stack under test.",
     );
   }

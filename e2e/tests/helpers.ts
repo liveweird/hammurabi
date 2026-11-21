@@ -1,7 +1,7 @@
 import AxeBuilder from "@axe-core/playwright";
 import { type APIRequestContext, expect, type Page, request as playwrightRequest, test } from "@playwright/test";
 import { randomUUID } from "node:crypto";
-import { BASE_URL } from "../playwright.config";
+import { BASE_URL, MAILPIT_URL } from "../playwright.config";
 
 export { expect, test };
 
@@ -317,4 +317,19 @@ export type Scheme = "light" | "dark";
 /** The scheme the page must actually render in — Mantine stamps it on <html> (the `auto` default follows Playwright's emulated `colorScheme`). */
 export async function expectScheme(page: Page, scheme: Scheme): Promise<void> {
   await expect(page.locator("html")).toHaveAttribute("data-mantine-color-scheme", scheme);
+}
+
+/**
+ * The plain text of the newest message to `to` whose subject `subject` accepts, or undefined while none has arrived. It asks Mailpit to
+ * SEARCH by recipient (`/api/v1/search`) instead of reading the newest page of the whole catcher, so a busy stack's other mail (a long
+ * nightly run, a shared catcher) can never push the awaited message out of view. Poll it with `expect.poll`.
+ */
+export async function mailText(to: string, subject: (subject: string) => boolean): Promise<string | undefined> {
+  const query = new URLSearchParams({ query: `to:"${to}"`, limit: "50" });
+  const found = await fetch(`${MAILPIT_URL}/api/v1/search?${query}`).then((r) => r.json());
+  const msg = found.messages?.find(
+    (m: { Subject?: string; To?: { Address: string }[] }) => m.To?.some((t) => t.Address === to) && subject(m.Subject ?? ""),
+  );
+  if (!msg) return undefined;
+  return (await fetch(`${MAILPIT_URL}/api/v1/message/${msg.ID}`).then((r) => r.json())).Text as string;
 }

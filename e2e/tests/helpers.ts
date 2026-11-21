@@ -166,7 +166,8 @@ export function uniqueText(prefix: string): string {
  * revisited page restores the panel open — a blind toggle click would close it again.
  */
 export async function openFilters(page: Page): Promise<void> {
-  const toggle = page.getByRole("button", { name: "Filters" });
+  // Anchored: with a filter on, the list also offers "Clear all filters" (and the toggle's name gains its count).
+  const toggle = page.getByRole("button", { name: /^Filters/ });
   await expect(toggle).toBeVisible();
   if ((await toggle.getAttribute("aria-expanded")) !== "true") {
     await toggle.click();

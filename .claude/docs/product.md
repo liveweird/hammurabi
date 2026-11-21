@@ -68,6 +68,7 @@ stele of the Code of Hammurabi on a lapis disc — the sun disc of Shamash crown
   A tag dropped from the registry (or with its category) stays on the ADRs that carry it, shown as retired, until a tag write drops it (a write carrying it is `400`); a tag name is unique for good and re-adding it revives the row. Tags are set by their own `PUT` (Driver, Approver, ADMIN), not by the document PUT. A
   successor link is the SUCCESSOR's (its Driver, Approver or ADMIN, only while it is pre-active); the predecessor may be `ACTIVE` or pre-active, a terminal one is refused, and activating the successor needs the predecessor to be `ACTIVE`
   (else `400`: unlink it or wait) - then it is superseded in the same transaction, the event actor being the activator. **Successor squatting (decided in the 0.4.0 review):** linking needs no role on the PREDECESSOR (anyone who owns a draft may point it at any live ADR), so a stranger could park a pending link on an ADR and block every honest successor (one successor in play per predecessor). To close that, the PREDECESSOR's Driver, Approver or ADMIN may DETACH its pending successor (`DELETE /adrs/{id}/successor`; the successor's Driver may link again, so detaching is a veto of that link, not a ban). The detach bumps the successor's revision and writes `SUCCESSOR_UNLINKED` on both ADRs. Details: `adr-model.md` "Tags", "Successors".
+- **Find (0.5.0; change on request):** `text` (full-text) is a separate parameter from `q` (name-or-key substring) and both stay; a search page is at most 20 rows and ranks by relevance unless sorted; `expiresBefore` is strictly before the day, any status; a lens stores the filters only (no sort, no page), keeps at most 50 per user, and an ADMIN may delete (not edit, not read if private) a PUBLIC lens; there is no per-user rate bucket on the list (the deadline and the concurrency cap bound a search). Details: `adr-model.md` "Search", "Lenses".
 - **Not built (one-line map changes if wanted):** `IN_REVIEW → SOLUTION_DRAFT` ("send back") and `ACTIVE → WITHDRAWN`.
 - **User directory:** any signed-in user may look up `{id, name, email}` of active users (`GET /users/directory`, Adder's, for the DACI pickers); the
   name+email disclosure to every signed-in user that Adder's owner accepted is carried over (`security.md` "What the user directory discloses"). Collapse it to `{id, name}` if that changes.
@@ -76,7 +77,7 @@ stele of the Code of Hammurabi on a lapis disc — the sun disc of Shamash crown
 
 ## Roadmap
 
-Each increment is built and gated on its own. **Current version: 0.4.0.**
+Each increment is built and gated on its own. **Current version: 0.5.0.**
 
 | Ver | Scope |
 |---|---|
@@ -84,7 +85,7 @@ Each increment is built and gated on its own. **Current version: 0.4.0.**
 | **0.2.0 ADR core** | `adrs/`: ids, fields, the lifecycle map (409 on an illegal move), DACI participants and their permission verdicts, `X-Expected-Revision`, field-level history, the expiry sweep; list, create and detail pages |
 | **0.3.0 Discussion** | `adr_discussion` (V12): comments/questions before `ACTIVE`, issues/escalations in `ACTIVE` (Covenant's version reviews, ported and reshaped); the Discussion and Issues tabs, `openIssueCount` on the ADR rows |
 | **0.4.0 Tags and successors** | Tag categories (Toadie) and successor links + `SUPERSEDED`, released |
-| **0.5.0 Find** | The remaining multi-criteria filters, full-text search (Adder), URL-synced filters, saved lenses (Toadie) |
+| **0.5.0 Find** | The remaining multi-criteria filters, full-text search (Adder), URL-synced filters, saved lenses (Toadie), released |
 | **0.6.0 Notify** | The bell, email digest and preferences (Adder's `notifications/`) for DACI participants; expiry reminders |
 | **0.7.0–0.9.0 Extras** (approved by the user 2026-11-21) | Markdown export (adr-tools format), send back `IN_REVIEW` → `SOLUTION_DRAFT` and `ACTIVE` → `WITHDRAWN`, the ADR log/overview page |
 | **1.0.0 Checkup** | The family's technical checkup (docs, DRY/SRP, tests, UI consistency, security, guardrails, infra) |
@@ -99,12 +100,12 @@ port its implementation.
 - **Flow** (`~/Sources/flow`, the primary donor): the whole foundation — stack, API design, UI/UX, testing, gates, versioning, deployment, the
   telemetry panel.
 - **Adder** (`~/Sources/adder`): the trimmed bootstrap tree; ported in 0.2.0 (server): `infra/db/EventLog.kt`, the thread-number allocation (made global,
-  an advisory lock), `infra/revision/ExpectedRevision.kt`'s first use; next: `infra/db/Fts.kt` + the search migration, the pickers
+  an advisory lock), `infra/revision/ExpectedRevision.kt`'s first use; ported in 0.5.0: `infra/db/Fts.kt`, the search column (V15), `SearchBudget` and the typed search `429`s (the per-user `search` bucket was left out, `security.md` "Search"); next: the pickers
   (`UserDirectorySelect`), the `ThreadPane`/`ThreadSidePanel` detail layout, `EventTimeline`, Markdown building blocks, `notifications/`.
 - **Covenant** (`~/Sources/covenant`): `contracts/Lifecycle.kt` (the 409-on-illegal-move transition map), `ContractAccess.kt` (permission
   verdicts) and `ReleaseLineReminders.kt` (the periodic date sweep) are ported (0.2.0, `adrs/`); `VersionReview*` (the entry table, its routes and `VersionReviews.tsx`) is ported
   and reshaped as the ADR discussion (0.3.0): Covenant's open/outdated/closed review and its approvals are gone, a kind (comment/question/issue/escalation) and a state (open/answered/resolved) take their place.
-- **Toadie** (`~/Sources/toadie`): `tags/` tag categories and `infra/db/Locking.kt` (`lockingTransaction`) are ported (0.4.0, without the Backstage entity kinds; the tags became rows instead of a JSON array); next: `lenses/` saved filters and the `list-endpoints.md` filter shape.
+- **Toadie** (`~/Sources/toadie`): `tags/` tag categories and `infra/db/Locking.kt` (`lockingTransaction`) are ported (0.4.0, without the Backstage entity kinds; the tags became rows instead of a JSON array); `lenses/` saved filters are ported (0.5.0, V16: the typed filter document replaces Toadie's catalog slots, and an ADMIN may delete a PUBLIC lens).
 - **Lettuce** (`~/Sources/lettuce`): `infra/mail`, `infra/crypto`, `infra/paging` (through Flow); next: `MarkdownEditor`, sharing pickers.
 - **Astrolabe** (`~/Sources/astrolabe`): `planning/DependencyGraph.kt` (`cycleClosedBy`) is ported for the successor chain (0.4.0, `adrs/SuccessorGraph.kt`, reduced to one kind of node).
 
@@ -112,6 +113,10 @@ Left in Flow on purpose: `ingest/`, `fetch/`, `jira/`, `gitlab/`, `norm/`, `iden
 `infra/outbound/` (the SSRF guard — port it with the first server-initiated call other than SMTP), `plugins/Role.kt`, `EncryptedAtRest`/`Reencrypt`.
 
 ## Release history
+
+### v0.5.0 — find (2026-11-21)
+
+Server (`adrs/`, `lenses/`, migrations V15–V16): `GET /api/v1/adrs?text=` full-text search (Adder's `Fts.kt` and search column: a stored generated `tsvector` with the accent-folding `hammurabi_search` configuration and a GIN index; the name weighs A, problem and decision B, context, alternatives and consequences C; ranked, typed highlight snippets, one deadline and a concurrency cap with the typed `429`s `search-timeout` and `search-busy`), the remaining filters (`createdFrom/To`, `updatedFrom/To`, `expiresBefore`, `hasOpenIssues`, `supersedes`, `supersededBy`, with their indexes) and `/api/v1/lenses` (Toadie's saved filters, PRIVATE or PUBLIC, creator-only mutable, an ADMIN may delete a PUBLIC one). Web: the search box, the grown Filters panel, snippets under the name, every filter in the URL and the lens picker. E2E: `adr-search` and `lenses`.
 
 ### v0.4.0 — tags and successors (2026-11-21)
 

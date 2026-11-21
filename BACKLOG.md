@@ -19,7 +19,6 @@ The `backlog` mod (`liveweird/claude-mods`) summarises the tags on the status li
 
 ## ADR MVP (0.2–0.6)
 
-- [new] **0.5.0 Find.** The remaining multi-criteria filters, full-text search, URL-synced filters and saved lenses.
 - [new] **0.6.0 Notify.** The bell, email digest and preferences for DACI participants; expiry reminders.
 - [todo] **Markdown export of an ADR.** Render an ADR in the adr-tools format. (promoted by the user 2026-11-21)
 - [todo] **"Send back" and withdraw an active ADR.** `IN_REVIEW` → `SOLUTION_DRAFT` and `ACTIVE` → `WITHDRAWN` (`product.md` "Not built"). (promoted by the user 2026-11-21)

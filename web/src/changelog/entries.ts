@@ -17,6 +17,22 @@ interface ChangelogEntry {
 
 export const CHANGELOG: readonly ChangelogEntry[] = [
   {
+    version: "0.5.0",
+    date: "2026-11-21",
+    en: `**Hammurabi 0.5.0: find.**
+
+- The ADR list has a Search box: it looks through the name and the whole text of every ADR, ignores case and accents, ranks the best matches first and highlights what matched.
+- The Filters panel adds created and updated date ranges, an expiry bound, and yes/no filters for open issues, "replaces another ADR" and "has a successor". Every filter combines with the others.
+- A filtered or searched list is a link: copy the address to share the same view.
+- Save a combination of filters as a lens, private or shared with everyone, and apply it in one click. Only its creator changes a lens; an administrator can remove a shared one.`,
+    pl: `**Hammurabi 0.5.0: wyszukiwanie.**
+
+- Lista ADR-ów ma pole Szukaj: przeszukuje nazwę i całą treść każdego ADR-a, ignoruje wielkość liter i polskie znaki, układa najlepsze trafienia na początku i podświetla to, co pasuje.
+- Panel Filtry dodaje zakresy dat utworzenia i zmiany, granicę wygaśnięcia oraz filtry tak/nie: otwarte zgłoszenia, „zastępuje inny ADR” i „ma następcę”. Każdy filtr łączy się z pozostałymi.
+- Przefiltrowana lub przeszukana lista to link: skopiuj adres, aby udostępnić ten sam widok.
+- Zapisz zestaw filtrów jako soczewkę, prywatną albo udostępnioną wszystkim, i zastosuj ją jednym kliknięciem. Soczewkę zmienia tylko jej autor/ka; administrator/ka może usunąć udostępnioną.`,
+  },
+  {
     version: "0.4.0",
     date: "2026-11-21",
     en: `**Hammurabi 0.4.0: tags and successors.**

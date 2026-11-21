@@ -7,9 +7,9 @@ the decision, the alternatives considered and the accepted consequences; every c
 they are active (comments and questions) and challenged after (issues and escalations). The name is Hammurabi of Babylon, whose stele carried one of the oldest written codes:
 decisions written down so that they bind and can be looked up.
 
-## What's here today (0.4.0 — tags and successors)
+## What's here today (0.5.0 — find)
 
-Hammurabi's repository started as an exact copy of [Flow](https://github.com/liveweird/flow) (1.57.1, `4e43e480`), trimmed to its generic foundation (0.1.0); 0.2.0 built the ADR core on it, 0.3.0 adds the discussion and 0.4.0 the tags and successors:
+Hammurabi's repository started as an exact copy of [Flow](https://github.com/liveweird/flow) (1.57.1, `4e43e480`), trimmed to its generic foundation (0.1.0); 0.2.0 built the ADR core on it, 0.3.0 added the discussion, 0.4.0 the tags and successors and 0.5.0 the search:
 
 - **ADRs** (`/api/v1/adrs`; the list, create and detail pages): a gapless `ADR-0001` key, a name, the problem, context, decision, alternatives and consequences in Markdown, an expiry date, and the
   lifecycle `PROBLEM_RAISED` → `SOLUTION_DRAFT` → `IN_REVIEW` → `ACTIVE` (or `CANCELLED`, `WITHDRAWN`, and `EXPIRED` by a daily sweep). **DACI** decides who may do what — one Driver, one
@@ -19,6 +19,9 @@ Hammurabi's repository started as an exact copy of [Flow](https://github.com/liv
   **question** (a question is marked answered by its author, the Driver, the Approver or an ADMIN); once it is active anyone can raise an **issue** or an **escalation**, which the Driver, the
   Approver or an ADMIN resolves (with an optional note) and reopens. Markdown bodies, authors edit their own, an author or an ADMIN deletes (a tombstone stays), everything stays readable in every
   status, and the ADR list counts the open issues.
+- **Find** (`GET /api/v1/adrs`, `/api/v1/lenses`; the search box, the Filters panel and the lens picker of the ADR list): **full-text search** over the name, problem, context, decision, alternatives and
+  consequences (accent- and case-insensitive, ranked by where the words occur, with highlighted snippets), next to filters for status, tags, participants and roles, created and updated date
+  ranges, expiry, open issues and successor links; the whole filtered view lives in the URL, so it is a shareable link. **Lenses** save a combination of filters under a name, private or shared with everyone.
 
 - **Sign-in** with a JWT access/refresh pair, a server-side revocation blocklist, per-account lockout and per-IP rate limits; opt-in **email MFA**; **self-service password reset** by an
   emailed single-use link.
@@ -30,7 +33,7 @@ Hammurabi's repository started as an exact copy of [Flow](https://github.com/liv
 
 ## Roadmap
 
-0.2.0 ADR core (ids, lifecycle, DACI, history, expiry) · 0.3.0 discussion (comments, questions, issues, escalations) · 0.4.0 tags and successors · 0.5.0 find · 0.6.0 notify · extras · 1.0.0 checkup.
+0.2.0 ADR core (ids, lifecycle, DACI, history, expiry) · 0.3.0 discussion (comments, questions, issues, escalations) · 0.4.0 tags and successors · 0.5.0 find (full-text search, the remaining filters, URL-synced filters, saved lenses) · 0.6.0 notify · extras · 1.0.0 checkup.
 The scope of each version and the decisions behind it: `.claude/docs/product.md`; the domain model: `.claude/docs/adr-model.md`; open items: `BACKLOG.md`. `CLAUDE.md`'s "Product" and
 "Donors" sections say which sibling project each capability ports from.
 
@@ -187,6 +190,8 @@ class-data-sharing (AppCDS) archive, and setting it drops the archive. Build-tim
 | `TELEMETRY_STORAGE_INTERVAL_SECONDS` | `3600` | How often database/schema sizes are measured, 900..86400. |
 | `ADRS_EXPIRY_ENABLED` | `true` | The ADR expiry sweep: moves every `ACTIVE` ADR whose expiry date is before today (UTC) to `EXPIRED` (`.claude/docs/adr-model.md` "Expiry"); `false` starts no loop. |
 | `ADRS_EXPIRY_INTERVAL_SECONDS` | `3600` | How often the sweep runs, 1..86400 (validated on every boot). |
+| `SEARCH_TIMEOUT_SECONDS` | `5` | The deadline of one full-text search request, 1..30; past it the search answers the typed `429` `search-timeout` (`.claude/docs/security.md` "Search"). |
+| `SEARCH_MAX_CONCURRENT` | `4` | The most full-text searches one process runs at once, 1..16 (production boot refuses a value that reaches the pool size); past it the typed `429` `search-busy`. |
 | `WEB_STATIC_DIR` | *(blank)* | Directory of the built SPA to serve; blank in local dev (Vite serves it). The image sets `/app/web`. |
 | `MAIL_TRANSPORT` | `log` | `log` (dev only — production refuses it), `smtp`, or `disabled` (email features answer 503; the image default). |
 | `SMTP_HOST` | *(blank)* | SMTP server (required for `smtp`). |

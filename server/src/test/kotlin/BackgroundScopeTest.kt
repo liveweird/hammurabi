@@ -5,6 +5,7 @@ import io.ktor.server.application.Application
 import io.ktor.server.testing.testApplication
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.CoroutineStart
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.awaitCancellation
@@ -47,7 +48,8 @@ class BackgroundScopeTest {
                 // The loop is still running while beforeCancel runs: it may close what the loop uses.
                 order += "beforeCancel active=${scope.coroutineContext[Job]?.isActive}"
             }
-            scope.launch {
+            // Enter the try block before shutdown can cancel the child.
+            scope.launch(start = CoroutineStart.UNDISPATCHED) {
                 try {
                     awaitCancellation()
                 } finally {

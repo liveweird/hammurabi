@@ -1,0 +1,63 @@
+# The front door: an ingress-nginx Ingress in front of the `app` Service (type ClusterIP, no other way in;
+# network-policies.yaml lets only the controller's pods reach the app pod). The app Deployment is written for
+# exactly this: production mode, HTTP_BEHIND_PROXY=true, HTTP_PROXY_HOPS=1.
+#
+# The proxy contract the app relies on, satisfied by ingress-nginx's DEFAULTS (use-forwarded-headers=false):
+#   - X-Forwarded-For is REPLACED with the address nginx saw on the connection (the client's own value is moved to
+#     X-Original-Forwarded-For), so it is ONE entry and HTTP_PROXY_HOPS=1 takes it (plugins/Http.kt
+#     resolveForwardedForOrigin takes the LAST entry for 1). X-Forwarded-Proto/-Host are set from the request.
+#     If the controller is switched to `use-forwarded-headers` / `compute-full-forwarded-for` (an APPENDING chain),
+#     raise HTTP_PROXY_HOPS in app-deployment.yaml to the number of proxies that append (security.md).
+#     `use-forwarded-headers: true` is safe ONLY with `proxy-real-ip-cidr` narrowed to the trusted front proxy and
+#     together with `compute-full-forwarded-for`: it also passes the client's X-Forwarded-Proto/-Host through (which
+#     skips the ssl-redirect), and without both a client-written X-Forwarded-For becomes the per-IP key.
+#   - Once the tls: block exists the controller answers plain HTTP with a 308 to https:// (ssl-redirect, pinned
+#     below); the app's own 301 stays for any pod-direct traffic.
+#   - The controller overwrites Strict-Transport-Security (its ConfigMap `hsts*`, default on).
+#
+# Host and certificate. The host below is the OrbStack local one (OrbStack resolves `*.k8s.orb.local` ingress hosts
+# on the machine and the controller's LoadBalancer answers on 80/443). With `tls:` and NO `secretName` the controller
+# serves its built-in self-signed "Fake Certificate": a browser warns once, `curl -k` works, and the HTTPS-only app
+# (production mode) is exercised for real. For anything else:
+#   1. replace the host (twice) with the public one;
+#   2. create the certificate Secret in this namespace (`kubectl -n hammurabi create secret tls hammurabi-tls --cert=... --key=...`,
+#      or cert-manager with the annotation `cert-manager.io/cluster-issuer`) with that host in its SAN and add
+#      `secretName: hammurabi-tls` under `tls:`;
+#   3. set MAIL_APP_URL in app-deployment.yaml to `https://<that host>` (no path) when mail is enabled.
+# The app is single-origin (it serves the SPA), so `http.corsHosts` (CORS_ALLOWED_HOSTS) stays EMPTY.
+#
+# Controller: this is the COMMUNITY ingress-nginx (ingressClassName nginx; the NetworkPolicy matches its namespace
+# and pod labels). F5's NGINX Ingress Controller ignores the nginx.ingress.kubernetes.io/* annotations and uses other
+# labels, so it would fail closed (the policy admits nothing: 502/504), never open.
+# Not for production as it stands: community ingress-nginx was retired in March 2026 (no more security fixes). A
+# production cluster re-verifies this contract (hops, X-Forwarded-* overwrite, 308) against whichever controller or
+# Gateway API implementation it runs.
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  labels:
+    io.kompose.service: app
+  name: app
+  namespace: hammurabi
+  annotations:
+    nginx.ingress.kubernetes.io/ssl-redirect: "true"
+    # The server's largest request body is 512 KiB (MAX_REQUEST_BODY_BYTES, plugins/Http.kt; it answers its own
+    # problem+json 413). nginx's default is already 1m; pinned so a controller-wide change cannot put an HTML 413 in
+    # front of it. Keep this >= 512k.
+    nginx.ingress.kubernetes.io/proxy-body-size: "1m"
+spec:
+  ingressClassName: nginx
+  tls:
+    - hosts:
+        - hammurabi.k8s.orb.local
+  rules:
+    - host: hammurabi.k8s.orb.local
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: app
+                port:
+                  number: 8090

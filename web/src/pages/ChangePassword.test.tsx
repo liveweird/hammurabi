@@ -116,4 +116,17 @@ describe("ChangePassword page", () => {
     expect(localStorage.getItem(TOKEN_KEY)).toBe("fake-token");
     expect(pendingSignedOut()).toBeNull();
   });
+
+  test("a 429 (the bucket or the account lockout) says to wait, and keeps the session", async () => {
+    mockFetch.mockImplementation(() =>
+      Promise.resolve(jsonResponse(429, { title: "Too Many Requests", status: 429 })),
+    );
+    const user = userEvent.setup();
+    renderPage();
+
+    await fill(user, "old-password-1", "new-password-42");
+    expect(await screen.findByText(/too many attempts\. wait a few minutes/i)).toBeInTheDocument();
+    expect(screen.queryByText(/change failed \(429\)/i)).not.toBeInTheDocument();
+    expect(localStorage.getItem(TOKEN_KEY)).toBe("fake-token");
+  });
 });

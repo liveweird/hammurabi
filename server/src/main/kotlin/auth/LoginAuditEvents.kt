@@ -7,3 +7,4 @@ package ch.nokillswit.auth
 internal const val EVENT_LOGIN_REJECTED_LOCKED = "login.rejected_locked"
 internal const val EVENT_LOGIN_CAPACITY_REJECTED = "login.capacity_rejected"
 internal const val EVENT_LOGIN_MFA_FAILURE = "login.mfa_failure"
+internal const val EVENT_LOGIN_LOCKOUT = "login.lockout"

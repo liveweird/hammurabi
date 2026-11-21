@@ -133,7 +133,11 @@ Layered RBAC. Implemented in the `server/src/main/kotlin/authz/` package.
     (`MAX_PASSWORD_BYTES`, `auth/Passwords.kt` — the bcrypt ceiling), else `400`. A **self-change**
     (even by an admin) additionally requires a correct `currentPassword` in the body (else `403`,
     audited `password.change_denied`) — checked BEFORE the length validation, so 403 wins over
-    400 (the convention everywhere); an admin resetting **another** user's password does not. A
+    400 (the convention everywhere); an admin resetting **another** user's password does not. The route rides the
+    per-user `password-change` bucket (5 a minute, before the guards) and a wrong `currentPassword` counts into the
+    account's login lockout (`security.md` "Per-account login lockout"): a locked account's self change answers the
+    lockout's `429`, after the guard and BEFORE any password check; the admin-resets-another path neither counts nor is
+    refused by the target's lock. Tests: `PasswordChangeTest`. A
     successful change stamps `users.password_changed_at` and atomically increments
     `users.credential_revision`, which invalidates all outstanding refresh tokens and pending MFA
     challenges (see "Session auto-extension") and, through the per-request revision check, every outstanding
@@ -212,8 +216,8 @@ Layered RBAC. Implemented in the `server/src/main/kotlin/authz/` package.
   `respondProblem(NotFound, …)` + return), unique-violation `23505`→409 and NUL-byte `22021`→400
   (via the R2DBC/Exposed cause-chain walkers; a check violation `23514` is deliberately NOT mapped: every column's bound is validated in Kotlin first, so one reaching the database is a validation hole, and the logged `500` is the honest answer), and a catch-all `Throwable`→500 (logged) through
   that helper. A `status(TooManyRequests)` handler additionally gives the `RateLimit`
-  plugin's bodiless 429 (per-IP buckets, and the per-USER `telemetry` and `directory` buckets) a generic problem body and emits the `rate_limit.exceeded` audit event
-  (bucket/method/path, coalesced to one per bucket per minute with a `suppressed` count — per user, with `byUserId`, for the `telemetry` and `directory` buckets —
+  plugin's bodiless 429 (per-IP buckets, and the per-USER `telemetry`, `directory`, `read-state`, `export` and `password-change` buckets) a generic problem body and emits the `rate_limit.exceeded` audit event
+  (bucket/method/path, coalesced to one per bucket per minute with a `suppressed` count — per user, with `byUserId`, for the `telemetry`, `directory`, `read-state`, `export` and `password-change` buckets —
   `observability.md`) — **that handler rewrites any non-StatusPages
   429**, which is why caller-specific 429s (the login lockout) must go through
   `TooManyRequestsException` (handled calls are marked and skipped) — and a sibling

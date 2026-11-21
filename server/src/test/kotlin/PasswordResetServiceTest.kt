@@ -1,5 +1,6 @@
 package ch.nokillswit
 
+import ch.nokillswit.auth.PasswordResetService
 import ch.nokillswit.auth.PasswordResetService.IssueOutcome
 import ch.nokillswit.auth.hashPassword
 import ch.nokillswit.auth.verifyPassword
@@ -68,7 +69,7 @@ class PasswordResetServiceTest {
             val outcomes = coroutineScope {
                 listOf(async { first.complete(tokenA, hash) }, async { second.complete(tokenB, hash) }).awaitAll()
             }
-            assertEquals(listOf(id), outcomes.filterNotNull(), "exactly one confirmation wins")
+            assertEquals(listOf(id), outcomes.filterNotNull().map { it.userId }, "exactly one confirmation wins")
             assertEquals(1, outcomes.count { it == null })
             assertFalse(second.isUsable(tokenA))
             assertFalse(first.isUsable(tokenB))
@@ -191,7 +192,11 @@ class PasswordResetServiceTest {
         val email = uniqueEmail("reset-then-admin")
         val id = TestUsers.seed(email, "old-password")
         val token = assertNotNull(resets.issueToken(id, 0, email))
-        assertEquals(id, resets.complete(token, hashPassword("owner-password", cost = 4)))
+        assertEquals(
+            PasswordResetService.Completion(id, email),
+            resets.complete(token, hashPassword("owner-password", cost = 4)),
+            "the completion names the account and the email the grant was checked against",
+        )
         // The admin PUT is unconditional (no expected revision): it layers on the reset instead of failing against it.
         assertEquals(1, TestUsers.service.updatePassword(id, hashPassword("admin-password", cost = 4)))
         val account = assertNotNull(TestUsers.service.read(id))

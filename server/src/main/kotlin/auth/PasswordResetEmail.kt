@@ -9,6 +9,13 @@ import io.ktor.server.application.log
 import kotlinx.coroutines.CancellationException
 
 /**
+ * How a password-reset line names an address that is only what a caller typed: by its fixed-size keyed digest ([AuditDigest]), never in
+ * the clear - the route cannot tell an account from a guess before the asynchronous lookup (the answer is a uniform 202), and what was
+ * typed can be anything. A line written after the lookup found the account (`link_sent`, `send_failed`) carries `email` and `userId`.
+ */
+internal fun resetAuditIdentity(app: Application, email: String): Pair<String, String> = "emailDigest" to app.auditDigest().of(email)
+
+/**
  * The self-service reset emails (2D3; Toadie's), rendered in the RECIPIENT'S stored language (V1, infra/mail/LocalizedText.kt):
  * the link email and the post-reset notice. No email carries a password — the owner chooses it on the link page.
  */
@@ -61,11 +68,14 @@ internal suspend fun processPasswordReset(
     email: String,
 ) {
     var token: String? = null
+    // Until the lookup finds an account the address is only what was typed: it is named by its digest.
+    var identity = resetAuditIdentity(app, email)
     try {
         val (userId, user) = users.findWithIdByEmail(email) ?: run {
-            audit("password_reset.unknown_email", "email" to email)
+            audit("password_reset.unknown_email", resetAuditIdentity(app, email))
             return
         }
+        identity = "email" to user.email
         token = when (val issued = resets.issue(userId, user.credentialRevision, user.email)) {
             is PasswordResetService.IssueOutcome.Issued -> issued.token
             PasswordResetService.IssueOutcome.Capped -> {
@@ -90,7 +100,7 @@ internal suspend fun processPasswordReset(
     } catch (e: Exception) {
         token?.let { resets.revoke(it) }
         // errorType only - the class name, never e.message or the cause (a mail provider's exception may embed the message body).
-        audit("password_reset.send_failed", "email" to email, "errorType" to e.javaClass.simpleName)
+        audit("password_reset.send_failed", identity, "errorType" to e.javaClass.simpleName)
         app.log.error("Password reset delivery failed ({})", e.javaClass.simpleName)
     }
 }

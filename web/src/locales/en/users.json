@@ -50,6 +50,7 @@
   "newPassword": "New password",
   "confirmPassword": "Confirm new password",
   "wrongCurrentPassword": "The current password is incorrect.",
+  "changeTooManyRequests": "Too many attempts. Wait a few minutes and try again. After several wrong current passwords the account is locked for a while.",
   "changeFailedStatus": "Change failed ({{status}})",
   "changeFailedNetwork": "Change failed. Check your connection and try again.",
   "toast": {

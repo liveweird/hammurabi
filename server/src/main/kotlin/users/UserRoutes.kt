@@ -1,10 +1,10 @@
 package ch.nokillswit.users
 
 import ch.nokillswit.audit.audit
+import ch.nokillswit.auth.LoginThrottleKey
 import ch.nokillswit.auth.MAX_PASSWORD_BYTES
 import ch.nokillswit.auth.exceedsBcryptLimit
 import ch.nokillswit.auth.hashPassword
-import ch.nokillswit.auth.verifyPassword
 import ch.nokillswit.authz.ConflictException
 import ch.nokillswit.authz.ForbiddenException
 import ch.nokillswit.authz.NotFoundException
@@ -108,6 +108,8 @@ class Users {
 
 fun Application.configureUserRoutes() {
     val userService = attributes[UserServiceKey]
+    // Published by configureLoginThrottle, which application.yaml loads before this module.
+    val loginThrottle = attributes[LoginThrottleKey]
 
     routing {
         authenticate {
@@ -115,7 +117,9 @@ fun Application.configureUserRoutes() {
             userDirectory(userService)
             userCreate(userService)
             userReadUpdateDelete(userService)
-            userPassword(userService)
+            // The self change verifies a bcrypt per request: per-USER bucket (RateLimits.PASSWORD_CHANGE) before the guards, and the
+            // per-account lockout inside the handler (users/UserPasswordRoutes.kt).
+            rateLimit(RateLimitName(RateLimits.PASSWORD_CHANGE)) { userPassword(userService, loginThrottle) }
             userFeaturesAndLanguage(userService)
         }
     }
@@ -294,39 +298,6 @@ private fun Route.userReadUpdateDelete(userService: UserService) {
             "user.deleted",
             "byUserId" to caller.userId.toLong(),
             "targetUserId" to route.id.toLong(),
-        )
-        call.respond(HttpStatusCode.NoContent)
-    }
-}
-
-private fun Route.userPassword(userService: UserService) {
-    put<Users.Id.Password> { route ->
-        val caller = call.caller()
-        requireSelfOrAdmin(caller, route.parent.id)
-        val req = call.receive<PasswordUpdateRequest>()
-        // Changing one's OWN password always requires the current one (even for an admin);
-        // an admin resetting somebody else's does not. Read before update so a wrong
-        // current password never mutates anything. Checked BEFORE the length validation
-        // so 403 wins over 400 (the convention everywhere else).
-        if (caller.userId == route.parent.id) {
-            val existing = userService.read(route.parent.id).orNotFound("User")
-            if (req.currentPassword == null || !verifyPassword(req.currentPassword, existing.passwordHash)) {
-                audit(
-                    "password.change_denied",
-                    "targetUserId" to route.parent.id.toLong(),
-                    "byUserId" to caller.userId.toLong(),
-                    "reason" to "wrong_current_password",
-                )
-                throw ForbiddenException("Current password is missing or incorrect")
-            }
-        }
-        validatePassword(req.password)
-        userService.updatePassword(route.parent.id, hashPassword(req.password)).orNotFound("User")
-        audit(
-            "password.changed",
-            "targetUserId" to route.parent.id.toLong(),
-            "byUserId" to caller.userId.toLong(),
-            "selfChange" to (caller.userId == route.parent.id),
         )
         call.respond(HttpStatusCode.NoContent)
     }

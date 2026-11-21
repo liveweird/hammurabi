@@ -65,7 +65,14 @@ export interface paths {
          *     consecutive failures for one email (default 5, `LOGIN_LOCKOUT_THRESHOLD`), further
          *     attempts for that account — even with the correct password — are rejected with `429`
          *     for a lockout window (default 15 min, `LOGIN_LOCKOUT_DURATION_SECONDS`). A successful
-         *     login resets the counter. The in-memory lockout store admits at most
+         *     login resets the counter (for an MFA-enabled account the accepted code does, see
+         *     `POST /login/mfa`); wrong codes and wrong current passwords on a password change feed the
+         *     same counter. A lock whose failure window held a wrong emailed code lasts longer each time it
+         *     repeats (the n-th consecutive one lasts the window x 2^(n-1), up to
+         *     `LOGIN_LOCKOUT_MFA_MAX_DURATION_SECONDS`, default 24 h; the level is forgotten after
+         *     `LOGIN_LOCKOUT_MFA_DECAY_SECONDS` without a lock); a window of wrong passwords only stays the flat
+         *     window. A confirmed password reset (`POST /password-reset/confirm`) lifts the lock and its level.
+         *     The answer is the same `429` whatever the cause. The in-memory lockout store admits at most
          *     `LOGIN_LOCKOUT_MAX_TRACKED` identities (default 10,000). At capacity a new identity
          *     receives `429` before password verification; existing tracked identities continue,
          *     and expired state frees capacity. This applies equally to existing and unknown emails.
@@ -103,6 +110,16 @@ export interface paths {
          *     (default 5, `MFA_MAX_ATTEMPTS`); every failure mode — unknown challenge, expired,
          *     wrong code, attempts exhausted, user gone, password changed — answers the uniform `401`. Rate-limited
          *     per client IP.
+         *
+         *     Every wrong code also counts as a failed sign-in attempt toward the account's login lockout (the same
+         *     counter `POST /login` feeds, `LOGIN_LOCKOUT_THRESHOLD`), so the wrong codes across ALL of an account's
+         *     challenges add up and a fresh login never resets them (only an accepted code does). The failure that
+         *     locks the account answers the uniform `401`; the account's pending challenges are dropped, and from
+         *     then on `POST /login` answers `429` for the lockout window. A correct code for a locked account is
+         *     refused with the lockout's `429`. Locks tripped by wrong codes double per consecutive lock, up to
+         *     `LOGIN_LOCKOUT_MFA_MAX_DURATION_SECONDS` (default 24 h), and a confirmed password reset lifts the lock
+         *     (see `POST /login`). An account holds at most 3 pending challenges: a further login
+         *     replaces the oldest, whose code then fails as an unknown challenge.
          */
         post: operations["verifyMfa"];
         delete?: never;
@@ -220,7 +237,9 @@ export interface paths {
          *     advance commit atomically; concurrent confirmations cannot both succeed, including with
          *     different links for one account. A password the rules refuse (`400`) does not consume the
          *     token. Success invalidates every access and refresh session of the account and any pending
-         *     MFA challenge. There is no automatic sign-in: sign in normally, with the MFA code if it is
+         *     MFA challenge. It also lifts the account's sign-in lockout (a held failure counter or lock of
+         *     any cause) and its escalation level, since the link proves the mailbox that receives the
+         *     sign-in codes. There is no automatic sign-in: sign in normally, with the MFA code if it is
          *     enabled. A best-effort confirmation email contains neither password nor token; a delivery
          *     failure does not undo the reset. Rate-limited to 10 requests per minute per client IP. A
          *     lost success response can make a retry answer `401`: try signing in with the chosen
@@ -423,6 +442,15 @@ export interface paths {
          *     password omits it. A successful change invalidates all outstanding refresh tokens
          *     and pending MFA challenges, including changes within the same clock second
          *     (already-issued access tokens expire naturally within their TTL).
+         *
+         *     Rides a per-USER rate bucket of 5 per minute (`429` beyond it; the bucket is spent before the
+         *     guards run). A wrong `currentPassword` on a self change also counts as a failed sign-in
+         *     attempt toward the account's login lockout (the same counter `POST /login` and `POST /login/mfa`
+         *     feed, `LOGIN_LOCKOUT_THRESHOLD`): once the account is locked, a self change is refused with the
+         *     lockout's `429` - even with the correct current password, and before it is checked - exactly as
+         *     `POST /login` is, until the lockout window ends. A missing `currentPassword` is a `403` that does
+         *     not count. An admin resetting ANOTHER user's password verifies nothing, so it neither counts nor
+         *     is refused by the target's lockout.
          */
         put: operations["changeUserPassword"];
         post?: never;
@@ -3072,6 +3100,7 @@ export interface operations {
             404: components["responses"]["NotFound"];
             413: components["responses"]["PayloadTooLarge"];
             415: components["responses"]["UnsupportedMediaType"];
+            429: components["responses"]["TooManyRequests"];
             500: components["responses"]["InternalServerError"];
         };
     };

@@ -306,6 +306,13 @@ jobs:
           # Recreate, not RollingUpdate: a surge pod would run beside the old one for a while, with its own lockout/MFA state.
           test "$(grep -cE '^    type: Recreate$' k8s/app-deployment.yaml)" -eq 1
           if grep -l 'kind: HorizontalPodAutoscaler' k8s/*.yaml; then echo "an autoscaler would scale the app" >&2; exit 1; fi
+      # The Ingress is the only way in (k8s/ingress.yaml; allow-app-ingress admits only the controller's pods and the app trusts the
+      # controller's X-Forwarded-For). Nothing may hand clients a path around that proxy.
+      - name: No path around the Ingress (no LoadBalancer/NodePort, hostPort, hostNetwork; the policy names the controller)
+        run: |
+          if grep -nE '^\s*(type: (LoadBalancer|NodePort)|hostPort:|hostNetwork: true)' k8s/*.yaml; then echo "a path around the Ingress" >&2; exit 1; fi
+          test "$(grep -cE '^  type: ClusterIP$' k8s/app-service.yaml)" -eq 1
+          grep -q 'kubernetes.io/metadata.name: ingress-nginx' k8s/network-policies.yaml
       - name: Validate what apply-local.sh renders
         run: |
           # A stand-in kubectl: the Secret "exists", and `apply -f <dir>` records the rendered directory.

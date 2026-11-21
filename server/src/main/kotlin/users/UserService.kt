@@ -125,6 +125,19 @@ class UserService(private val database: R2dbcDatabase) {
             ?.let { it[Users.id].value to it.toUser(featuresOf(it[Users.id].value)) }
     }
 
+    /**
+     * Whether an ACTIVE account holds [email]: ONE fixed-shape statement (`SELECT id ... LIMIT 1`, the same predicate as
+     * [findWithIdByEmail]), whatever the answer. `/login` runs it before its lock check only to choose how the audit line names the
+     * identity, so the 429 refusals cost the same for a known and an unknown address.
+     */
+    suspend fun accountExists(email: String): Boolean = suspendTransaction(database) {
+        Users.select(Users.id)
+            .where { (Users.email eq canonicalEmail(email)) and Users.active() }
+            .limit(1)
+            .toList()
+            .isNotEmpty()
+    }
+
     // The plaintext rules (min length, bcrypt byte ceiling) are route-side by necessity:
     // only the bcrypt hash ever reaches the service.
     suspend fun updatePassword(id: UInt, passwordHash: String): Int = suspendTransaction(database) {

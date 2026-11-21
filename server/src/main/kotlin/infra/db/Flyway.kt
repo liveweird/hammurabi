@@ -44,6 +44,7 @@ internal fun buildFlyway(url: String, user: String, password: String, connectRet
     .load()
 
 fun Application.configureFlyway() {
+    requirePrivateDatabasePassword()
     val url = environment.config.property("postgres.jdbcUrl").getString()
     val user = environment.config.property("postgres.user").getString()
     val password = environment.config.property("postgres.password").getString()

@@ -32,6 +32,7 @@ import kotlinx.coroutines.launch
 fun Application.configurePasswordResetRoutes() {
     val users = attributes[UserServiceKey]
     val resets = attributes[PasswordResetServiceKey]
+    val loginThrottle = attributes[LoginThrottleKey]
     val mailer = mailer()
     val appUrl = mailAppUrl() // the boot-validated origin (infra/mail/Mail.kt), never the request Host
     // One request per submitted email per interval, uniformly whether or not the account exists (the 429 carries no
@@ -65,15 +66,15 @@ fun Application.configurePasswordResetRoutes() {
                 when (throttle.tryAcquire(email)) {
                     PasswordResetThrottle.AcquireResult.ACQUIRED -> Unit
                     PasswordResetThrottle.AcquireResult.COOLDOWN -> {
-                        audit("password_reset.throttled", "email" to email)
+                        audit("password_reset.throttled", resetAuditIdentity(call.application, email))
                         throw TooManyRequestsException("Only one password reset per minute per address — try again shortly")
                     }
                     PasswordResetThrottle.AcquireResult.CAPACITY_EXCEEDED -> {
-                        audit("password_reset.capacity_rejected", "email" to email)
+                        audit("password_reset.capacity_rejected", resetAuditIdentity(call.application, email))
                         throw TooManyRequestsException("Too many password reset identities are being tracked — try again later")
                     }
                 }
-                audit("password_reset.requested", "email" to email)
+                audit("password_reset.requested", resetAuditIdentity(call.application, email))
                 val app = call.application
                 app.launch { processPasswordReset(app, users, resets, mailer, appUrl, email) }
                 call.respond(HttpStatusCode.Accepted)
@@ -91,8 +92,12 @@ fun Application.configurePasswordResetRoutes() {
                 if (!resets.isUsable(req.token)) reject()
                 // A password the rules refuse is a 400 that leaves the grant unconsumed, so the owner can retry on the same link.
                 validatePassword(req.password)
-                val userId = resets.complete(req.token, hashPassword(req.password)) ?: reject()
-                audit("password_reset.completed", "userId" to userId.toLong())
+                val (userId, grantEmail) = resets.complete(req.token, hashPassword(req.password)) ?: reject()
+                // A confirmed reset proves the mailbox (the one that gets the sign-in codes): it lifts the account's lock and its
+                // escalation level. The key is the email `complete` verified under the user-row lock (the one a login folds to),
+                // not a second read after the commit, which an email change could have moved.
+                val lockoutCleared = loginThrottle.clear(grantEmail)
+                audit("password_reset.completed", "userId" to userId.toLong(), "lockoutCleared" to lockoutCleared)
                 if (mailer != null) {
                     val app = call.application
                     app.launch { notifyPasswordReset(app, users, mailer, userId) }

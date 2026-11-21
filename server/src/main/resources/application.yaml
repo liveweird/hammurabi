@@ -41,6 +41,8 @@ ktor:
       # the database/monitoring seams it reads.
       - ch.nokillswit.telemetry.TelemetryKt.configureTelemetry
       # — features
+      # The per-account failure counter (login lockout) BEFORE the user routes: the self password change shares it with /login and /login/mfa.
+      - ch.nokillswit.auth.AccountLockoutKt.configureLoginThrottle
       - ch.nokillswit.users.UserRoutesKt.configureUserRoutes
       - ch.nokillswit.teams.TeamRoutesKt.configureTeamRoutes
       # The ADMIN-curated tag registry (0.4.0, `.claude/docs/adr-model.md` "Tags"): /api/v1/tag-categories.
@@ -75,6 +77,12 @@ security:
     threshold: "$LOGIN_LOCKOUT_THRESHOLD:5"
     durationSeconds: "$LOGIN_LOCKOUT_DURATION_SECONDS:900"
     maxTracked: "$LOGIN_LOCKOUT_MAX_TRACKED:10000"
+    # Progressive for MFA ONLY: a lock tripped by a wrong emailed code doubles per consecutive such lock (15 min, 30, 60, ...) up to
+    # `mfaMaxDurationSeconds` (never below `durationSeconds`); the level is forgotten `mfaDecaySeconds` after the last such lock ends,
+    # or by a success; `mfaDecaySeconds` is also the period of the per-account wrong-CODE counter (threshold wrong codes inside it trip
+    # an escalated lock even when paced under the 15-minute window). A lock tripped by wrong passwords stays the flat `durationSeconds`. Both in 1 .. 30 days.
+    mfaMaxDurationSeconds: "$LOGIN_LOCKOUT_MFA_MAX_DURATION_SECONDS:86400"
+    mfaDecaySeconds: "$LOGIN_LOCKOUT_MFA_DECAY_SECONDS:86400"
   # Per-IP token bucket on POST /api/v1/login. The per-account lockout above is the
   # actual brute-force defence and is unaffected by this. Blank FOLLOWS THE MODE:
   # 10/min in production, 1000/min in development — the e2e suite drives many logins

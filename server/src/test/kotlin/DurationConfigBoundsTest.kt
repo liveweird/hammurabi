@@ -39,9 +39,23 @@ class DurationConfigBoundsTest {
     }
 
     @Test
+    fun `a progressive-lock ceiling or decay outside 1 to 30 days refuses to start`() {
+        for (key in listOf("security.lockout.mfaMaxDurationSeconds", "security.lockout.mfaDecaySeconds")) {
+            for (bad in listOf("0", "-1", "abc", (30L * 24 * 3600 + 1).toString(), Long.MAX_VALUE.toString())) {
+                testApplication {
+                    configureApp(key to bad)
+                    assertStartupFails(key) { startApplication() }
+                }
+            }
+        }
+    }
+
+    @Test
     fun `a duration at the 30-day ceiling still boots`() = testApplication {
         configureApp(
             "security.lockout.durationSeconds" to (30L * 24 * 3600).toString(),
+            "security.lockout.mfaMaxDurationSeconds" to (30L * 24 * 3600).toString(),
+            "security.lockout.mfaDecaySeconds" to (30L * 24 * 3600).toString(),
             "security.passwordReset.minIntervalSeconds" to (30L * 24 * 3600).toString(),
         )
         startApplication() // must not throw

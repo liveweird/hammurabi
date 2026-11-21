@@ -52,6 +52,8 @@ export default function ChangePassword() {
       setError(
         saveErrorMessage(err, t, {
           forbidden: "users.wrongCurrentPassword",
+          // The per-user bucket or the account lockout that wrong current passwords feed (security.md).
+          tooManyRequests: "users.changeTooManyRequests",
           failedStatus: "users.changeFailedStatus",
           failed: "users.changeFailedNetwork",
         }),

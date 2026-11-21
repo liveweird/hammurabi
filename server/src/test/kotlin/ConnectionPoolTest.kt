@@ -132,9 +132,10 @@ class ConnectionPoolTest {
                 "expected the pool's acquire-timeout exception in the cause chain, got: ${chain.map { it::class.qualifiedName }}",
             )
             // Pins the documented behaviour: the retry re-queues the waiter for a second full deadline (>= ~2x of
-            // the 1 s setting), and Exposed's three attempts would push it to ~6 s (> the upper bound).
+            // the 1 s setting, a floor no load can lower), and Exposed's three attempts would push it to ~6 s (> the upper bound,
+            // which sits 3 s above the expected ~2 s so a loaded runner does not cross it).
             assertTrue(elapsedMillis >= 1_900, "acquire gave up after ${elapsedMillis}ms; expected ~2x the 1000ms setting")
-            assertTrue(elapsedMillis <= 4_000, "acquire took ${elapsedMillis}ms; expected ~2x the 1000ms setting")
+            assertTrue(elapsedMillis <= 5_000, "acquire took ${elapsedMillis}ms; expected ~2x the 1000ms setting")
 
             gate.complete(Unit)
             holder.join()

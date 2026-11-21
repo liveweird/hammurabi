@@ -2,7 +2,7 @@
 # Runs a Gradle command and re-runs it, up to GRADLE_RETRY_ATTEMPTS times (default 3, with a growing pause), ONLY when
 # the failure looks like a transient network miss while resolving dependencies or fetching the Gradle distribution
 # (a 404/5xx/timeout from Maven Central or the plugin portal; seen on CI as `Could not find io.ktor:ktor-version-catalog:3.6.1`,
-# checkup 1.0.0 C-GATE-1). Any other failure (a compile error, a failing test, a build-script error such as `Could not find
+# checkup 1.0.0 C-GATE-1, or `Plugin [id: ...] was not found in any of the following sources`, C-GATE-4). Any other failure (a compile error, a failing test, a build-script error such as `Could not find
 # method`, a verification or strict-lock violation) is final on the first attempt, so a real red is never slowed down or
 # re-rolled.
 #
@@ -35,7 +35,9 @@ fi
 # Transient-network signatures: a failed HTTP fetch, a miss on a full group:artifact:version coordinate (the 404 Maven Central
 # answered transiently), HTTP 5xx, resets/timeouts, DNS, and the wrapper's distribution download. Deliberately NOT a bare
 # "Could not find"/"Could not resolve", which also start build-script errors.
-transient='Could not (GET|HEAD|download) |Could not find [A-Za-z0-9_.-]+:[A-Za-z0-9_.-]+:[A-Za-z0-9_.+-]+|Read timed out|Connect timed out|Connection (reset|refused|timed out)|Remote host terminated|Premature end of Content-Length|Received status code 5[0-9][0-9]|Server returned HTTP response code: 5|Unknown host|Temporary failure in name resolution|java\.net\.(SocketException|SocketTimeoutException|UnknownHostException|ConnectException)|javax\.net\.ssl\.SSLException'
+# `Plugin [id: '...'] was not found in any of the following sources` is what a plugin-portal 404/outage prints at settings time (the red
+# run of checkup C-GATE-4); a misspelled plugin id prints it too and then fails the same way on every attempt, only slower.
+transient='Could not (GET|HEAD|download) |Could not find [A-Za-z0-9_.-]+:[A-Za-z0-9_.-]+:[A-Za-z0-9_.+-]+|Read timed out|Connect timed out|Connection (reset|refused|timed out)|Plugin \[id: [^]]+\] was not found in any of the following sources|Remote host terminated|Premature end of Content-Length|Received status code 5[0-9][0-9]|Server returned HTTP response code: 5|Unknown host|Temporary failure in name resolution|java\.net\.(SocketException|SocketTimeoutException|UnknownHostException|ConnectException)|javax\.net\.ssl\.SSLException'
 # Never retried, even next to a transient signature. (`Did not resolve ... which is part of the dependency lock state` is NOT here
 # on purpose: it is what the real transient miss prints beside `Could not find`.)
 final='Dependency verification failed|not part of the dependency lock state|[Ll]ock state (is )?out of date|Invalid lock state'

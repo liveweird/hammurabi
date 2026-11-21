@@ -109,31 +109,43 @@ name is a placeholder. An existing installation already has the namespace and Se
 The manifests are hardened: no ServiceAccount token in any pod, non-root/seccomp/`drop: [ALL]` on the
 app and postgres containers, and `k8s/network-policies.yaml` — default-deny plus only
 app → postgres:5432, DNS and public egress on 443 / 587, 465, 25 (SMTP), and 8090 into
-the app. NetworkPolicy is enforced only by a CNI that implements it (OrbStack's cluster does). Details
+the app from the ingress-nginx controller only. NetworkPolicy is enforced only by a CNI that implements it (OrbStack's cluster does). Details
 in `.claude/docs/security.md` ("Kubernetes pod and network hardening"). CI validates every manifest and
 the `apply-local.sh` render with `kubeconform` (`k8s-static` job).
 
-**Known gap: no ingress is shipped.** `app` is exposed through a bare `type: LoadBalancer`
-Service, but the `app` Deployment is configured as if a TLS-terminating proxy sat in front
-(`HTTP_BEHIND_PROXY=true`, `HTTP_PROXY_HOPS=1`). Today that means:
+**The front door is an ingress-nginx Ingress** (`k8s/ingress.yaml`). The `app` Service is `ClusterIP`, so
+no Service path reaches the pod except the Ingress, and `allow-app-ingress` admits only the ingress-nginx
+controller's pods (a node-local or `hostNetwork` process and `kubectl port-forward` can still reach it, as in any cluster). The cluster needs the ingress-nginx controller in its `ingress-nginx` namespace (not part of
+`k8s/`; community ingress-nginx was retired in March 2026, so this is a local reference, not a production
+recipe). Then open <https://hammurabi.k8s.orb.local> (OrbStack resolves `*.k8s.orb.local` ingress hosts). With no
+`secretName` under `tls:` the controller serves its self-signed fake certificate, so the browser warns once;
+plain HTTP is answered with a `308` to https.
 
-- Plain HTTP through the LoadBalancer (e.g. `http://localhost:8090`) is answered with a `301` to
-  `https://…` — production mode redirects every request that does not arrive as HTTPS. The pods'
-  own probes send `X-Forwarded-Proto: https`, which is why they still pass.
-- `X-Forwarded-For` and `X-Forwarded-Proto` are client-supplied here: a bare LoadBalancer neither
-  terminates TLS nor strips them, so the per-IP rate-limit buckets key on a value the caller
-  controls, and a caller can send `X-Forwarded-Proto: https` to skip the redirect (unverified on
-  OrbStack: how its LoadBalancer treats these headers has not been checked).
-- For throwaway local testing over plain HTTP, edit `k8s/app-deployment.yaml` yourself —
-  `apply-local.sh` only substitutes the image tag — setting `KTOR_DEVELOPMENT` to `"true"` (and
+- **Install the controller once per cluster** (OrbStack: enable Kubernetes first, `orbctl config set k8s.enable true`, then restart
+  OrbStack once). Pinned to the last community release; the manifest pins the controller image by digest:
+  `kubectl --context orbstack apply -f https://raw.githubusercontent.com/kubernetes/ingress-nginx/controller-v1.15.1/deploy/static/provider/cloud/deploy.yaml`, then
+  `kubectl --context orbstack -n ingress-nginx wait --for=condition=Ready pod -l app.kubernetes.io/component=controller --timeout=240s`.
+  Undo: the same command with `delete -f` (removes the `ingress-nginx` namespace, its cluster RBAC, the `nginx` IngressClass
+  and the admission webhook). The cloud-provider manifest creates a `LoadBalancer` Service with `externalTrafficPolicy: Local`;
+  OrbStack gives it an address of its own and resolves `*.k8s.orb.local` ingress hosts to it.
+- The app trusts exactly one `X-Forwarded-For` hop (`HTTP_PROXY_HOPS=1`): ingress-nginx's defaults replace
+  the header with the address it saw, and the NetworkPolicy keeps every other pod away from the app, so a
+  client-sent `X-Forwarded-For` never becomes the rate-limit key (`.claude/docs/security.md`).
+- **OrbStack shows every client as one address.** The controller sees the pod-network gateway as the peer of every
+  request, even with `externalTrafficPolicy: Local`, so the app's per-IP rate-limit buckets are shared by everyone on the
+  cluster. Fine for one local user; there is no OrbStack-side fix (the audit trail carries no client address by design,
+  so check the controller's access log, whose first field is that peer). A real cluster keeps the browser's address when
+  its load balancer preserves it.
+- A real host needs three edits in step: the host in `ingress.yaml` (twice), a certificate Secret named under
+  `tls: secretName` whose SAN has that host, and `MAIL_APP_URL` in `app-deployment.yaml` when mail is on. CORS
+  stays empty (single origin).
+- `kubectl -n hammurabi port-forward svc/app 8090` bypasses the Ingress for debugging: production mode answers
+  plain HTTP with its `301` to https there. For throwaway plain-HTTP testing, edit `k8s/app-deployment.yaml`
+  yourself — `apply-local.sh` only substitutes the image tag — setting `KTOR_DEVELOPMENT` to `"true"` (and
   `HTTP_BEHIND_PROXY` to `"false"`), and never commit or apply that in a shared or production
   cluster. Development mode is a different posture, not just "HTTP allowed": it also tolerates
   the burned demo credentials, exposes `/openapi` and the Swagger UI, and lifts the login per-IP
   bucket from 10/min to 1000/min when it is left blank.
-
-Whether the reference deployment gains a TLS-terminating Ingress (with a `ClusterIP` Service) or a
-documented local-only overlay is still to be decided; until then treat this manifest set as a local
-reference, not a production recipe.
 
 ## Local development
 
@@ -170,6 +182,8 @@ class-data-sharing (AppCDS) archive, and setting it drops the archive. Build-tim
 | `KTOR_DEVELOPMENT` | `true` | Development mode (`true`) vs production mode — HSTS/HTTPS redirect and the fail-closed startup checks. The image ships `false`. |
 | `LOGIN_LOCKOUT_THRESHOLD` | `5` | Consecutive failures per account before `/login` answers 429. |
 | `LOGIN_LOCKOUT_DURATION_SECONDS` | `900` | How long a locked account stays locked. |
+| `LOGIN_LOCKOUT_MFA_MAX_DURATION_SECONDS` | `86400` | Ceiling of the progressive lock: a lock tripped by wrong emailed codes doubles per consecutive such lock (15 min, 30, 60, ...) up to this; wrong passwords keep the flat duration. |
+| `LOGIN_LOCKOUT_MFA_DECAY_SECONDS` | `86400` | How long after the last escalated lock ends its level is forgotten, and the period of the per-account wrong-code counter (a fixed window from its first failure: threshold wrong codes inside it trip an escalated lock even when paced). A successful sign-in or a confirmed reset forgets both at once. |
 | `LOGIN_LOCKOUT_MAX_TRACKED` | `10000` | Maximum in-memory login identities; new identities receive 429 at capacity while active counters and locks remain. |
 | `LOGIN_RATE_LIMIT_PER_MINUTE` | *(blank)* | Per-IP login bucket; blank follows the mode (10 prod / 1000 dev). |
 | `REFRESH_RATE_LIMIT_PER_MINUTE` | *(blank)* | Per-IP refresh bucket (blank = 30). |
@@ -216,7 +230,7 @@ class-data-sharing (AppCDS) archive, and setting it drops the archive. Build-tim
 | `POSTGRES_JDBC_URL` | `jdbc:postgresql://localhost:5440/hammurabi` | Flyway's JDBC URL. |
 | `POSTGRES_R2DBC_URL` | `r2dbc:postgresql://localhost:5440/hammurabi` | The runtime R2DBC URL. |
 | `POSTGRES_USER` | `hammurabi` | Database user. |
-| `POSTGRES_PASSWORD` | `hammurabi` | Database password. |
+| `POSTGRES_PASSWORD` | `hammurabi` | Database password. Production mode (`KTOR_DEVELOPMENT=false`) **refuses to start** on this default, on a blank value and on the k8s `CHANGE-ME` placeholder: set a private one on the database and the app (`openssl rand -hex 16`). The compose demo runs in development mode and keeps `hammurabi`. |
 | `POSTGRES_CONNECT_RETRIES` | `10` | How many times Flyway retries its boot connection (doubling waits capped at 8 s, ~63 s at 10) so a cold start waits for Postgres instead of crash-looping; `0` fails fast (0..15 — 15 is ~2 min, inside the k8s startup-probe budget). |
 | `POSTGRES_POOL_MAX_SIZE` | `20` | Ceiling on concurrent pooled R2DBC connections for this instance (1..1000). |
 | `POSTGRES_POOL_INITIAL_SIZE` | `2` | Connections the pool fills up to on its first acquire (0..maxSize). |

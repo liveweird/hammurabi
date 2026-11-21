@@ -1,5 +1,6 @@
 package ch.nokillswit
 
+import ch.nokillswit.users.UserRole
 import io.ktor.client.statement.bodyAsText
 import io.ktor.http.HttpStatusCode
 import io.ktor.server.testing.testApplication
@@ -10,7 +11,7 @@ import kotlin.test.assertFalse
 import kotlin.test.assertNotNull
 
 /**
- * The per-account lockout (auth/LoginThrottle.kt wired in AuthRoutes): after `threshold`
+ * The per-account lockout (auth/LoginThrottle.kt, built by auth/AccountLockout.kt): after `threshold`
  * consecutive failures for one email, further attempts — even with the correct password —
  * answer 429 for the lockout window. Independent of the per-IP rate limit.
  */
@@ -42,9 +43,9 @@ class LoginLockoutTest {
             assertEquals(HttpStatusCode.Unauthorized, client.login(tracked, "wrong").status)
             assertNotNull(
                 auditEvents.awaitEvent {
-                    it.message == "login.lockout" && it.hasKeyValue("email", tracked)
+                    it.message == "login.lockout" && it.hasKeyValue("emailDigest", testAuditDigest(tracked))
                 },
-                "ordinary login identities should keep the email audit field",
+                "an identity with no account is named by its digest, never in the clear",
             )
             assertEquals(HttpStatusCode.TooManyRequests, client.login(tracked, "wrong").status)
         } finally {
@@ -105,5 +106,28 @@ class LoginLockoutTest {
         }
         val lockedOut = client.login(email, "right-pw")
         assertEquals(HttpStatusCode.TooManyRequests, lockedOut.status)
+    }
+
+    @Test
+    fun `at a full store a real account's login gets the same capacity 429 as an unknown email`() = testApplication {
+        configureApp("security.lockout.maxTracked" to "1")
+        startApplication()
+        val client = jsonClient()
+        val real = uniqueEmail("capacity-real")
+        TestUsers.seed(email = real, password = "pw-123456789", role = UserRole.USER)
+        // Another identity's failure takes the only slot.
+        assertEquals(HttpStatusCode.Unauthorized, client.login(uniqueEmail("capacity-filler"), "wrong").status)
+
+        val unknown = client.login(uniqueEmail("capacity-ghost"), "wrong")
+        val known = client.login(real, "wrong")
+        val knownRight = client.login(real, "pw-123456789")
+        assertEquals(HttpStatusCode.TooManyRequests, unknown.status)
+        assertEquals(unknown.status, known.status)
+        assertEquals(unknown.status, knownRight.status, "not even the right password is compared at a full store")
+        // The same problem body, byte for byte (status, title, detail, instance): nothing tells the three apart.
+        val expected = unknown.bodyAsText()
+        assertContains(expected, "tracked")
+        assertEquals(expected, known.bodyAsText())
+        assertEquals(expected, knownRight.bodyAsText())
     }
 }

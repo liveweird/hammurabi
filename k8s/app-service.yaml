@@ -6,10 +6,12 @@ metadata:
   name: app
   namespace: hammurabi
 spec:
-  # OrbStack provisions local LoadBalancers; `kubectl -n hammurabi port-forward svc/app` is
-  # the fallback. Port 8090 (not 8080/8081/8082) so Hammurabi's LB can coexist with other
-  # local stacks.
-  type: LoadBalancer
+  # ClusterIP on purpose: the only way in is the ingress-nginx Ingress (ingress.yaml), and network-policies.yaml
+  # lets only that controller's pods reach the app pod. A LoadBalancer/NodePort would give clients a direct path
+  # around the proxy, where X-Forwarded-* is client-controlled. For debugging, `kubectl -n hammurabi port-forward
+  # svc/app 8090` reaches the pod without the proxy (production mode then answers plain HTTP with its 301 to https
+  # unless the request carries X-Forwarded-Proto: https).
+  type: ClusterIP
   ports:
     - name: "8090"
       port: 8090

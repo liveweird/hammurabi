@@ -16,7 +16,9 @@ object PostgresTestSupport {
             val startedAt = System.nanoTime()
             withDatabaseName("hammurabi_test")
             withUsername("hammurabi")
-            withPassword("hammurabi")
+            // Not the shipped default "hammurabi": production-mode boot tests must get past the
+            // database-password check (infra/db/DatabasePassword.kt).
+            withPassword("hammurabi-test-db-password")
             start()
             Runtime.getRuntime().addShutdownHook(Thread { stop() })
             // Migrate before ANYONE gets the container: Gradle forks change class order, so the first class of

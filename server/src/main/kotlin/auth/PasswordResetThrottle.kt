@@ -1,6 +1,7 @@
 package ch.nokillswit.auth
 
-import java.util.TreeMap
+import ch.nokillswit.infra.ExpiringIndex
+import ch.nokillswit.infra.db.nowMillis
 
 /**
  * Per-email throttle for the self-service password reset: at most one request per submitted
@@ -11,7 +12,7 @@ import java.util.TreeMap
 class PasswordResetThrottle(
     private val minIntervalMillis: Long,
     private val maxTracked: Int = 10_000,
-    private val clock: () -> Long = System::currentTimeMillis,
+    private val clock: () -> Long = ::nowMillis,
 ) {
     init {
         require(maxTracked > 0) { "maxTracked must be positive" }
@@ -26,7 +27,7 @@ class PasswordResetThrottle(
     private data class Entry(val expiresAt: Long)
 
     private val entries = mutableMapOf<String, Entry>()
-    private val expiryIndex = TreeMap<Long, MutableSet<String>>()
+    private val expiries = ExpiringIndex<String>()
     private val lock = Any()
 
     private fun key(email: String) = email.trim().lowercase()
@@ -43,19 +44,15 @@ class PasswordResetThrottle(
             else -> {
                 val expiresAt = now + minIntervalMillis
                 entries[key] = Entry(expiresAt)
-                expiryIndex.getOrPut(expiresAt) { mutableSetOf() }.add(key)
+                expiries.add(expiresAt, key)
                 AcquireResult.ACQUIRED
             }
         }
     }
 
     private fun pruneExpired(now: Long) {
-        while (expiryIndex.firstEntry()?.key?.let { it <= now } == true) {
-            val (expiresAt, keys) = expiryIndex.pollFirstEntry()
-            keys.forEach { key ->
-                if (entries[key]?.expiresAt == expiresAt) entries.remove(key)
-            }
+        expiries.pruneExpired(now) { key, expiresAt ->
+            if (entries[key]?.expiresAt == expiresAt) entries.remove(key)
         }
     }
-
 }

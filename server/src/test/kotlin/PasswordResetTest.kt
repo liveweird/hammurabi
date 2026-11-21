@@ -178,7 +178,7 @@ class PasswordResetTest {
             // The async branch signals completion via the audit trail — wait for it, then
             // assert no email went out.
             val audited = auditEvents.awaitEvent {
-                it.message == "password_reset.unknown_email" && it.hasKeyValue("email", email)
+                it.message == "password_reset.unknown_email" && it.hasKeyValue("emailDigest", testAuditDigest(email))
             }
             assertNotNull(audited, "the unknown-email branch should be audited")
             assertNull(mail.events.firstOrNull { "To: $email" in it.formattedMessage })
@@ -259,8 +259,19 @@ class PasswordResetTest {
             contentType(ContentType.Application.Json)
             setBody(PasswordResetRequest(email))
         }
-        assertEquals(HttpStatusCode.Accepted, request().status)
-        assertEquals(HttpStatusCode.TooManyRequests, request().status)
+        val auditEvents = LogCapture("ch.nokillswit.audit")
+        try {
+            assertEquals(HttpStatusCode.Accepted, request().status)
+            assertEquals(HttpStatusCode.TooManyRequests, request().status)
+            assertNotNull(
+                auditEvents.awaitEvent { it.message == "password_reset.throttled" &&
+                        it.hasKeyValue("emailDigest", testAuditDigest(email))
+                },
+                "the cooldown refusal is audited under the keyed digest (no account behind the address)",
+            )
+        } finally {
+            auditEvents.detach()
+        }
     }
 
     @Test
@@ -280,18 +291,18 @@ class PasswordResetTest {
             assertEquals(HttpStatusCode.Accepted, request(tracked).status)
             assertNotNull(
                 auditEvents.awaitEvent {
-                    it.message == "password_reset.unknown_email" && it.hasKeyValue("email", tracked)
+                    it.message == "password_reset.unknown_email" && it.hasKeyValue("emailDigest", testAuditDigest(tracked))
                 },
             )
             assertEquals(HttpStatusCode.TooManyRequests, request(rejected).status)
             assertNotNull(
                 auditEvents.awaitEvent {
-                    it.message == "password_reset.capacity_rejected" && it.hasKeyValue("email", rejected)
+                    it.message == "password_reset.capacity_rejected" && it.hasKeyValue("emailDigest", testAuditDigest(rejected))
                 },
             )
             assertFalse(
                 auditEvents.events.any {
-                    it.hasKeyValue("email", rejected) &&
+                    it.hasKeyValue("emailDigest", testAuditDigest(rejected)) &&
                         it.message in setOf("password_reset.requested", "password_reset.unknown_email")
                 },
                 "a capacity rejection must not schedule the reset worker",

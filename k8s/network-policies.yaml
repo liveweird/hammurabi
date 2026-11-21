@@ -6,7 +6,7 @@
 # .claude/docs/security.md, "Kubernetes pod and network hardening".
 #
 # Traffic this namespace needs (and nothing else):
-#   client/ingress -> app:8090            (allowed below — SOURCE STILL OPEN, see that policy)
+#   ingress-nginx  -> app:8090            (allow-app-ingress: the controller's pods in the ingress-nginx namespace only)
 #   app            -> postgres:5432       (allow-postgres-from-app + the egress twin)
 #   app            -> cluster DNS :53     (allow-app-egress)
 #   app            -> public internet     (443 HTTPS, 587/465/25 SMTP)
@@ -52,12 +52,21 @@ spec:
       io.kompose.service: app
   policyTypes: [Ingress]
   ingress:
-    # OPEN DECISION (checkup A13): the source is not restricted yet because the front door is not
-    # decided — the reference still exposes `app` through a LoadBalancer Service (OrbStack), whose
-    # traffic arrives from an address outside the cluster. When an Ingress controller becomes the
-    # entry point, replace this rule's (absent) `from` with that controller's namespace/pod
-    # selector so only it can reach :8090. Until then the port is the restriction.
-    - ports:
+    # The front door is the ingress-nginx Ingress (ingress.yaml): only the controller's pods may reach :8090.
+    # This is what makes HTTP_PROXY_HOPS=1 safe: the app trusts the last X-Forwarded-For entry, and the controller
+    # is the only peer that can write it; any other pod sending its own header would otherwise pick its own
+    # client address. (Namespace AND pod selector in ONE item = both must match; the controller's pods carry
+    # these labels in the official manifest and Helm chart; a controller installed elsewhere changes them here.)
+    # The kubelet's probes need no rule: the node's own traffic is always allowed.
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: ingress-nginx
+          podSelector:
+            matchLabels:
+              app.kubernetes.io/name: ingress-nginx
+              app.kubernetes.io/component: controller
+      ports:
         - protocol: TCP
           port: 8090
 ---

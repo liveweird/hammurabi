@@ -68,7 +68,7 @@ internal suspend fun issueMfaChallenge(
         return
     }
     val challenge = try {
-        challenges.issue(userId, user.credentialRevision)
+        challenges.issue(userId, user.email, user.credentialRevision)
     } catch (_: MfaChallenges.CapacityExceededException) {
         audit("login.mfa_capacity_rejected", "email" to user.email, "userId" to userId.toLong())
         throw TooManyRequestsException(

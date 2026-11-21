@@ -80,11 +80,15 @@ spec:
             # and the seed credentials are tolerated, exactly like the compose demo.
             - name: KTOR_DEVELOPMENT
               value: "false"
-            # The app sits behind an ingress / LB that must terminate TLS and set
-            # X-Forwarded-For + X-Forwarded-Proto (and strip client-supplied values), so rate
-            # limiting keys on the real client IP and the HTTPS redirect sees the real scheme.
+            # The app sits behind the ingress-nginx Ingress (ingress.yaml), which terminates TLS and
+            # REPLACES X-Forwarded-For with the address it saw (+ sets -Proto/-Host), so rate
+            # limiting keys on the client IP and the HTTPS redirect sees the real scheme.
             # HTTP_PROXY_HOPS = trusted proxies that APPEND to X-Forwarded-For (1 = the
-            # ingress alone; see application.yaml `http.proxyHops`).
+            # ingress alone; see application.yaml `http.proxyHops`). Only the controller's pods can reach
+            # this pod (allow-app-ingress), which is what makes "the last entry" the controller's.
+            # Raise it only if the controller is switched to an appending chain behind another proxy
+            # (`use-forwarded-headers: true` is safe only with `proxy-real-ip-cidr` narrowed to that proxy and
+            # `compute-full-forwarded-for`; ingress.yaml, security.md).
             - name: HTTP_BEHIND_PROXY
               value: "true"
             - name: HTTP_PROXY_HOPS

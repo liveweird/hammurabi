@@ -59,8 +59,8 @@ internal class RateLimitAuditThrottle(
 }
 
 /**
- * Every token bucket the routes ride (per client IP, except [TELEMETRY], [DIRECTORY], [READ_STATE] and [EXPORT]: per signed-in
- * user), named in one place so a
+ * Every token bucket the routes ride (per client IP, except [TELEMETRY], [DIRECTORY], [READ_STATE], [EXPORT] and [PASSWORD_CHANGE]: per
+ * signed-in user), named in one place so a
  * feature module never has to know another's constant (the auth module used to import the try-it bucket's name — a layering
  * inversion the checkup removed). Route files reference these names; only this plugin installs them.
  */
@@ -102,6 +102,15 @@ object RateLimits {
      * bound is for a runaway script, not for a person (one click is one token); it rides INSIDE `authenticate {}`.
      */
     const val EXPORT = "export"
+    /**
+     * `PUT /api/v1/users/{id}/password` rides a per-USER bucket (the [TELEMETRY] idiom): 5/min in every mode. The self change verifies
+     * `currentPassword` with a bcrypt per request, so without a bound a stolen session guesses the password at dispatcher speed and any
+     * user can occupy the small default dispatcher; the per-account lockout (`auth/LoginThrottle.kt`, a wrong current password counts
+     * like a failed login) is the real brute-force defence, the bucket is the per-request one. A person changes a password a few times
+     * a YEAR, an ADMIN resetting others a few a minute at the very most. The bucket sits BEFORE the guards, so a refused or invalid
+     * change spends a token too.
+     */
+    const val PASSWORD_CHANGE = "password-change"
 
     const val DEFAULT_REFRESH_PER_MINUTE = 30
     /**
@@ -115,6 +124,7 @@ object RateLimits {
     private const val DIRECTORY_PER_MINUTE = 120
     private const val READ_STATE_PER_MINUTE = 240
     private const val EXPORT_PER_MINUTE = 20
+    private const val PASSWORD_CHANGE_PER_MINUTE = 5
     private const val MFA_PER_MINUTE = 10
     private const val PASSWORD_RESET_CONFIRM_PER_MINUTE = 10
     private const val LOGIN_PER_MINUTE_PRODUCTION = 10
@@ -145,13 +155,14 @@ object RateLimits {
     internal fun directoryLimit() = DIRECTORY_PER_MINUTE
     internal fun readStateLimit() = READ_STATE_PER_MINUTE
     internal fun exportLimit() = EXPORT_PER_MINUTE
+    internal fun passwordChangeLimit() = PASSWORD_CHANGE_PER_MINUTE
     internal fun mfaLimit() = MFA_PER_MINUTE
     internal fun passwordResetConfirmLimit() = PASSWORD_RESET_CONFIRM_PER_MINUTE
 }
 
 /**
  * The buckets (see application.yaml `security.rateLimit` and security.md): per IP, except the per-USER telemetry, directory,
- * read-state and export buckets.
+ * read-state, export and password-change buckets.
  * Login and password-reset follow the mode — production keeps them tight, development lifts them so one host
  * driving the e2e suite is not throttled (the per-account lockout and the per-email throttle are the
  * abuse defences in both modes); refresh, ready, MFA and the password-reset confirm are the same in every mode. Installed here, before
@@ -174,6 +185,7 @@ fun Application.configureRateLimits() {
             DIRECTORY to directoryLimit(),
             READ_STATE to readStateLimit(),
             EXPORT to exportLimit(),
+            PASSWORD_CHANGE to passwordChangeLimit(),
         )
     }
     install(RateLimit) {
@@ -188,7 +200,7 @@ fun Application.configureRateLimits() {
                 }
             }
         }
-        // The per-USER buckets (telemetry, directory, read-state, export). The routes mount them INSIDE `authenticate {}`
+        // The per-USER buckets (telemetry, directory, read-state, export, password-change). The routes mount them INSIDE `authenticate {}`
         // (telemetry/TelemetryRoutes.kt,
         // users/UserRoutes.kt), so this key runs only for a verified token: an anonymous call is a 401 that never reaches it
         // and never creates a limiter. The plugin keeps one limiter per key and drops it after its refill period, so memory is

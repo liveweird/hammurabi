@@ -68,7 +68,7 @@ class SecretToStringTest {
 
     @Test
     fun `an issued MFA challenge masks its code and id`() {
-        val issued = MfaChallenges(ttlMillis = 60_000, maxAttempts = 3).issue(userId = 1u, credentialRevision = 0)
+        val issued = MfaChallenges(ttlMillis = 60_000, maxAttempts = 3).issue(userId = 1u, email = "a@example.test", credentialRevision = 0)
         val rendered = issued.toString()
         assertFalse(issued.code in rendered, "the MFA code leaked into: $rendered")
         assertFalse(issued.challengeId in rendered, "the challenge id leaked into: $rendered")

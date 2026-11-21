@@ -50,6 +50,7 @@
   "newPassword": "Nowe hasło",
   "confirmPassword": "Powtórz nowe hasło",
   "wrongCurrentPassword": "Obecne hasło jest niepoprawne.",
+  "changeTooManyRequests": "Zbyt wiele prób. Odczekaj kilka minut i spróbuj ponownie. Po kilku błędnych obecnych hasłach konto jest na jakiś czas blokowane.",
   "changeFailedStatus": "Zmiana nie powiodła się ({{status}})",
   "changeFailedNetwork": "Zmiana nie powiodła się. Sprawdź połączenie i spróbuj ponownie.",
   "toast": {

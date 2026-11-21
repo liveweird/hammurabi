@@ -68,6 +68,21 @@ class LoginThrottleTest {
     }
 
     @Test
+    fun `a known account is admitted and counted at capacity, an unknown one is not`() {
+        val throttle = LoginThrottle(2, 60_000, maxTracked = 1, clock = { 1_000L })
+        assertEquals(LoginThrottle.FailureResult.RECORDED, throttle.recordFailure("filler@test"))
+
+        assertEquals(LoginThrottle.Preflight.CAPACITY_EXCEEDED, throttle.preflight("known@test"))
+        assertEquals(LoginThrottle.FailureResult.CAPACITY_EXCEEDED, throttle.recordFailure("known@test"))
+        assertEquals(LoginThrottle.Preflight.ALLOWED, throttle.preflight("known@test", knownAccount = true))
+        assertEquals(LoginThrottle.FailureResult.RECORDED, throttle.recordFailure("known@test", knownAccount = true))
+        assertEquals(LoginThrottle.FailureResult.LOCKED_NOW, throttle.recordFailure("known@test", knownAccount = true))
+        assertEquals(LoginThrottle.Preflight.LOCKED, throttle.preflight("known@test", knownAccount = true))
+        // The over-cap entry is now tracked like any other: the unknown caller still meets the refusal.
+        assertEquals(LoginThrottle.Preflight.CAPACITY_EXCEEDED, throttle.preflight("other@test"))
+    }
+
+    @Test
     fun `replacing a counter moves its expiry index entry`() {
         var now = 1_000L
         val throttle = LoginThrottle(5, 60_000, maxTracked = 1, clock = { now })

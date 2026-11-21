@@ -3,6 +3,7 @@ package ch.nokillswit.auth
 import ch.nokillswit.users.UserService.Users
 import ch.nokillswit.users.updatePasswordInTransaction
 import ch.nokillswit.infra.db.active
+import ch.nokillswit.infra.db.nowMillis
 import ch.nokillswit.infra.json.sha256Hex
 import io.ktor.util.AttributeKey
 import kotlinx.coroutines.flow.toList
@@ -33,7 +34,7 @@ internal val RESET_TOKEN_PATTERN = Regex("[A-Za-z0-9_-]{43}")
 class PasswordResetService(
     private val database: R2dbcDatabase,
     val ttlMillis: Long = DEFAULT_RESET_TTL_MILLIS,
-    private val clock: () -> Long = System::currentTimeMillis,
+    private val clock: () -> Long = ::nowMillis,
 ) {
     init { require(ttlMillis in 1..MAX_RESET_TTL_MILLIS) { "Password reset TTL must be positive and at most one hour" } }
 
@@ -89,8 +90,11 @@ class PasswordResetService(
         }
     }
 
+    /** A completed reset: the account and the email the grant was checked against under the row lock (the lockout's key). */
+    data class Completion(val userId: UInt, val email: String)
+
     /** Consumption, password replacement and sibling revocation are ONE transaction, across instances. */
-    suspend fun complete(token: String, passwordHash: String): UInt? {
+    suspend fun complete(token: String, passwordHash: String): Completion? {
         if (!RESET_TOKEN_PATTERN.matches(token)) return null
         val hash = sha256Hex(token)
         return suspendTransaction(database) {
@@ -98,14 +102,15 @@ class PasswordResetService(
                 ?: return@suspendTransaction null
             val userId = grant[Grants.userId].value
             val revision = grant[Grants.credentialRevision]
-            if (!lockUser(userId, revision, grant[Grants.email])) return@suspendTransaction null
+            val email = grant[Grants.email]
+            if (!lockUser(userId, revision, email)) return@suspendTransaction null
             // A competing completion or a delivery-failure cleanup may have removed the row.
             if (Grants.deleteWhere { (tokenHash eq hash) and (expiresAt greater clock()) } != 1) {
                 return@suspendTransaction null
             }
             check(updatePasswordInTransaction(userId, passwordHash, revision, clock()) == 1)
             Grants.deleteWhere { Grants.userId eq userId }
-            userId
+            Completion(userId, email)
         }
     }
 

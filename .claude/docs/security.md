@@ -34,6 +34,15 @@ checks**:
   the k8s template placeholder included) refuses in ANY mode. See "Encryption at rest" below.
   Covered by `CryptoBootTest`; every production-mode boot test overrides
   `security.encryption.key` with `strongEncryptionKey()`.
+- **Postgres password** (`infra/db/DatabasePassword.kt`, called at the head of `configureFlyway`, the first module to open a
+  connection, so nothing ever connects with a public password; checkup C-ARCH-1): a blank password, the shipped default `hammurabi`
+  (the `postgres.password` default in `application.yaml` and the compose demo database) or the k8s template placeholder
+  `CHANGE-ME` (also `changeme`; trimmed, case-insensitive) → warn in development, **refuse to start** in production. The
+  message names `POSTGRES_PASSWORD`, never the value. Compose is unaffected: it runs development mode (`KTOR_DEVELOPMENT=true`) on the
+  `hammurabi` demo password, so `docker compose up --build` still works untouched; a real deployment creates the database with a
+  private `POSTGRES_PASSWORD` (k8s: the `hammurabi-secrets` Secret, `openssl rand -hex 16`) and an existing database whose role
+  still has `hammurabi` needs `ALTER ROLE hammurabi PASSWORD '…'` first. The test container's password is deliberately NOT `hammurabi`
+  (`PostgresTestSupport`), so production-mode boot tests reach the later checks; `DatabasePasswordBootTest` pins this one.
 
 **JWT model** (`auth/Tokens.kt` + `plugins/Security.kt`): login issues an access/refresh **pair**,
 both carrying `email`, `userId`, a `roles` array, a `typ` claim (`"access"`/`"refresh"`), a
@@ -158,13 +167,14 @@ cost-12 hash so its 401 takes as long as a wrong password's — without it, resp
 account-enumeration oracle (the reset path equalizes via async processing; login equalizes
 in-line).
 
-**Per-account login lockout** (`auth/LoginThrottle.kt`, wired in `configureAuthRoutes`): after
+**Per-account login lockout** (`auth/LoginThrottle.kt`, built by `configureLoginThrottle` in `auth/AccountLockout.kt`, published as
+`LoginThrottleKey`; the module loads BEFORE the user routes, which share it): after
 `security.lockout.threshold` (default 5, `$LOGIN_LOCKOUT_THRESHOLD`) consecutive failures for one
 submitted email, `/login` answers `429` for `security.lockout.durationSeconds` (default 900,
-`$LOGIN_LOCKOUT_DURATION_SECONDS`) — even with the correct password, and regardless of whether the
+`$LOGIN_LOCKOUT_DURATION_SECONDS`; longer when wrong emailed codes tripped it, see "progressive for MFA codes ONLY" below) — even with the correct password, and regardless of whether the
 account exists (no enumeration signal). A success resets the counter. The in-memory, per-instance (so the app runs ONE replica — `ci.yml` `k8s-static` pins it)
 store has a hard `security.lockout.maxTracked` limit (default 10,000,
-`$LOGIN_LOCKOUT_MAX_TRACKED`): expired state is reclaimed through an expiry index, but fresh
+`$LOGIN_LOCKOUT_MAX_TRACKED`): expired state is reclaimed through an expiry index (`infra/ExpiringIndex.kt`, the one TTL index the reset cooldown and the MFA challenges share), but fresh
 counters and active locks are never evicted to admit a new identity. At capacity, an untracked
 identity receives an audited `429` before password verification, so saturation cannot bypass the
 account throttle; tracked identities can still finish their normal flow. A fixed-size digest of
@@ -176,6 +186,87 @@ which rotating hosts sidestep. The 429 is **thrown** (`TooManyRequestsException`
 429, so only the exception path keeps the specific detail. Tests: `LoginThrottleTest` (unit,
 injected clock) + `LoginLockoutTest` (route). The SPA shows a neutral temporary sign-in limit for
 either 429 cause.
+
+**ONE counter for every guess at an account's credentials (C-SEC-5).** A wrong password at `/login`, a wrong emailed code at
+`/login/mfa` and a wrong `currentPassword` on the self password change (`PUT /users/{id}/password`) all feed the same
+`LoginThrottle` counter, so N wrong guesses across the three lock the account exactly as N failed logins would
+(`AccountGuess` in `auth/AccountLockout.kt`). What each answers: the locking failure answers what
+that route always answers (401 at login and the MFA step, 403 on the change); every LATER attempt answers the lockout's specific
+`429` (thrown, see above), the change BEFORE any bcrypt (preflight), and an unseen identity at a full store the audited capacity
+`429` - **but only where the account is not yet known (Adder's 1.0.0 security audit, M1, ported).** The MFA step (the challenge's subject) and the
+self password change (the signed-in caller) act on an account that EXISTS, so their failures are counted even at a full store
+(`AccountGuess.knownAccount`, `LoginThrottle.preflight/recordFailure(knownAccount = true)`): otherwise a password holder could fill
+the store with junk logins (about 670 a minute) and then guess emailed codes without ever locking. **The memory bound stays:** the
+key space of those extra entries is the user table (one digest per EMAIL an account held during a failure window, each expiring after the lock window; an ADMIN email change adds a key, so the bound is per email, not strictly per account), so a full store can
+hold at most `maxTracked` unknown identities plus one entry per such email. The capacity refusal stays for an UNKNOWN identity, and at
+`/login` it stays for every untracked email: the refusal comes BEFORE any password is compared and answers the same `429` for a known
+and an unknown email, so it leaks nothing and lets no guess through, whereas counting a wrong password for a known account there
+would have to answer differently from an unknown one (an existence oracle). **The accepted cost:** the above-cap entries can only be made for REAL accounts, so while an attacker holds the store full, a `/login` probe of an email flips from the capacity `429` to `401` once that account's owner mistypes an MFA code or their current password. That proves the account exists, and the probe then counts a failure against it. It needs the owner's own mistake inside the lock window plus a sustained fill that already denies sign-in to everyone untracked, so it is accepted. A correct password (non-MFA), a correct code or a correct current password clears the counter; a MISSING `currentPassword`
+is a plain 403 that does not count (nothing was guessed). An admin resetting ANOTHER user's password verifies nothing, so it neither
+counts nor is refused by the target's lock; the cost is that a locked owner with a live session cannot change their own
+password until the window ends. The ways out: the emailed reset link (`POST /password-reset` is not behind the lock and a confirmed reset
+changes the password without `currentPassword`), or an admin resetting the password; with `MAIL_TRANSPORT=disabled` (no reset mail) only
+an admin can. For an MFA account the password step does NOT clear the counter (it is only the first factor: a
+caller holding the password could otherwise log in afresh after every few wrong codes and never lock); an accepted code does.
+**Pending MFA challenges and a lock:** a lock tripped by the MFA step (or met by a wrong code there) drops the account's pending
+challenges; a lock tripped by wrong passwords at `/login` or on the change does NOT, but no pending code can finish a sign-in
+during it (a correct code answers the lockout's `429`, `AccountGuess.recordSuccess`) and the challenges expire on their own TTL.
+**The lock is progressive for MFA codes ONLY (the owner's 2026-11-20 decision in Adder's checkup, ported; `LoginThrottle`).** Someone who HOLDS the
+password and guesses emailed codes used to get `threshold` (5) guesses per flat 15-minute window indefinitely (about 175,000 guesses
+a year against a 6-digit code, roughly a 16 % chance per year). Now a lock whose failure window held ANY wrong emailed code
+(`AccountGuess.mfaCode`, set by the MFA step alone; `State.codeFailed`) doubles per consecutive such lock: the n-th lasts `durationSeconds x 2^(n-1)`
+(900 s, 1800, 3600, ... ), capped at `security.lockout.mfaMaxDurationSeconds` (`$LOGIN_LOCKOUT_MFA_MAX_DURATION_SECONDS`, default
+86,400 = 24 h, never below `durationSeconds`, 1..30 days boot-validated). **The bound that results (with the pacing
+counter of rule (6) and the one-step decay of rule (2)):** the climb to the top costs 7 locks (15 min ... 16 h, about 32 h in all,
+35 guesses); after that every lock is the 24 h cap, and a guess round is either a lock (5 guesses, then 24 h) or a paced period (4
+guesses, no lock, 24 h): the best mix is 5 + 4 guesses per 48 h, about 4.5 a day, about 1,650 a year against a 6-digit code (10^-6
+each), roughly a 0.17 % chance per year, down from the roughly 16 % of the flat window (35,000 windows x 5 guesses). Waiting does
+not buy the cheap bottom of the ladder back: the level loses one step per quiet day, so a guesser who waits a day and climbs again is
+back at the top. Each guess round also costs a
+fresh login and a sign-in code email to the owner and a `login.lockout` line with a rising `escalationLevel`. **A lock whose window held wrong passwords ONLY (`/login`, the password change) is ALWAYS the
+flat `durationSeconds`**: a username alone must never buy a longer lock-out of the real owner, because a wrong code needs a live
+challenge, which needs the password. **Rules:** (1) the level is the count of consecutive code-escalated locks and lives in
+its OWN map with its own `ExpiringIndex` (`escalations`/`escalationExpiries`), because the lock entry is pruned the instant the lock
+ends; (2) it **decays ONE STEP per full `security.lockout.mfaDecaySeconds`** (`$LOGIN_LOCKOUT_MFA_DECAY_SECONDS`, default 86,400 = 24 h,
+1..30 days) without an escalated lock, counted from the END of the last one (computed lazily from that instant; the expiry slot is
+`end + level x decay`, where the level reaches 0 and the entry goes), not straight to 0: dropping to 0 let a guesser wait one period and
+climb the cheap bottom of the ladder again, about 22 guesses a day, roughly 0.8 % a year. It is dropped at once by a
+confirmed password reset (below) or a success that clears the counter: the accepted code (the full login), and also a correct password for a non-MFA account or a
+correct current password on the change, both of which prove a full sign-in or a live session; a success REFUSED by an active lock
+clears nothing; (3) a password-only window neither escalates NOR resets the level (decided: no reset, no escalation: otherwise the
+holder of an MFA-escalated account could reset the ladder with five wrong passwords), and a failure that meets an active lock
+(`ALREADY_LOCKED`) changes nothing; (4) **the window decides, not the tripping failure**: the counter remembers whether ANY of its
+failures was a wrong code (`State.codeFailed`, dropped with the counter: when it trips, expires or a success clears it), and a
+window with one escalates whatever failure then trips it. Otherwise a password holder would send four wrong codes and trip the lock
+with a wrong password at `/login`, staying on the flat 15 minutes forever. This is safe for the owner: a wrong code needs a live
+challenge, so someone who knows only the username cannot START an escalating window. They can CONTINUE one the owner left open with a
+single code typo, but only inside that typo's 15-minute window and for at most one level per owner typo; (5) **memory**: the escalation map and the code
+counter of rule (6) are written only by `recordFailure(mfaCode = true)`, which requires a `knownAccount` (the MFA challenge's
+subject), so their key space is the user table (one digest per email an account held during an escalated lock or a code failure, each
+entry gone `lock + decay` / `decay` later through its own `ExpiringIndex`, like the above-cap entries), and neither counts against
+`maxTracked`: the capacity rule for unknown identities is unchanged; (6) **pacing**: the shared counter's window is only the flat
+15 minutes, so a guesser who stays one short of the threshold and waits would never trip a lock. A SEPARATE per-account counter of
+wrong CODES only (`codeGuesses`) closes that: it lives `mfaDecaySeconds` from the FIRST code failure of its period (a fixed window,
+deliberately not sliding: a sliding one would let two typos a day apart keep it alive for ever), and at `threshold` it trips an
+escalated lock whatever the shared counter says, then starts over. So pacing buys at most `threshold - 1` guesses per decay period
+before an escalating lock. A success, a confirmed reset (`clear`) and an escalated lock drop it. The shared counter is NOT given a
+longer life: with that, an owner's single typo would let a username-only attacker escalate them with wrong passwords for 24 h. The owner
+cost: five mistyped codes within 24 h (not within 15 minutes) earn the first, 15-minute escalated lock; (7) **stale challenges**: a
+challenge minted before a password change or a confirmed reset is dead ("invalidates any pending MFA challenge"): its wrong
+codes are NOT counted (`MfaRoutes.staleChallengeReason`, one primary-key read per wrong code; audited `login.mfa_failure`
+`reason=credential_changed`, the challenge dropped), so an old challenge cannot re-lock the owner right after a reset lifted the lock. The level counter is clamped (32) and the doubling is step-wise against the cap,
+so nothing overflows. **Nothing new is disclosed:** the 429 is the same `accountLockedException` for every cause and carries no
+`Retry-After` today either; only the audit line carries the length and level. **Cost, accepted:** a real owner who mistypes codes
+repeatedly can sit locked out for up to 24 h; the ways out are the lock's end, a restart of the single replica and **a confirmed
+password reset (the owner's 2026-11-20 decision in Adder's checkup, ported: it lifts the lock AND the level)**: the reset link goes to the same mailbox as the
+sign-in codes, so completing it proves the very factor a code guesser lacks (`LoginThrottle.clear`, keyed on the account's email,
+called by the confirm route after `PasswordResetService.complete` succeeded, keyed on the email `complete` verified under the user-row
+lock, `PasswordResetService.Completion`; the audit says so with `lockoutCleared`, below). Only
+the CONFIRM does this: an unconfirmed `POST /password-reset` mails a link and clears nothing, so asking for mail cannot lift a lock;
+`login.lockout` with `escalationLevel >= 2` is the operator's signal that a password
+holder is guessing codes.
+Audit: `login.lockout` (now with `lockSeconds` and `escalationLevel`, below)/`login.rejected_locked` (with `userId` and `source` for the MFA and change
+routes; on `/login` the identity is the `email` of an account that exists and the keyed `emailDigest` (HMAC under a key derived from the JWT secret, `observability.md`) of a guess at none, C-SEC-7), `login.capacity_rejected` (`/login` only), `password.change_rejected_locked` (`targetUserId`/`byUserId`). Tests: `AccountGuessTest` (the race branches), `PasswordChangeTest`, `MfaLockoutTest`, `LoginThrottleProgressiveTest` (the ladder, the flat password lock, reset, decay, capacity, overflow on an injected clock).
 
 
 **Self-service password reset by confirm link** (`auth/PasswordResetRoutes.kt`, `auth/PasswordResetService.kt`, V8; SPA:
@@ -222,8 +313,9 @@ winner. An unknown, malformed, expired, used or stale grant is one uniform `401`
 with **no auto-login**: the `credential_revision` bump signs every other session out through the per-request access check and
 kills pending refresh tokens and MFA challenges, while MFA stays as it was, so the next login still asks for the code. A
 best-effort localized notice ("your password was reset, sessions signed out"; no token, no password) is emailed after the
-response; its failure (`password_reset.notification_failed`) cannot undo the reset. A confirmed reset does **not** clear the
-per-account lockout (in-memory, at most 15 minutes, per instance). A lost 204 can make a retry answer `401`: sign in with the
+response; its failure (`password_reset.notification_failed`) cannot undo the reset. A confirmed reset **clears the
+per-account lockout** (the counter, an active lock of ANY cause and the MFA escalation level; the owner's 2026-11-20 decision in
+Adder's checkup, ported; "Per-account login lockout" above; the `password_reset.completed` line carries `lockoutCleared`). A lost 204 can make a retry answer `401`: sign in with the
 chosen password or request another link.
 
 Throttling: per submitted email - one request per `security.passwordReset.minIntervalSeconds` (default 60,
@@ -244,7 +336,7 @@ the full link roundtrip incl. the session revocation), `PasswordResetThrottleTes
 
 **Per-IP login bucket** (`security.rateLimit.loginPerMinute`, `$LOGIN_RATE_LIMIT_PER_MINUTE`;
 every bucket is installed by `plugins/RateLimits.kt`, which also owns the bucket names — today
-`login`, `refresh`, `password-reset`, `password-reset-confirm`, `mfa`, `ready`, and the per-USER `telemetry` and `directory` below): blank **follows the mode** — 10/min in production,
+`login`, `refresh`, `password-reset`, `password-reset-confirm`, `mfa`, `ready`, and the per-USER `telemetry`, `directory`, `read-state`, `export` and `password-change` below): blank **follows the mode** — 10/min in production,
 1000/min in development — and an explicit number pins it in either mode (the `http.exposeOpenApi`
 idiom). Development is lifted because the e2e suite drives its logins from one host and would
 otherwise sleep out the bucket; **the per-account lockout above is the actual brute-force defence
@@ -268,6 +360,8 @@ bound is for a runaway client. The rejection is the generic `429` problem and th
 **Per-USER export bucket** (`export`, a fixed 20/min in every mode, `RateLimits.EXPORT`, 0.8.0) for `GET /api/v1/adrs/{id}/export` and `GET /api/v1/adrs/export` (one bucket for both): `configureAdrExportRoutes` mounts `rateLimit(RateLimitName(RateLimits.EXPORT))` INSIDE `authenticate {}`, keyed by the verified user id. A bulk export reads up to 500 ADRs (25 per transaction, streamed) and every ADR is readable by every signed-in user, so the bound is for a runaway script, not a person (one click is one token); the response is the generic `429` problem plus the coalesced `rate_limit.exceeded` event (bucket `export`, `byUserId`). A bulk export with `text` also rides the search's deadline and process cap (`search-timeout`, `search-busy`). `Compression` skips `application/zip`. **Bulk concurrency cap** (`adrs.export.maxConcurrent`, env `ADRS_EXPORT_MAX_CONCURRENT`, default 2, boot-validated 1..16): a slow reader of a download parks a blocking IO thread for as long as it reads, so one process streams at most that many bulk exports; the next is refused AT ONCE (a `tryAcquire` before the plan, never a wait) with the typed `429` `urn:hammurabi:problem:export-busy` + `Retry-After: 5`, audited `export.busy` (the search-busy pattern). The slot is released by the stream's end or failure (`ExportPermit`), never by the handler returning, which happens while the body is still being written. **A failed stream aborts** (the channel is cancelled with the cause, the zip never finished), so a client never receives a valid-looking short archive. `HEAD` on either export is `405` (the auto-HEAD would otherwise run the plan and the audit).
 
 **No bucket on the decision log** (`GET /api/v1/adrs/overview`, 0.9.0): like `GET /adrs` it rides `authenticate {}` alone. Every section is capped (`list-endpoints.md`), the answer is a constant number of indexed statements in one transaction with no user text in any of them, and the SPA reads it once per page load; a per-user bucket would add a 429 path for a read that costs about what one list page does.
+
+**`password-change`, 5/min (`RateLimits.PASSWORD_CHANGE`, C-SEC-5),** per signed-in user, fixed in every mode (the telemetry idiom, no config key): `PUT /api/v1/users/{id}/password`, mounted INSIDE `authenticate {}` by `configureUserRoutes`. The self change runs a bcrypt verify of `currentPassword` per request, so the bucket stops a stolen session guessing at dispatcher speed and any user occupying the small default dispatcher; the per-account lockout above is the actual guessing bound. The bucket sits BEFORE the guards (a refused or invalid change spends a token; it is also an admin's budget for resetting others, a few a minute at the very most). Rejection: the generic `429` problem plus the coalesced `rate_limit.exceeded` (bucket `password-change`, `byUserId`). Pinned by `PasswordChangeTest`.
 
 **Per-USER directory bucket** (`directory`, a fixed 120/min in every mode, `RateLimits.DIRECTORY`) for `GET /api/v1/users/directory`, the ONE read that lets
 any signed-in user (not just an ADMIN) list accounts. `configureUserRoutes` mounts `rateLimit(RateLimitName(RateLimits.DIRECTORY))` INSIDE
@@ -296,26 +390,33 @@ so MFA is OFF until an admin removes the row via the features PUT (the per-user 
 omits `MFA` ENABLES it, including the "empty array re-enables everything" idiom). With MFA
 enabled, `POST /login` with correct credentials normally answers
 `200 MfaChallengeResponse {mfaRequired, challengeId, expiresAt}` instead of tokens (the branch runs
-AFTER `verifyPassword`, so nothing about enumeration or lockout changes; `login.success` is
-deliberately NOT emitted); a 6-digit code (`generateMfaCode`, `auth/Passwords.kt`) is held in the
+AFTER `verifyPassword`, so nothing about enumeration changes; the lockout counter is checked but NOT cleared there, see "ONE counter"
+above; `login.success` is deliberately NOT emitted); a 6-digit code (`generateMfaCode`, `auth/Passwords.kt`) is held in the
 in-memory challenge store (config `security.mfa.codeTtlSeconds` default 300
 `$MFA_CODE_TTL_SECONDS`, `security.mfa.maxAttempts` default 5 `$MFA_MAX_ATTEMPTS`; per-instance
 like the throttles — a restart just means signing in again) and emailed in the user's stored
 language (V1 `users.language`, EN fallback). Its hard `security.mfa.maxTracked` limit (default
 10,000, `$MFA_MAX_TRACKED`) first drops expired challenges, then rejects new issuance with an
 audited `429` at capacity; existing codes remain verifiable and no rejected code is emailed. A
-failed or cancelled delivery discards its challenge so a retry can use that slot.
+failed or cancelled delivery discards its challenge so a retry can use that slot. **An account holds at most 3 live
+challenges** (`MfaChallenges.DEFAULT_MAX_PER_USER`, a constant, no config key): a further login REPLACES the oldest (refusing would
+let anyone holding the password stop the owner signing in; the replacement needs no spare capacity). **The accepted cost:** a password holder can therefore evict the owner's pending code with three logins of their own; the owner signs in again (a fresh code), and the password reset ends the holder's access. Eviction is no guess: the per-account lockout still bounds every guess at a code ("ONE counter"). The per-challenge attempt cap bounds
+one code; **every wrong code also counts into the per-account lockout** (`auth/MfaRoutes.kt`, "ONE counter"), so the guesses across
+challenges add up and a fresh login never resets them. The failure that locks the account, and every later wrong code, also drops the account's pending
+challenges (`discardUser`), and a correct code arriving while the account is locked is refused with the lockout's `429`
+(the counter restarts when a lock expires: the long-run bound is stated in "ONE counter").
+Consequence: with the default threshold 5, five wrong codes (the default per-challenge cap) lock the account for 15 minutes.
 `POST /api/v1/login/mfa` `{challengeId, code}` (own per-IP bucket `"mfa"`, hardcoded 10/min in
 every mode) exchanges it for the ordinary `LoginResponse` — one fresh `userService.read` first
 (the `/refresh` precedent: current roles/flags; a user deleted in between → the uniform 401
 `user_gone`); every failure mode (unknown/expired/wrong code/attempt cap) is a **uniform 401**,
-reasons live only in the `login.mfa_failure` audit event; challenges are single-use and bound to
+reasons live only in the `login.mfa_failure` audit event (which names the account by `userId` whenever the challenge was found); challenges are single-use and bound to
 the credential revision verified at the password step; a subsequent password change/reset
 invalidates the pending challenge. **Mail-less deployments fail closed**: on
 `MAIL_TRANSPORT=disabled` an MFA-enabled login answers `503` (`login.mfa_unavailable`) — don't
 enable MFA flags on the k8s default `disabled` transport; the features PUT keeps working, so an
 admin can always flip the flag back. SPA: the Login card's second step (`PinInput`, `auth.mfa*`
-keys). Tests: `MfaChallengesTest` (pure store) + `MfaLoginTest` (route matrix); e2e `mfa.spec.ts`
+keys). Tests: `MfaChallengesTest` (pure store) + `MfaLoginTest` (route matrix) + `MfaLockoutTest` (the lockout, the per-user cap, the audit `userId`); e2e `mfa.spec.ts`
 drives the emailed code through Mailpit.
 
 **Swagger/OpenAPI gate** (`plugins/Routing.kt`): `/openapi` (UI + spec) is served only in development
@@ -405,7 +506,7 @@ line before send, so `testApplication`'s client cannot reproduce two genuinely d
 
 **The client address is NUMERIC, with or without a proxy** (Adder's 0.4.0 audit, ported). Every per-IP bucket (the `login`, `refresh`, `mfa`, `password-reset`, `password-reset-confirm` and `ready` rate limits; the login LOCKOUT is per account, not per IP) keys by `clientAddressKey()` (`infra/ClientAddress.kt`, checkup C-SEC-4): `call.request.origin.remoteHost` folded to an IPv4 address whole (a `:port` suffix dropped, the form Azure Application Gateway and IIS ARR write), an IPv6 one by its /64, an IPv4-mapped one as IPv4; a value that is NOT an address literal (junk forwarded text, a hostname) is never a key of its own, it counts under the TCP peer (`call.request.local.remoteAddress`), so rotating `X-Forwarded-For` text mints no buckets (`ClientAddressKeyTest` pins the precedence, `ForwardedHeadersTest`). The fallback is logged: one WARN per ten minutes (logger `ch.nokillswit.infra.ClientAddress`, the number of calls folded, never client text) when the trusted hop is no address. `origin.remoteHost` itself defaults on Netty to `InetSocketAddress.getHostName()`, a REVERSE-DNS lookup: a client with forward-confirmed PTR records for many addresses would get one key per address (and an IPv6 /64 would not group), and one whose PTR is shared or slow would share a key. So `configureHttp` registers a `Setup`-phase interceptor FIRST, before anything reads `remoteHost` (the JDK caches the resolved name), that copies `call.request.local.remoteAddress` (`getHostString()`, the literal) into the origin's `remoteHost`; behind a proxy, `resolveForwardedForOrigin` (registered after it) overrides that with the trusted hop, and a request with no `X-Forwarded-For` keeps the proxy's numeric address. The helper is `numericClientHost` (`NumericClientHostTest`, played by hand because a test host cannot make Netty resolve a name; the proxy-trust tests `ForwardedHeadersTest` and `RawForwardedForLinesTest`, the latter on the real Netty engine, still hold).
 
-**Trust the address or the buckets degrade.** The per-IP buckets are only as good as `remoteHost`. Behind a plain proxy with `http.behindProxy=false`, or through an SNAT load balancer (`externalTrafficPolicy: Cluster`), every client arrives as the proxy's or the node's address and they all share ONE bucket per limit; with `behindProxy=true` and no proxy that strips client-supplied `X-Forwarded-For`, a client can still claim any REAL address literal (a fresh IPv4 address per request, or an IPv6 /64 of its own) and so pick its own key; junk text cannot. Fix the trust (a proxy that sets the header and `behindProxy=true`, or `externalTrafficPolicy: Local`). **Behind a proxy the peer IS the proxy**: clients whose trusted hop is not an address (a header format `clientAddressKey()` does not read, or `http.proxyHops` pointing at a hop that is not the client) are all counted under the proxy's address and share ONE bucket per limit, a global lockout; the WARN above says so, so check the proxy's `X-Forwarded-For` format.
+**Trust the address or the buckets degrade.** The per-IP buckets are only as good as `remoteHost`. Behind a plain proxy with `http.behindProxy=false`, or through an SNAT load balancer (`externalTrafficPolicy: Cluster`), every client arrives as the proxy's or the node's address and they all share ONE bucket per limit; with `behindProxy=true` and no proxy that strips client-supplied `X-Forwarded-For` (a LoadBalancer or NodePort straight to the pod: the shipped manifests no longer have one, `k8s/ingress.yaml`), a client can still claim any REAL address literal (a fresh IPv4 address per request, or an IPv6 /64 of its own) and so pick its own key; junk text cannot. Fix the trust (a proxy that sets the header and `behindProxy=true`, or `externalTrafficPolicy: Local`). **Behind a proxy the peer IS the proxy**: clients whose trusted hop is not an address (a header format `clientAddressKey()` does not read, or `http.proxyHops` pointing at a hop that is not the client) are all counted under the proxy's address and share ONE bucket per limit, a global lockout; the WARN above says so, so check the proxy's `X-Forwarded-For` format.
 
 CSRF install is gated behind `security.csrf.enabled` (default **`false`** in `application.yaml`,
 env-overridable via `SECURITY_CSRF_ENABLED`); the configured `originMatchesHost()` +
@@ -446,7 +547,7 @@ job — `kubeconform -strict` over the raw manifests and over what `k8s/apply-lo
   capability: the entrypoint's chown/gosu step only runs as root). `readOnlyRootFilesystem` stays off for
   postgres — it writes its socket/lock files under `/var/run/postgresql` and temp files under `/tmp`.
 - **`k8s/network-policies.yaml`.** `default-deny-all` (ingress AND egress for every pod in `hammurabi`), then:
-  `postgres` accepts 5432 only from `app`; `app` accepts 8090 (see the open decision below);
+  `postgres` accepts 5432 only from `app`; `app` accepts 8090 only from the ingress-nginx controller's pods (the front-door bullet below);
   `app` may egress to `postgres:5432`, to cluster DNS (kube-system `k8s-app=kube-dns`, 53
   UDP/TCP) and to public addresses on 443, 587/465/25 (SMTP) — RFC 1918,
   link-local (cloud metadata `169.254.169.254`) and CGNAT ranges excluded, so a compromised pod cannot
@@ -460,15 +561,33 @@ job — `kubeconform -strict` over the raw manifests and over what `k8s/apply-lo
   implements NetworkPolicy (OrbStack's local cluster does). A CNI that does not enforce leaves the objects inert, which is harmless. New
   pods take a few seconds to be programmed, so a very fast first connection can fail once — the
   `startupProbe` window absorbs it.
-- **Still open — the front door (decision pending).** `k8s/app-service.yaml` is an OrbStack
-  `LoadBalancer` and the manifests default to the production posture (`KTOR_DEVELOPMENT=false`,
-  `HTTP_BEHIND_PROXY=true`), which assumes a TLS-terminating proxy that sets and overwrites
-  `X-Forwarded-For`/`-Proto`. The reference ships no Ingress: over the bare LB, a plain-HTTP request gets
-  the production HTTPS redirect and `X-Forwarded-*` is client-controlled. Either (a) add a TLS Ingress +
-  `type: ClusterIP`, or (b) keep the LB and document a local overlay with `KTOR_DEVELOPMENT=true` /
-  `HTTP_BEHIND_PROXY=false`. Whichever is chosen must also tighten `allow-app-ingress`, whose `from` is
-  deliberately absent today (the 8090 port is its only restriction), to the ingress controller's
-  namespace.
+- **The front door: an ingress-nginx Ingress** (`k8s/ingress.yaml`; ported from Adder's `b15e01e`, 2026-11-20, C-SEC-6 of this repository's 1.0.0
+  checkup; Adder verified the contract live on OrbStack, **this repository's copy has not been re-run on a cluster**). The `app` Service is
+  `ClusterIP` (no LoadBalancer/NodePort path around the proxy) and `allow-app-ingress` admits `:8090` only from the controller's pods
+  (namespace `kubernetes.io/metadata.name: ingress-nginx` AND pod labels `app.kubernetes.io/name: ingress-nginx`,
+  `app.kubernetes.io/component: controller`, ONE `from` item); the kubelet's probes need no rule. The two halves belong
+  together: `HTTP_PROXY_HOPS=1` makes the app trust the LAST `X-Forwarded-For` entry, which is only the controller's
+  when nothing else can reach the pod; the policy is what turns "trust one hop" into "trust only the ingress"
+  (the app has no CIDR allow-list; the CNI's policy is that list). CI's `k8s-static` fails on any `LoadBalancer`/`NodePort`
+  Service, `hostPort` or `hostNetwork`, requires the app Service to be `ClusterIP` and the policy to name the controller's namespace.
+  **Which entry is taken:** ingress-nginx's defaults (`use-forwarded-headers: false`) REPLACE `X-Forwarded-For` with the address of the
+  connection nginx accepted (the client's own value moves to `X-Original-Forwarded-For`), so the app sees one entry and
+  `resolveForwardedForOrigin` takes it; a client-sent `X-Forwarded-For: 1.2.3.4` never reaches the app as such. With
+  `use-forwarded-headers: true` + `compute-full-forwarded-for: true` the controller APPENDS (`client-sent..., peer`) and the last
+  entry is still the peer the controller saw; trust more hops only when a real proxy sits in front of the controller (a cloud LB that
+  appends: `HTTP_PROXY_HOPS=2`), and never raise the count without that proxy, or a client-written entry becomes the key.
+  `use-forwarded-headers: true` is safe only with `proxy-real-ip-cidr` narrowed to the trusted front proxy and together with
+  `compute-full-forwarded-for`; it also passes the client's `X-Forwarded-Proto`/`-Host` through, which skips the ssl-redirect. F5's
+  NGINX Ingress Controller ignores the `nginx.ingress.kubernetes.io/*` annotations and carries other labels, so with it the policy
+  admits nothing and the app answers 502/504 (fail closed). **What "the peer the controller saw" is** depends on the cluster: with an
+  SNAT in front of the controller it is the node's or gateway's address, not the browser's, and every client shares one per-IP bucket
+  (Adder measured exactly that on OrbStack: the pod-network gateway for every request, `externalTrafficPolicy: Local` or not; no
+  audit line carries an address, so read the controller's access log). TLS ends at the controller (`ssl-redirect` 308, HSTS overwritten
+  by the controller's own policy); the host, the certificate SAN and `MAIL_APP_URL` move together; `http.corsHosts` stays empty (single
+  origin). Body ceiling: the largest app ceiling is 512 KiB (`MAX_REQUEST_BODY_BYTES`), the Ingress pins `proxy-body-size: 1m` so the
+  app's own problem+json 413 answers. Community ingress-nginx was retired in March 2026: a production cluster re-verifies this
+  paragraph against whichever controller it runs (the contract, not the name, is what the app needs: replace XFF, set Proto/Host,
+  60 s+ timeouts). `kubectl port-forward svc/app 8090` and a node-local process still reach the pod, as in any cluster.
 
 **Log hygiene.** Every data class that carries a password, token, MFA code, password hash or signing key
 (`LoginRequest`, `LoginResponse`, `MfaVerifyRequest`, `RefreshRequest`, `LogoutRequest`, `User`,

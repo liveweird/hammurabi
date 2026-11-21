@@ -40,4 +40,13 @@ describe("loadErrorMessage", () => {
     expect(loadErrorMessage(timeout, t)).toBe(t("common.error.timeout"));
     expect(loadErrorMessage(new Error("net"), t)).toBe(t("common.error.network"));
   });
+
+  test("the search's two typed 429s say what to do, any other 429 stays the rate-limit message", () => {
+    const typed = (type: string) => new ApiError(429, { type, title: "x", status: 429 });
+    expect(loadErrorMessage(typed("urn:hammurabi:problem:search-timeout"), t)).toBe(
+      "The search took too long. Narrow it - add a word or a filter - and try again.",
+    );
+    expect(loadErrorMessage(typed("urn:hammurabi:problem:search-busy"), t)).toBe("Search is busy right now. Try again in a moment.");
+    expect(loadErrorMessage(typed("about:blank"), t)).toBe("Too many requests. Wait a minute and try again.");
+  });
 });

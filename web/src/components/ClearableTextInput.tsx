@@ -8,6 +8,8 @@ export default function ClearableTextInput({
   onChange,
   clearLabel,
   placeholder,
+  description,
+  maxLength,
   disabled = false,
 }: {
   label: string;
@@ -15,12 +17,17 @@ export default function ClearableTextInput({
   onChange: (value: string) => void;
   clearLabel: string;
   placeholder?: string;
+  /** Help under the label, wired to the input as its description. */
+  description?: string;
+  maxLength?: number;
   disabled?: boolean;
 }) {
   const { t } = useTranslation();
   return (
     <TextInput
       label={label}
+      description={description}
+      maxLength={maxLength}
       placeholder={placeholder ?? t("common.filter.contains")}
       value={value}
       disabled={disabled}

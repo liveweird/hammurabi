@@ -18,4 +18,12 @@ describe("PaginationBar", () => {
     await user.click(await screen.findByRole("option", { name: "40 / page" }));
     expect(onPageSizeChange).toHaveBeenCalledWith(40);
   });
+
+  test("maxPageSize hides the page sizes above it", async () => {
+    const user = userEvent.setup();
+    renderWithProviders(<PaginationBar total={95} page={1} pageSize={20} onPageChange={vi.fn()} onPageSizeChange={vi.fn()} maxPageSize={20} />);
+    await user.click(screen.getByLabelText("Rows per page", { selector: "input" }));
+    expect(await screen.findByRole("option", { name: "20 / page" })).toBeInTheDocument();
+    expect(screen.queryByRole("option", { name: "40 / page" })).not.toBeInTheDocument();
+  });
 });

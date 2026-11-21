@@ -44,8 +44,15 @@ export function isLastAdminConflict(err: unknown): boolean {
     (err.detail?.toLowerCase().includes("administrator") ?? false);
 }
 
+/** The two typed 429s of the ADR full-text search (`ProblemTypes.kt`): the search outran its deadline / the process runs its maximum of searches. */
+const SEARCH_TIMEOUT = "urn:hammurabi:problem:search-timeout";
+const SEARCH_BUSY = "urn:hammurabi:problem:search-busy";
+
 /** The list-load counterpart: status-tagged for ApiErrors, generic otherwise. */
 export function loadErrorMessage(err: unknown, t: TFunction): string {
+  // The search's own 429s first: each says what to do (narrow the search / wait a moment), unlike the rate-limit bucket's.
+  if (err instanceof ApiError && err.status === 429 && err.type === SEARCH_TIMEOUT) return t("common.error.searchTimeout");
+  if (err instanceof ApiError && err.status === 429 && err.type === SEARCH_BUSY) return t("common.error.searchBusy");
   // 429: the per-user rate-limit bucket (security.md) — say what to do, not just the status.
   if (err instanceof ApiError && err.status === 429) return t("common.error.tooManyRequests");
   if (err instanceof ApiError) return t("common.error.loadFailedStatus", { status: err.status });

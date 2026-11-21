@@ -17,6 +17,14 @@ describe("isValidIsoDate", () => {
     expect(isValidIsoDate("2024-02-29")).toBe(true);
     expect(isValidIsoDate("2024-01-01")).toBe(true);
   });
+
+  test("takes the years below 100 literally, like the server (0050-03-04 is a date, 0001-02-29 is not)", () => {
+    expect(isValidIsoDate("0050-03-04")).toBe(true);
+    expect(isValidIsoDate("0001-01-01")).toBe(true);
+    expect(isValidIsoDate("0000-12-31")).toBe(true);
+    expect(isValidIsoDate("0001-02-29")).toBe(false);
+    expect(isValidIsoDate("0004-02-29")).toBe(true);
+  });
 });
 
 describe("DAY_MS / addDays", () => {

@@ -1,0 +1,51 @@
+{
+  "picker": {
+    "label": "Lens",
+    "placeholder": "Apply a saved filter…",
+    "empty": "No saved filters yet",
+    "loadFailed": "Could not load the saved filters"
+  },
+  "group": {
+    "mine": "My lenses",
+    "shared": "Shared lenses"
+  },
+  "visibility": {
+    "PRIVATE": "Private",
+    "PUBLIC": "Shared",
+    "privateHint": "Only you can see and apply it.",
+    "publicHint": "Every signed-in user can see and apply it; only you can change it."
+  },
+  "modified": "Modified",
+  "actionsAria": "Lens actions",
+  "action": {
+    "saveAs": "Save current filters as lens…",
+    "overwrite": "Overwrite with the current filters",
+    "edit": "Rename / change visibility…",
+    "delete": "Delete lens…"
+  },
+  "createTitle": "Save the current filters as a lens",
+  "editTitle": "Edit the lens",
+  "field": {
+    "name": "Name",
+    "visibility": "Visibility"
+  },
+  "validation": {
+    "nameRequired": "Give the lens a name",
+    "nameTooLong": "The name can have at most 100 characters"
+  },
+  "deleteTitle": "Delete this lens?",
+  "deleteBody": "The lens \"{{name}}\" will be gone for everyone who can see it. The ADRs are not affected.",
+  "deleteFailed": "Could not delete the lens",
+  "toast": {
+    "created": "Lens saved",
+    "saved": "Lens updated",
+    "deleted": "Lens deleted"
+  },
+  "error": {
+    "forbidden": "Only the creator can change a shared lens.",
+    "conflict": "You already have a lens with this name, or you have reached the limit of 50 lenses.",
+    "gone": "This lens no longer exists.",
+    "invalid": "The lens could not be saved: check the name and the filters.",
+    "failedStatus": "Saving the lens failed ({{status}})"
+  }
+}

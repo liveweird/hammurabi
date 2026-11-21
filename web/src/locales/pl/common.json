@@ -43,6 +43,8 @@
     "network": "Błąd sieci. Sprawdź połączenie i spróbuj ponownie.",
     "loadFailedStatus": "Wczytywanie nie powiodło się ({{status}})",
     "tooManyRequests": "Zbyt wiele żądań. Odczekaj minutę i spróbuj ponownie.",
+    "searchTimeout": "Wyszukiwanie trwało zbyt długo. Zawęź je - dodaj słowo albo filtr - i spróbuj ponownie.",
+    "searchBusy": "Wyszukiwarka jest teraz zajęta. Spróbuj ponownie za chwilę.",
     "actionFailed": "Akcja nie powiodła się. Sprawdź połączenie i spróbuj ponownie.",
     "actionFailedStatus": "Akcja nie powiodła się ({{status}})",
     "createFailedStatus": "Tworzenie nie powiodło się ({{status}})",

@@ -25,6 +25,7 @@ export default function RegistryListTable({
   pageSize,
   onPageChange,
   onPageSizeChange,
+  maxPageSize,
 }: {
   /** The table's accessible name — the same words as the page or section heading above it. */
   label: string;
@@ -44,6 +45,8 @@ export default function RegistryListTable({
   pageSize: number;
   onPageChange: (page: number) => void;
   onPageSizeChange: (size: number) => void;
+  /** Passed to the `PaginationBar`: the largest page size on offer. */
+  maxPageSize?: number;
 }) {
   return (
     <>
@@ -70,6 +73,7 @@ export default function RegistryListTable({
         pageSize={pageSize}
         onPageChange={onPageChange}
         onPageSizeChange={onPageSizeChange}
+        maxPageSize={maxPageSize}
       />
     </>
   );

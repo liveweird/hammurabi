@@ -33,6 +33,26 @@ describe("ADR API wrappers", () => {
     expect(lastCall()[0]).toBe("/api/v1/adrs?page=1&pageSize=20&tag=data&tag=high+availability");
   });
 
+  test("listAdrs sends the full-text term, the date ranges and the three yes/no filters (false included)", async () => {
+    mockFetch.mockResolvedValue(jsonResponse(200, { items: [], page: 1, pageSize: 20, total: 0 }));
+    await listAdrs({
+      page: 1,
+      pageSize: 20,
+      text: "message queue",
+      createdFrom: "2026-01-01",
+      createdTo: "2026-02-01",
+      updatedFrom: "2026-03-01",
+      updatedTo: "2026-04-01",
+      expiresBefore: "2027-01-01",
+      hasOpenIssues: true,
+      supersedes: false,
+      supersededBy: false,
+    });
+    expect(lastCall()[0]).toBe(
+      "/api/v1/adrs?page=1&pageSize=20&text=message+queue&createdFrom=2026-01-01&createdTo=2026-02-01&updatedFrom=2026-03-01&updatedTo=2026-04-01&expiresBefore=2027-01-01&hasOpenIssues=true&supersedes=false&supersededBy=false",
+    );
+  });
+
   test("listAdrs omits absent filters", async () => {
     mockFetch.mockResolvedValue(jsonResponse(200, { items: [], page: 1, pageSize: 20, total: 0 }));
     await listAdrs({ page: 1, pageSize: 20, status: [] });

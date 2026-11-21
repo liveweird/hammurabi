@@ -1,0 +1,51 @@
+{
+  "picker": {
+    "label": "Soczewka",
+    "placeholder": "Zastosuj zapisany filtr…",
+    "empty": "Nie ma jeszcze zapisanych filtrów",
+    "loadFailed": "Nie udało się wczytać zapisanych filtrów"
+  },
+  "group": {
+    "mine": "Moje soczewki",
+    "shared": "Soczewki udostępnione"
+  },
+  "visibility": {
+    "PRIVATE": "Prywatna",
+    "PUBLIC": "Udostępniona",
+    "privateHint": "Tylko Ty możesz ją zobaczyć i zastosować.",
+    "publicHint": "Każdy/a zalogowany/a użytkownik/czka może ją zobaczyć i zastosować; zmienić ją możesz tylko Ty."
+  },
+  "modified": "Zmieniona",
+  "actionsAria": "Akcje soczewki",
+  "action": {
+    "saveAs": "Zapisz bieżące filtry jako soczewkę…",
+    "overwrite": "Zastąp bieżącymi filtrami",
+    "edit": "Zmień nazwę / widoczność…",
+    "delete": "Usuń soczewkę…"
+  },
+  "createTitle": "Zapisz bieżące filtry jako soczewkę",
+  "editTitle": "Edytuj soczewkę",
+  "field": {
+    "name": "Nazwa",
+    "visibility": "Widoczność"
+  },
+  "validation": {
+    "nameRequired": "Nadaj soczewce nazwę",
+    "nameTooLong": "Nazwa może mieć najwyżej 100 znaków"
+  },
+  "deleteTitle": "Usunąć tę soczewkę?",
+  "deleteBody": "Soczewka „{{name}}” zniknie dla wszystkich, którzy ją widzą. ADR-y nie zostaną zmienione.",
+  "deleteFailed": "Nie udało się usunąć soczewki",
+  "toast": {
+    "created": "Zapisano soczewkę",
+    "saved": "Zaktualizowano soczewkę",
+    "deleted": "Usunięto soczewkę"
+  },
+  "error": {
+    "forbidden": "Udostępnioną soczewkę może zmienić tylko jej autor/ka.",
+    "conflict": "Masz już soczewkę o tej nazwie albo osiągnięto limit 50 soczewek.",
+    "gone": "Ta soczewka już nie istnieje.",
+    "invalid": "Nie udało się zapisać soczewki: sprawdź nazwę i filtry.",
+    "failedStatus": "Zapis soczewki nie powiódł się ({{status}})"
+  }
+}

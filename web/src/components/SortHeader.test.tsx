@@ -31,4 +31,17 @@ describe("SortHeader", () => {
     await userEvent.setup().click(screen.getByRole("button", { name: "Name" }));
     expect(onToggle).toHaveBeenCalledWith("name");
   });
+
+  test("no active column leaves every header unsorted", () => {
+    renderWithProviders(
+      <Table>
+        <Table.Thead>
+          <Table.Tr>
+            <SortHeader field="name" label="Name" activeField={null} activeDir="asc" onToggle={vi.fn()} />
+          </Table.Tr>
+        </Table.Thead>
+      </Table>,
+    );
+    expect(screen.getByRole("columnheader", { name: "Name" })).toHaveAttribute("aria-sort", "none");
+  });
 });

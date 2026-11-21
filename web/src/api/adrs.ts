@@ -13,6 +13,8 @@ export type AdrTag = components["schemas"]["AdrTag"];
 export type AdrRef = components["schemas"]["AdrRef"];
 export type AdrResponse = components["schemas"]["AdrResponse"];
 export type AdrPage = components["schemas"]["AdrPage"];
+/** One run of a full-text match (the name or a body snippet): plain text, never markup, `hit` when it matched the search. */
+export type SnippetSegment = components["schemas"]["SnippetSegment"];
 export type AdrEventResponse = components["schemas"]["AdrEventResponse"];
 export type AdrEventPage = components["schemas"]["AdrEventPage"];
 export type AdrCreateBody = paths["/api/v1/adrs"]["post"]["requestBody"]["content"]["application/json"];
@@ -31,6 +33,19 @@ type AdrListQuery = {
   role?: AdrRole;
   /** Any-of; each tag name travels as its own repeated key. */
   tag?: readonly string[];
+  /** FULL-TEXT search (2 to 100 characters trimmed; the server caps `pageSize` at 20 with it and ranks by relevance unless a sort is sent). */
+  text?: string;
+  /** UTC days, `YYYY-MM-DD`: inclusive bounds on the creation and last-change times. */
+  createdFrom?: string;
+  createdTo?: string;
+  updatedFrom?: string;
+  updatedTo?: string;
+  /** A UTC day: the ADRs whose expiry date is strictly before it. */
+  expiresBefore?: string;
+  /** `true`/`false` each narrow; absent is "any" (so `false` IS sent). */
+  hasOpenIssues?: boolean;
+  supersedes?: boolean;
+  supersededBy?: boolean;
 };
 
 export async function listAdrs(q: AdrListQuery): Promise<AdrPage> {
@@ -43,6 +58,15 @@ export async function listAdrs(q: AdrListQuery): Promise<AdrPage> {
     participant: q.participant,
     role: q.role,
     tag: q.tag,
+    text: q.text,
+    createdFrom: q.createdFrom,
+    createdTo: q.createdTo,
+    updatedFrom: q.updatedFrom,
+    updatedTo: q.updatedTo,
+    expiresBefore: q.expiresBefore,
+    hasOpenIssues: q.hasOpenIssues,
+    supersedes: q.supersedes,
+    supersededBy: q.supersededBy,
   });
   return jsonRequest<AdrPage>(`/api/v1/adrs?${params}`);
 }

@@ -18,7 +18,8 @@ export default function SortHeader<F extends string>({
 }: {
   field: F;
   label: string;
-  activeField: F;
+  /** `null` when no column drives the order (the list is in the server's relevance order): every header reads as unsorted. */
+  activeField: F | null;
   activeDir: SortDir;
   onToggle: (field: F) => void;
   /** A fixed column width (px) for `layout="fixed"` tables — omit on the one wide column. */

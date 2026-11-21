@@ -9,12 +9,15 @@ export default function PaginationBar({
   pageSize,
   onPageChange,
   onPageSizeChange,
+  maxPageSize,
 }: {
   total: number;
   page: number;
   pageSize: number;
   onPageChange: (page: number) => void;
   onPageSizeChange: (size: number) => void;
+  /** Hides the page sizes above this one (a full-text search is capped by the server). */
+  maxPageSize?: number;
 }) {
   const { t } = useTranslation();
   const totalPages = Math.max(1, Math.ceil(total / pageSize));
@@ -27,7 +30,7 @@ export default function PaginationBar({
         <Select
           size="xs"
           aria-label={t("common.table.rowsPerPage")}
-          data={PAGE_SIZE_OPTIONS.map((n) => ({
+          data={PAGE_SIZE_OPTIONS.filter((n) => maxPageSize === undefined || n <= maxPageSize).map((n) => ({
             value: String(n),
             label: t("common.table.perPage", { count: n }),
           }))}

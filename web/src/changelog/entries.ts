@@ -17,6 +17,26 @@ interface ChangelogEntry {
 
 export const CHANGELOG: readonly ChangelogEntry[] = [
   {
+    version: "1.0.0",
+    date: "2026-11-21",
+    en: `**Hammurabi 1.0.0: the checkup.**
+
+- A decision in force can no longer be ended behind its Approver's back. Only the Approver or an administrator changes the expiry date of an active ADR, and everyone on it is told when it changes.
+- A successor now replaces an active ADR only after that ADR's Approver (or an administrator) accepts it. Until then the link is a proposal. Links that were waiting when you upgrade need that acceptance too.
+- Sign-in is harder to attack: repeated wrong codes lock an account for longer, password changes are rate-limited, and unknown addresses are no longer written to the audit log.
+- Every page now has its own browser tab title, and times are shown in your own time zone.
+- The ADR list loads lighter, long histories read faster, and unused code is gone.
+- For API clients (the API is now frozen): people are named \`…Id\`/\`…Name\`/\`…Deleted\` everywhere. The list filters are now \`participantId\`, \`participantRole\`, \`hasPredecessor\` and \`hasSuccessor\`. A discussion entry has a \`state\`, and notification preferences use the same shape for reading and saving. Saved lenses were converted, and old links still work.`,
+    pl: `**Hammurabi 1.0.0: przegląd.**
+
+- Obowiązującej decyzji nie da się już zakończyć za plecami osoby zatwierdzającej. Datę wygaśnięcia aktywnego ADR-u zmienia tylko Zatwierdzający/a albo administrator/ka, a wszyscy jego uczestnicy dostają o tym powiadomienie.
+- Następca zastępuje aktywny ADR dopiero wtedy, gdy Zatwierdzający/a tego ADR-u (albo administrator/ka) go zaakceptuje. Do tego czasu powiązanie jest tylko propozycją. Powiązania oczekujące w chwili aktualizacji też wymagają takiej akceptacji.
+- Logowanie jest lepiej chronione: powtarzane błędne kody blokują konto na dłużej, zmiany hasła mają limit, a nieznane adresy nie trafiają już do dziennika audytu.
+- Każda strona ma własny tytuł karty w przeglądarce, a godziny są pokazywane w Twojej strefie czasowej.
+- Lista ADR-ów ładuje się lżej, długie historie czytają się szybciej, a nieużywany kod zniknął.
+- Dla klientów API (API jest teraz zamrożone): osoby są nazywane wszędzie \`…Id\`/\`…Name\`/\`…Deleted\`. Filtry listy to teraz \`participantId\`, \`participantRole\`, \`hasPredecessor\` i \`hasSuccessor\`. Wpis dyskusji ma pole \`state\`, a preferencje powiadomień mają ten sam kształt przy odczycie i zapisie. Zapisane widoki zostały przekonwertowane, a stare linki nadal działają.`,
+  },
+  {
     version: "0.9.0",
     date: "2026-11-21",
     en: `**Hammurabi 0.9.0: the decision log.**

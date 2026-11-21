@@ -100,7 +100,7 @@ Each increment is built and gated on its own. **Current version: 1.0.0** (the ch
 | **0.7.0 Send back and withdraw** (extra, approved by the user 2026-11-21) | `IN_REVIEW` → `SOLUTION_DRAFT` and `ACTIVE` → `WITHDRAWN` with an optional reason in the history, released |
 | **0.8.0 Markdown export** (extra, approved by the user 2026-11-21) | `GET /adrs/{id}/export` (one adr-tools Markdown file) and `GET /adrs/export` (a ZIP over the list's filters, at most 500, with an `index.md`), the buttons on the ADR page and the list, released |
 | **0.9.0 Decision log** (extra, approved by the user 2026-11-21) | `GET /adrs/overview` and the read-only Decision log page: status counts, what waits for a decision (the Approver's own highlighted), what expires soon, what was decided recently, what is in force by tag category and tag, every section capped with a "+N more" link, released |
-| **1.0.0 Checkup** | The family's technical checkup (docs, DRY/SRP, tests, UI consistency, security, guardrails, infra): fixes in `audit-status.md` "Fixed so far", the follow-ups in `BACKLOG.md` |
+| **1.0.0 Checkup** | The family's technical checkup (docs, DRY/SRP, tests, UI consistency, security, guardrails, infra): fixes in `audit-status.md` "Fixed so far", the follow-ups in `BACKLOG.md`, released |
 
 ## Donors
 
@@ -125,6 +125,10 @@ Left in Flow on purpose: `ingest/`, `fetch/`, `jira/`, `gitlab/`, `norm/`, `iden
 `infra/outbound/` (the SSRF guard — port it with the first server-initiated call other than SMTP), `plugins/Role.kt`, `EncryptedAtRest`/`Reencrypt`.
 
 ## Release history
+
+### v1.0.0 — the checkup (2026-11-21)
+
+The family's technical checkup (`audit-status.md`, 55 findings): tier 1 fixed, tier 2 filed in `BACKLOG.md`. The fixes: the decision in force is the Approver's (C-SEC-1: the expiry date of an ACTIVE ADR and the successor acceptance, V19, `successor-not-accepted`), the auth hardening ported from Adder (the progressive MFA lockout, the password-change bucket, the audit digest, the ingress checks), the API names frozen (C-API-1/2: `<role>Id`/`Name`/`Deleted`, the renamed list filters, the discussion `state`, V20 for stored lenses), and the docs sweep (C-DOC-1..9) with the raised coverage floors. Upgrade notes: the renames and V20 in the "API names frozen" and "A decision in force" bullets above; the pending successor links need an acceptance after upgrade. Released.
 
 ### v0.9.0 — the decision log (2026-11-21)
 

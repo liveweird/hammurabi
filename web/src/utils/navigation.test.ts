@@ -2,11 +2,11 @@ import { describe, expect, test } from "vitest";
 import { ACCOUNT_NAV, activeNavPath, homePath, visibleSections } from "./navigation";
 
 describe("visibleSections", () => {
-  test("a regular session sees Overview (Home and the ADRs) and Administration — Teams stays, the admin-only leaves drop", () => {
+  test("a regular session sees Overview (Home, the Decision log and the ADRs) and Administration — Teams stays, the admin-only leaves drop", () => {
     const sections = visibleSections(false);
     expect(sections.map((s) => s.label)).toEqual(["appShell.section.overview", "appShell.section.administration"]);
     const paths = sections.flatMap((s) => s.items.map((l) => l.to));
-    expect(paths).toEqual(["/", "/adrs", "/teams"]);
+    expect(paths).toEqual(["/", "/decision-log", "/adrs", "/teams"]);
   });
 
   test("an admin session gets Teams, Tags, Users and Feature flags in the Administration section", () => {
@@ -30,6 +30,7 @@ describe("activeNavPath", () => {
     expect(activeNavPath("/feature-flags", leaves)).toBe("/feature-flags");
     expect(activeNavPath("/teams/3", leaves)).toBe("/teams");
     expect(activeNavPath("/tags", leaves)).toBe("/tags");
+    expect(activeNavPath("/decision-log", leaves)).toBe("/decision-log");
     expect(activeNavPath("/adrs", leaves)).toBe("/adrs");
     expect(activeNavPath("/adrs/new", leaves)).toBe("/adrs");
     expect(activeNavPath("/adrs/12", leaves)).toBe("/adrs");

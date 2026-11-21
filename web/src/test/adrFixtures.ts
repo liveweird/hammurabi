@@ -1,5 +1,5 @@
 import type { DiscussionEntry, DiscussionPage } from "../api/adrDiscussion";
-import type { AdrEventResponse, AdrPage, AdrResponse } from "../api/adrs";
+import type { AdrEventResponse, AdrLogItem, AdrOverview, AdrPage, AdrResponse } from "../api/adrs";
 
 /** An ADR as `GET /adrs/{id}` serves it (a Driver's view of a fresh problem), with `overrides` laid over it. */
 export function adrFixture(overrides: Partial<AdrResponse> = {}): AdrResponse {
@@ -71,4 +71,46 @@ export function entryFixture(overrides: Partial<DiscussionEntry> = {}): Discussi
 
 export function discussionPageFixture(items: DiscussionEntry[] = [], total = items.length): DiscussionPage {
   return { items, page: 1, pageSize: 20, total };
+}
+
+/** The decision log as `GET /adrs/overview` serves it: one tagged ADR in force, one in review that waits for the caller, one expiring. */
+export function overviewFixture(overrides: Partial<AdrOverview> = {}): AdrOverview {
+  const item = (id: number, name: string, extra: Partial<AdrLogItem> = {}): AdrLogItem => ({
+    id,
+    number: id,
+    key: `ADR-${String(id).padStart(4, "0")}`,
+    name,
+    expiresOn: null,
+    statusChangedAt: Date.UTC(2026, 10, 3, 9),
+    ...extra,
+  });
+  const postgres = item(7, "Use PostgreSQL");
+  return {
+    generatedAt: Date.UTC(2026, 10, 21, 12),
+    counts: [
+      { status: "PROBLEM_RAISED", count: 1 },
+      { status: "SOLUTION_DRAFT", count: 0 },
+      { status: "IN_REVIEW", count: 1 },
+      { status: "ACTIVE", count: 2 },
+      { status: "CANCELLED", count: 0 },
+      { status: "WITHDRAWN", count: 0 },
+      { status: "EXPIRED", count: 0 },
+      { status: "SUPERSEDED", count: 0 },
+    ],
+    inForce: {
+      total: 2,
+      categories: [{ id: 1, name: "Domain", tags: [{ name: "data", total: 3, items: [postgres], more: 2 }] }],
+      hiddenTags: 0,
+      untagged: { total: 1, items: [item(9, "Pick a queue")], more: 0 },
+    },
+    recentlyDecided: { total: 2, items: [postgres], more: 1 },
+    expiringSoon: { days: 30, total: 1, items: [item(12, "Rotate the keys", { expiresOn: "2026-11-25" })], more: 0 },
+    awaitingDecision: {
+      total: 1,
+      items: [{ ...item(5, "Adopt Kafka", { statusChangedAt: Date.UTC(2026, 10, 1) }), approver: { userId: 5, name: "Alex Approver", role: "APPROVER" }, mine: true }],
+      more: 0,
+      mineTotal: 1,
+    },
+    ...overrides,
+  };
 }

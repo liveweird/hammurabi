@@ -1,0 +1,58 @@
+{
+  "title": "Rejestr decyzji",
+  "intro": "Co obowiązuje, co niedawno rozstrzygnięto, co wkrótce wygasa i co czeka na decyzję. Każdy wiersz otwiera swój ADR.",
+  "loadFailed": "Nie udało się wczytać rejestru decyzji.",
+  "counts": {
+    "title": "ADR-y według statusu"
+  },
+  "more": "+{{count}} więcej",
+  "awaiting": {
+    "title": "Czekają na decyzję",
+    "hint": "ADR-y w przeglądzie, najdłużej czekające na początku.",
+    "empty": "Nic nie czeka na decyzję.",
+    "since": "w przeglądzie od {{date}}",
+    "approver": "Zatwierdzający/a: {{name}}",
+    "noApprover": "brak Zatwierdzającego/ej",
+    "mine": "Czeka na Twoją decyzję",
+    "mineLink_one": "{{count}} ADR czeka na Twoją decyzję",
+    "mineLink_few": "{{count}} ADR-y czekają na Twoją decyzję",
+    "mineLink_many": "{{count}} ADR-ów czeka na Twoją decyzję",
+    "mineLink_other": "{{count}} ADR-a czeka na Twoją decyzję",
+    "all": "Wszystkie ADR-y w przeglądzie"
+  },
+  "expiring": {
+    "title": "Wkrótce wygasają",
+    "hint_one": "Obowiązujące ADR-y, których ostatni dzień przypada w ciągu {{count}} dnia, od najbliższego.",
+    "hint_few": "Obowiązujące ADR-y, których ostatni dzień przypada w ciągu {{count}} dni, od najbliższego.",
+    "hint_many": "Obowiązujące ADR-y, których ostatni dzień przypada w ciągu {{count}} dni, od najbliższego.",
+    "hint_other": "Obowiązujące ADR-y, których ostatni dzień przypada w ciągu {{count}} dnia, od najbliższego.",
+    "empty": "Żadna obowiązująca decyzja nie wygasa wkrótce.",
+    "lastDay": "ostatni dzień {{date}}",
+    "overdue": "Po terminie",
+    "all": "Wszystkie wygasające ADR-y"
+  },
+  "recent": {
+    "title": "Niedawno rozstrzygnięte",
+    "hint": "ADR-y, które ostatnio stały się obowiązujące.",
+    "empty": "Żadna decyzja jeszcze nie obowiązuje.",
+    "on": "rozstrzygnięto {{date}}",
+    "all": "Wszystkie obowiązujące ADR-y"
+  },
+  "inForce": {
+    "title": "Obowiązujące według tagów",
+    "hint": "Obowiązujące ADR-y według kategorii tagów i tagów; ADR jest wymieniony pod każdym ze swoich tagów.",
+    "total_one": "{{count}} decyzja obowiązuje.",
+    "total_few": "{{count}} decyzje obowiązują.",
+    "total_many": "{{count}} decyzji obowiązuje.",
+    "total_other": "{{count}} decyzji obowiązuje.",
+    "empty": "Żadna decyzja jeszcze nie obowiązuje.",
+    "untagged": "Bez tagu",
+    "untaggedHint": "Obowiązujące ADR-y bez tagu z rejestru.",
+    "moreFor": "ADR-y z tagiem {{tag}}",
+    "hiddenTags_one": "{{count}} kolejny tag ma obowiązujące ADR-y, ale nie jest pokazany.",
+    "hiddenTags_few": "{{count}} kolejne tagi mają obowiązujące ADR-y, ale nie są pokazane.",
+    "hiddenTags_many": "{{count}} kolejnych tagów ma obowiązujące ADR-y, ale nie są pokazane.",
+    "hiddenTags_other": "{{count}} kolejnego tagu ma obowiązujące ADR-y, ale nie jest pokazany.",
+    "all": "Wszystkie obowiązujące ADR-y"
+  }
+}

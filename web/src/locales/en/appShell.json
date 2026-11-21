@@ -12,7 +12,8 @@
     "changelog": "Changelog",
     "teams": "Teams",
     "adrs": "ADRs",
-    "tags": "Tags"
+    "tags": "Tags",
+    "decisionLog": "Decision log"
   },
   "section": {
     "overview": "Overview",

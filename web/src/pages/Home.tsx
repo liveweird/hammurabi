@@ -1,12 +1,12 @@
 import { Button, Group, Paper, Stack, Text, Title } from "@mantine/core";
-import { IconGavel, IconPlus, IconUser } from "@tabler/icons-react";
+import { IconGavel, IconPlus, IconScale, IconUser } from "@tabler/icons-react";
 import { useTranslation } from "react-i18next";
 import { Link as RouterLink } from "react-router-dom";
 import PageHeader from "../components/PageHeader";
-import { adrsPath, myAdrsPath, newAdrPath } from "../utils/adrLinks";
+import { adrsPath, decisionLogPath, myAdrsPath, newAdrPath } from "../utils/adrLinks";
 import { FORM_MAX_WIDTH } from "../utils/layout";
 
-/** The landing page: a welcome that says what Hammurabi is and leads into the ADRs — all of them, the user's own, or a new one. */
+/** The landing page: a welcome that says what Hammurabi is and leads into the decision log and the ADRs — all of them, the user's own, or a new one. */
 export default function Home() {
   const { t } = useTranslation();
   return (
@@ -24,6 +24,9 @@ export default function Home() {
           <Group gap="sm">
             <Button component={RouterLink} to={adrsPath} leftSection={<IconGavel size={16} />}>
               {t("home.welcome.browse")}
+            </Button>
+            <Button component={RouterLink} to={decisionLogPath} variant="default" leftSection={<IconScale size={16} />}>
+              {t("home.welcome.log")}
             </Button>
             <Button component={RouterLink} to={newAdrPath} variant="default" leftSection={<IconPlus size={16} />}>
               {t("home.welcome.raise")}

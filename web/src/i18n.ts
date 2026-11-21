@@ -12,6 +12,7 @@ import enAdrs from "./locales/en/adrs.json";
 import enAppShell from "./locales/en/appShell.json";
 import enAuth from "./locales/en/auth.json";
 import enChangelog from "./locales/en/changelog.json";
+import enDecisionLog from "./locales/en/decisionLog.json";
 import enUsers from "./locales/en/users.json";
 import enHome from "./locales/en/home.json";
 import enLenses from "./locales/en/lenses.json";
@@ -60,6 +61,7 @@ export const en = {
   appShell: enAppShell,
   auth: enAuth,
   changelog: enChangelog,
+  decisionLog: enDecisionLog,
   users: enUsers,
   home: enHome,
   lenses: enLenses,

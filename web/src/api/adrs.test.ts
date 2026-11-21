@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
 import { jsonResponse } from "../test/http";
-import { createAdr, deleteAdr, detachAdrSuccessor, exportAdr, exportAdrs, getAdr, listAdrEvents, listAdrs, replaceAdrParticipants, replaceAdrTags, setAdrSupersedes, transitionAdr, updateAdr } from "./adrs";
+import { createAdr, deleteAdr, detachAdrSuccessor, exportAdr, exportAdrs, getAdr, getAdrOverview, listAdrEvents, listAdrs, replaceAdrParticipants, replaceAdrTags, setAdrSupersedes, transitionAdr, updateAdr } from "./adrs";
 
 type FetchMock = ReturnType<typeof vi.fn>;
 
@@ -25,6 +25,14 @@ describe("ADR API wrappers", () => {
     mockFetch.mockResolvedValue(jsonResponse(200, { items: [], page: 1, pageSize: 20, total: 0 }));
     await listAdrs({ page: 2, pageSize: 40, sort: "-number", status: ["ACTIVE", "IN_REVIEW"], q: "adr-1", participant: 7, role: "DRIVER" });
     expect(lastCall()[0]).toBe("/api/v1/adrs?page=2&pageSize=40&sort=-number&status=ACTIVE&status=IN_REVIEW&q=adr-1&participant=7&role=DRIVER");
+  });
+
+  test("getAdrOverview reads the decision log in one parameterless GET", async () => {
+    const log = { generatedAt: 1, counts: [], inForce: { total: 0, categories: [], hiddenTags: 0, untagged: { total: 0, items: [], more: 0 } } };
+    mockFetch.mockResolvedValue(jsonResponse(200, log));
+    expect(await getAdrOverview()).toEqual(log);
+    expect(lastCall()[0]).toBe("/api/v1/adrs/overview");
+    expect(lastCall()[1].method ?? "GET").toBe("GET");
   });
 
   test("exportAdr downloads the one ADR's Markdown under the server's file name", async () => {

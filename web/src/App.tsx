@@ -23,6 +23,7 @@ import classes from "./theme.module.css";
 const TelemetryPanel = lazy(() => import("./components/TelemetryPanel"));
 const Login = lazy(() => import("./pages/Login"));
 const Home = lazy(() => import("./pages/Home"));
+const DecisionLog = lazy(() => import("./pages/DecisionLog"));
 const Adrs = lazy(() => import("./pages/Adrs"));
 const CreateAdr = lazy(() => import("./pages/CreateAdr"));
 const AdrDetails = lazy(() => import("./pages/AdrDetails"));
@@ -233,6 +234,7 @@ export default function App() {
         <Route element={<RequireAuth />}>
           <Route element={<Shell />}>
             <Route index element={<Home />} />
+            <Route path="decision-log" element={<DecisionLog />} />
             <Route path="adrs" element={<Adrs />} />
             <Route path="adrs/new" element={<CreateAdr />} />
             <Route path="adrs/:id" element={<AdrDetails />} />

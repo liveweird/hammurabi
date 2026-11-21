@@ -1,6 +1,6 @@
 import type { ParseKeys } from "i18next";
-import { IconGavel, IconHistory, IconBell, IconHome2, IconKey, IconTags, IconToggleLeft, IconUsers, IconUsersGroup, type Icon } from "@tabler/icons-react";
-import { adrsPath } from "./adrLinks";
+import { IconGavel, IconHistory, IconBell, IconHome2, IconKey, IconScale, IconTags, IconToggleLeft, IconUsers, IconUsersGroup, type Icon } from "@tabler/icons-react";
+import { adrsPath, decisionLogPath } from "./adrLinks";
 import { notificationPreferencesPath } from "./notificationLinks";
 import { tagsPath } from "./tagLinks";
 import { teamsPath } from "./teamLinks";
@@ -35,7 +35,7 @@ export const homePath = "/";
  * The navigation model, shared by the sidebar and the command palette. Sections are labelled,
  * always-open blocks (never collapsible groups): every leaf is always in the DOM, so tests and
  * deep links address the links directly, and a static label costs less vertical space than a
- * toggle. Home and the ADRs (the primary entry: every signed-in user reads and raises them) are visible to everyone; the Administration section holds Teams (everyone reads
+ * toggle. Home, the Decision log (the read-only overview) and the ADRs (the primary entry: every signed-in user reads and raises them) are visible to everyone; the Administration section holds Teams (everyone reads
  * the flat teams list; only its create/edit/delete are ADMIN) alongside the ADMIN-only Tags (the tag registry), Users and
  * Feature flags leaves — a non-admin session sees just Teams there.
  */
@@ -44,6 +44,7 @@ const NAV_SECTIONS: ReadonlyArray<NavSection> = [
     label: "appShell.section.overview",
     items: [
       { to: homePath, label: "appShell.nav.home", icon: IconHome2 },
+      { to: decisionLogPath, label: "appShell.nav.decisionLog", icon: IconScale, keywords: ["overview", "dashboard", "in force", "expiring", "awaiting", "adr"] },
       { to: adrsPath, label: "appShell.nav.adrs", icon: IconGavel, keywords: ["decision", "architecture", "record", "adr"] },
     ],
   },

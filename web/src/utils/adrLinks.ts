@@ -4,3 +4,5 @@ export const newAdrPath = `${adrsPath}/new`;
 export const adrPath = (id: number) => `${adrsPath}/${id}`;
 /** The list narrowed to the ADRs the signed-in user takes part in (see `utils/adrListParams.ts`). */
 export const myAdrsPath = `${adrsPath}?mine=1`;
+/** The decision log: the read-only overview of what is in force, what was decided lately, what expires and what waits for a decision. */
+export const decisionLogPath = "/decision-log";

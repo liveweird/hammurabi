@@ -16,6 +16,9 @@ export type AdrResponse = components["schemas"]["AdrResponse"];
 export type AdrPage = components["schemas"]["AdrPage"];
 /** One run of a full-text match (the name or a body snippet): plain text, never markup, `hit` when it matched the search. */
 export type SnippetSegment = components["schemas"]["SnippetSegment"];
+/** The decision log (0.9.0): counts, what is in force by tag, recently decided, expiring soon and awaiting a decision - every section capped, with `more`. */
+export type AdrOverview = components["schemas"]["AdrOverview"];
+export type AdrLogItem = components["schemas"]["AdrLogItem"];
 export type AdrEventResponse = components["schemas"]["AdrEventResponse"];
 export type AdrEventPage = components["schemas"]["AdrEventPage"];
 export type AdrCreateBody = paths["/api/v1/adrs"]["post"]["requestBody"]["content"]["application/json"];
@@ -82,6 +85,11 @@ export async function exportAdr(id: number): Promise<Download> {
 /** A ZIP of the Markdown files of every ADR the filters match (at most 500, else the server answers 400) plus an `index.md`. */
 export async function exportAdrs(filters: AdrFilterQuery): Promise<Download> {
   return downloadRequest(`/api/v1/adrs/export?${buildQuery(filterParams(filters))}`, "adr-export.zip");
+}
+
+/** The decision log in one read (any signed-in user): no parameters, every section capped by the server. */
+export async function getAdrOverview(): Promise<AdrOverview> {
+  return jsonRequest<AdrOverview>("/api/v1/adrs/overview");
 }
 
 export async function getAdr(id: number): Promise<AdrResponse> {

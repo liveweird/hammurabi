@@ -12,7 +12,8 @@
     "changelog": "Historia zmian",
     "teams": "Zespoły",
     "adrs": "ADR-y",
-    "tags": "Tagi"
+    "tags": "Tagi",
+    "decisionLog": "Rejestr decyzji"
   },
   "section": {
     "overview": "Przegląd",

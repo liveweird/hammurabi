@@ -1,4 +1,5 @@
 import type { AdrRole, AdrStatus } from "../api/adrs";
+import { adrsPath } from "./adrLinks";
 import { isAdrRole, isAdrStatus } from "./adrStatus";
 import { isValidIsoDate } from "./isoDate";
 
@@ -165,4 +166,10 @@ export function activeAdrFilterCount(params: AdrListParams): number {
 /** Whether anything narrows the list at all - the panel's filters or the full-text term. */
 export function hasAdrFilters(params: AdrListParams): boolean {
   return params.text !== "" || activeAdrFilterCount(params) > 0;
+}
+
+/** The ADR list narrowed to `patch` as a link (the decision log's "+N more" and count links): only the filters the patch sets leave a key. */
+export function adrListPath(patch: Partial<AdrListParams>): string {
+  const search = writeAdrListParams(new URLSearchParams(), patch).toString();
+  return search === "" ? adrsPath : `${adrsPath}?${search}`;
 }

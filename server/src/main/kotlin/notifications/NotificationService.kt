@@ -13,6 +13,7 @@ import ch.nokillswit.infra.db.nowMillis
 import ch.nokillswit.infra.paging.PageRequest
 import ch.nokillswit.infra.paging.applyPaging
 import ch.nokillswit.users.UserService
+import io.r2dbc.spi.IsolationLevel
 import io.ktor.util.AttributeKey
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.toList
@@ -223,13 +224,18 @@ internal class NotificationService(
     }
 
     /**
-     * One page of the caller's notices, newest first by default: ONE predicate for the count and the rows in ONE transaction. The
+     * One page of the caller's notices, newest first by default: ONE predicate for the count and rows in ONE read-only REPEATABLE READ
+     * snapshot. The
      * `total` is CAPPED at [MAX_COUNTED_NOTICES] (the count reads at most that many plus one row), and a page starting at or past the cap
      * is empty without the rows being read (no OFFSET over a flooded recipient's history). [seen] null is both. A notice of a soft-deleted
      * ADR is hidden.
      */
     suspend fun list(callerUserId: UInt, seen: Boolean?, paging: PageRequest): NotificationListResult =
-        suspendTransaction(database) {
+        suspendTransaction(
+            database,
+            transactionIsolation = IsolationLevel.REPEATABLE_READ,
+            readOnly = true,
+        ) {
             val n = Notifications
             val adrs = AdrService.Adrs
             val source = n.join(adrs, JoinType.INNER, onColumn = n.adrId, otherColumn = adrs.id)

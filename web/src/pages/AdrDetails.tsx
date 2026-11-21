@@ -28,12 +28,15 @@ import { loadErrorMessage, saveErrorMessage } from "../utils/saveError";
  * follow, and each write carries the revision the page holds.
  */
 export default function AdrDetails() {
+  const { id } = useParams();
+  return <AdrDetailsPage key={id} id={Number(id)} />;
+}
+
+function AdrDetailsPage({ id }: { id: number }) {
   const { t } = useTranslation();
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const admin = useAdmin();
-  const { id: idParam } = useParams();
-  const id = Number(idParam);
   const [editing, setEditing] = useState(false);
   // The main pane's tab lives here so Edit can bring the document forward (and a tab switch never costs a draft).
   const [tab, setTab] = useState<AdrTab>("document");
@@ -67,7 +70,6 @@ export default function AdrDetails() {
     );
   }
   const data = adr.data;
-  // Falls back to the sections the moment the verdict turns (a move to ACTIVE froze the content under an open editor).
   const mayEdit = data.canEditContent;
 
   return (
@@ -100,7 +102,7 @@ export default function AdrDetails() {
       <Grid gap="lg">
         <Grid.Col span={{ base: 12, lg: 8 }}>
           <AdrMainPane adr={data} tab={tab} onTabChange={setTab}>
-            {editing && mayEdit ? <AdrEditForm adr={data} onClose={() => setEditing(false)} /> : <AdrContentSections adr={data} />}
+            {editing ? <AdrEditForm adr={data} onClose={() => setEditing(false)} /> : <AdrContentSections adr={data} />}
           </AdrMainPane>
         </Grid.Col>
         <Grid.Col span={{ base: 12, lg: 4 }}>

@@ -6,6 +6,7 @@ import ch.nokillswit.infra.mail.Mailer
 import ch.nokillswit.notifications.DigestBounds
 import ch.nokillswit.notifications.NotificationChannel
 import ch.nokillswit.notifications.NotificationType
+import ch.nokillswit.notifications.digestBatchSize
 import ch.nokillswit.notifications.peopleToClaim
 import ch.nokillswit.users.UserRole
 import io.ktor.client.request.delete
@@ -207,6 +208,8 @@ class NotificationDigestTest {
         assertEquals(120, peopleToClaim(500, 100))
         assertEquals(12, peopleToClaim(500, 2))
         assertEquals(5, peopleToClaim(5, 100))
+        assertEquals(500, digestBatchSize(100))
+        assertEquals(1_200, digestBatchSize(1_000), "the configured maximum remains effective above the default claim batch")
         assertEquals(5_000, DigestBounds().scanCap)
     }
 

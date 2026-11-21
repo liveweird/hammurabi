@@ -76,6 +76,26 @@ class AdrSuccessorDetachTest {
         }
 
     @Test
+    fun `a detach naming a stale successor cannot detach its replacement`() = testApplication {
+        usePostgresTestcontainer()
+        val cast = adrCast()
+        val old = cast.activeAdr()
+        val first = cast.raise(complete = true)
+        assertEquals(HttpStatusCode.NoContent, cast.driver.client.setSupersedes(first.id, old.id).status)
+        val capturedSuccessorId = cast.driver.client.getAdr(old.id).supersededBy?.id
+        assertEquals(first.id, capturedSuccessorId)
+
+        assertEquals(HttpStatusCode.NoContent, cast.driver.client.setSupersedes(first.id, null).status)
+        val replacement = cast.raise(complete = true)
+        assertEquals(HttpStatusCode.NoContent, cast.driver.client.setSupersedes(replacement.id, old.id).status)
+
+        val staleDetach = cast.driver.client.delete("/api/v1/adrs/${old.id}/successor?successorId=$capturedSuccessorId")
+        assertEquals(HttpStatusCode.NotFound, staleDetach.status)
+        assertEquals(replacement.id, cast.stranger.client.getAdr(old.id).supersededBy?.id)
+        assertEquals(old.id, rawSupersedesId(replacement.id), "the replacement link is left alone")
+    }
+
+    @Test
     fun `who may detach - the predecessor's Driver, Approver and ADMIN, never the successor's owner or anyone else`() = testApplication {
         usePostgresTestcontainer()
         val cast = adrCast()

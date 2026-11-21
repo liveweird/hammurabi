@@ -1,7 +1,7 @@
 import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
 import userEvent from "@testing-library/user-event";
 import { MantineProvider } from "@mantine/core";
-import { MemoryRouter } from "react-router-dom";
+import { createMemoryRouter, RouterProvider } from "react-router-dom";
 import { render, screen, waitFor, within } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import App from "./App";
@@ -16,12 +16,11 @@ function renderApp(route: string) {
   const queryClient = new QueryClient({
     defaultOptions: { queries: { retry: false } },
   });
+  const router = createMemoryRouter([{ path: "*", element: <App /> }], { initialEntries: [route] });
   return render(
     <MantineProvider env="test">
       <QueryClientProvider client={queryClient}>
-        <MemoryRouter initialEntries={[route]}>
-          <App />
-        </MemoryRouter>
+        <RouterProvider router={router} />
       </QueryClientProvider>
     </MantineProvider>,
   );

@@ -3,6 +3,7 @@ package ch.nokillswit.adrs
 import ch.nokillswit.infra.validation.sanitizeSingleLine
 import ch.nokillswit.tags.MAX_TAG_NAME_LENGTH
 import ch.nokillswit.tags.normalizedTagName
+import ch.nokillswit.tags.requireValidTagName
 import io.ktor.server.plugins.BadRequestException
 import kotlinx.serialization.EncodeDefault
 import kotlinx.serialization.ExperimentalSerializationApi
@@ -132,7 +133,9 @@ fun AdrFilterDocument.normalized(): AdrFilterDocument {
     }
     if (participantRole != null && participantId == null) throw BadRequestException("participantRole needs participantId")
     val statuses = status.orEmpty().distinct()
-    val tags = requireTagBound(tag.orEmpty()).map(::normalizedFilterTag).distinct()
+    val tags = requireTagBound(
+        tag.orEmpty().map(::normalizedTagName).filter(String::isNotEmpty).onEach(::requireValidTagName).distinct(),
+    )
     val parsed = parsed()
     requireOrdered(parsed.createdFrom, parsed.createdTo, "created")
     requireOrdered(parsed.updatedFrom, parsed.updatedTo, "updated")
@@ -154,18 +157,9 @@ fun AdrFilterDocument.normalized(): AdrFilterDocument {
     )
 }
 
-/** A `tag` filter value in canonical form; one longer than any tag name can be ([MAX_TAG_NAME_LENGTH]) is a `400`, never a lens row. */
-private fun normalizedFilterTag(raw: String): String {
-    val name = normalizedTagName(raw)
-    if (name.length > MAX_TAG_NAME_LENGTH) throw BadRequestException("tag must be at most $MAX_TAG_NAME_LENGTH characters")
-    return name
-}
-
 private fun requireTagBound(tags: List<String>): List<String> {
-    // Judged on the distinct, trimmed values before any normalising pass, like the route's `repeatedStrings`.
-    val distinct = tags.map { it.trim() }.filter { it.isNotEmpty() }.distinct()
-    if (distinct.size > MAX_TAG_FILTERS) throw BadRequestException("tag takes at most $MAX_TAG_FILTERS values")
-    return distinct
+    if (tags.size > MAX_TAG_FILTERS) throw BadRequestException("tag takes at most $MAX_TAG_FILTERS values")
+    return tags
 }
 
 /** The filter of a NORMALIZED document ([normalized]). */

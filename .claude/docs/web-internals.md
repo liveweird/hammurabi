@@ -188,15 +188,22 @@ Rendering & UI wiring:
 - Tests: `pages/Changelog.test.tsx`, `changelog/entries.test.ts`, the dot/nav cases in
   `App.test.tsx`, the link/prefix cases in `components/VersionStamp.test.tsx`.
 
+## Unsaved ADR drafts
+
+The browser mounts the existing route tree through `createBrowserRouter`. The authenticated shell's `DraftGuardProvider` adapts
+Lettuce's `useBlocker` confirmation and Flow's `beforeunload` handler. The provider owns one router blocker because the ADR document
+and visited discussion tabs can all hold drafts at once. Create, document, expiry and discussion forms register while dirty. The unload
+listener is attached only while the registry has drafts. Saves release their registration before navigating and local cancels confirm
+only the changes they would discard. Discussion paging and the open-only filter protect entry edits and resolution notes while keeping
+the composer mounted. If a refetch closes editing or posting, changed document and composer drafts stay available to copy or discard.
+
 ## Not yet ported (port, don't reinvent)
 
 When a feature needs one of these, port the sibling's `web/` implementation and its
 `web/CLAUDE.md` section wholesale:
 
 - **Lettuce's chat-shaped pieces** (`~/Sources/lettuce/web/src/components/`): `EmojiPicker`/`EmojiButton`/`EmojiTextarea`, and
-  `safeBackParam` (the open-redirect guard for any future `?back=` param), `StatusPill`/`MetaStrip`/`FormFooter`/`ListToolbar`, and `useDiscardGuard` + `DiscardGuard` for
-  dirty-form navigation (its in-app half is the data router's `useBlocker`, which the plain `BrowserRouter` does not have; only the `beforeunload` half,
-  `hooks/useBeforeUnloadGuard.ts`, was ported in Flow — port it again with the first dirty-form page that needs it — the ADR editor (0.2.0) does not guard a dirty leave yet).
+  `safeBackParam` (the open-redirect guard for any future `?back=` param), and `StatusPill`/`MetaStrip`/`FormFooter`/`ListToolbar`.
 - **Covenant's catalog surface** (`covenant/web/src/`) — the filter-set/facets pattern
   (`hooks/useContractFilterState.ts` + `components/ContractFilterControls.tsx`) — not ported: the ADR list built its own filters (`hooks/useAdrListParams.ts`, the Filters panel, 0.5.0); the Teams/Users lists stay the
   `useRegistryListControls`/`Users.tsx` templates above.

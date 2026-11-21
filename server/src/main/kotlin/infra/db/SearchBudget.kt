@@ -1,6 +1,7 @@
 package ch.nokillswit.infra.db
 
 import ch.nokillswit.plugins.isQueryCanceled
+import io.r2dbc.spi.IsolationLevel
 import org.jetbrains.exposed.v1.r2dbc.R2dbcDatabase
 import org.jetbrains.exposed.v1.r2dbc.R2dbcTransaction
 import org.jetbrains.exposed.v1.r2dbc.transactions.suspendTransaction
@@ -35,9 +36,10 @@ class SearchBudget(totalSeconds: Int, private val clock: () -> Long = System::na
 }
 
 /**
- * The ONE budgeted read transaction: [block] runs in a single transaction under a fresh [SearchBudget] of [timeoutSeconds]. A statement
- * the budget cancelled (SQLSTATE `57014`) or a deadline spent between two statements calls [onTimeout], which audits and throws the
- * caller's typed `429`; any other failure propagates untouched. The cancelled statement's cause is deliberately dropped (a database
+ * The ONE budgeted read transaction: [block] runs in a read-only REPEATABLE READ snapshot under a fresh [SearchBudget] of
+ * [timeoutSeconds]. A statement the budget cancelled (SQLSTATE `57014`) or a deadline spent between two statements calls [onTimeout],
+ * which audits and throws the caller's typed `429`; any other failure propagates untouched. The cancelled statement's cause is
+ * deliberately dropped (a database
  * failure's message can echo a bound value, and a search term is user content).
  */
 suspend fun <T> budgetedTransaction(
@@ -49,7 +51,11 @@ suspend fun <T> budgetedTransaction(
 ): T {
     val budget = SearchBudget(timeoutSeconds, clock)
     try {
-        return suspendTransaction(database) { block(budget) }
+        return suspendTransaction(
+            database,
+            transactionIsolation = IsolationLevel.REPEATABLE_READ,
+            readOnly = true,
+        ) { block(budget) }
     } catch (_: BudgetSpent) {
         onTimeout()
     } catch (failure: Exception) {

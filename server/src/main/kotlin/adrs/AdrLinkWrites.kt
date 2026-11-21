@@ -65,17 +65,22 @@ suspend fun AdrService.setSupersedes(
  * `supersedes_id`, bumps the SUCCESSOR's revision (so its open editors and a racing activation conflict) and records
  * `SUCCESSOR_UNLINKED` on both ADRs. Link lock first, then both rows together in id order (the same pair order an activation uses). Under
  * the locks: the guard again (403), a terminal predecessor (409 `adr-frozen`; a successor that already activated superseded it), then
- * no pending successor (404). The predecessor's own revision does not move: its document is untouched.
+ * no pending successor (404), including when optional [successorId] names a link that has since been replaced. The predecessor's own
+ * revision does not move: its document is untouched. Omitting [successorId] preserves the original blind-detach contract for API clients.
  */
-suspend fun AdrService.detachSuccessor(id: UInt, caller: CallerPrincipal): AdrDetachChange =
+suspend fun AdrService.detachSuccessor(id: UInt, caller: CallerPrincipal, successorId: UInt? = null): AdrDetachChange =
     suspendTransaction(database) {
         events.reserveNotices(caller.userId, id) // the budget row before the link advisory lock
         successors.lockLinkWrites(this)
         val (predecessor, standing) = lockedActive(id, caller, alsoLock = successors.pendingSuccessorIdOf(id))
         requireMayOrganise(standing)
         predecessor.status.requireWritable()
-        val successor = successors.pendingSuccessorIdOf(id)?.let { activeRecord(it) }
-            ?: throw NotFoundException("This ADR has no pending successor")
+        val successor = successors.pendingSuccessorIdOf(id)
+            ?.takeIf { successorId == null || it == successorId }
+            ?.let { activeRecord(it) }
+            ?: throw NotFoundException(
+                if (successorId == null) "This ADR has no pending successor" else "This ADR has no pending successor with that id",
+            )
         val stamp = nowMillis()
         writeLink(successor.id, null)
         val revision = bumpRevision(successor.id, successor.revision, stamp)

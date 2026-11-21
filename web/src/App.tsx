@@ -3,6 +3,7 @@ import { ActionIcon, AppShell, Box, Burger, Divider, Group, NavLink, ScrollArea,
 import { useDisclosure } from "@mantine/hooks";
 import { IconLayoutSidebarLeftCollapse, IconLayoutSidebarLeftExpand } from "@tabler/icons-react";
 import { Link as RouterLink, Outlet, Route, Routes, useLocation } from "react-router-dom";
+import DraftGuardProvider from "./components/DraftGuardProvider";
 import { useTranslation } from "react-i18next";
 import { RedirectIfAuthed, RequireAdmin, RequireAuth, useAdmin } from "./auth";
 import BrandLogo from "./components/BrandLogo";
@@ -188,11 +189,13 @@ function Shell() {
         {/* A page crash stays inside the main area — header/nav keep working, and navigating
             anywhere remounts the boundary (see components/ErrorBoundary.tsx). The inner
             Suspense keeps the shell mounted while a lazy page chunk loads. */}
-        <RouteErrorBoundary>
-          <Suspense fallback={<RouteFallback />}>
-            <Outlet />
-          </Suspense>
-        </RouteErrorBoundary>
+        <DraftGuardProvider>
+          <RouteErrorBoundary>
+            <Suspense fallback={<RouteFallback />}>
+              <Outlet />
+            </Suspense>
+          </RouteErrorBoundary>
+        </DraftGuardProvider>
       </AppShell.Main>
 
       {showPanel && (

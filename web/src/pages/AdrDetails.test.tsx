@@ -182,6 +182,7 @@ describe("AdrDetails page", () => {
     await user.click(screen.getByRole("tab", { name: "Document" }));
     expect(await screen.findByRole("textbox", { name: /^Context/ })).toHaveValue("Unsaved context");
     await user.click(screen.getByRole("button", { name: "Cancel" }));
+    await user.click(within(await screen.findByRole("dialog")).getByRole("button", { name: "Discard changes" }));
     await user.click(screen.getByRole("tab", { name: "Issues" }));
     await user.click(screen.getByRole("button", { name: "Edit" }));
     expect(screen.getByRole("tab", { name: "Document", selected: true })).toBeInTheDocument();
@@ -249,6 +250,21 @@ describe("AdrDetails page", () => {
     expect(screen.getByRole("button", { name: "Edit" })).toBeInTheDocument();
   });
 
+  test("Cancel asks before discarding a changed ADR document", async () => {
+    serve({ adr: adrFixture({ participants: PEOPLE }) });
+    const user = userEvent.setup();
+    renderDetails();
+    await user.click(await screen.findByRole("button", { name: "Edit" }));
+    const context = await screen.findByRole("textbox", { name: /^Context/ });
+    await user.type(context, "Unsaved context");
+    await user.click(screen.getByRole("button", { name: "Cancel" }));
+    await user.click(within(await screen.findByRole("dialog")).getByRole("button", { name: "Keep editing" }));
+    expect(context).toHaveValue("Unsaved context");
+    await user.click(screen.getByRole("button", { name: "Cancel" }));
+    await user.click(within(await screen.findByRole("dialog")).getByRole("button", { name: "Discard changes" }));
+    expect(screen.getByRole("button", { name: "Edit" })).toBeInTheDocument();
+  });
+
   test("if the content freezes under an open editor the page falls back to the sections", async () => {
     const state = { adr: adrFixture({ participants: PEOPLE }) };
     serve(state, (method, url) => {
@@ -264,6 +280,24 @@ describe("AdrDetails page", () => {
     await user.click(screen.getByRole("button", { name: "Send to review" }));
     await waitFor(() => expect(screen.queryByRole("heading", { level: 3, name: "Edit the ADR" })).not.toBeInTheDocument());
     expect(screen.getByRole("heading", { level: 3, name: "Problem / question" })).toBeInTheDocument();
+  });
+
+  test("a freeze keeps changed text available to copy and prevents saving it", async () => {
+    const state = { adr: adrFixture({ participants: PEOPLE }) };
+    serve(state, (method, url) => {
+      if (method !== "POST" || !url.endsWith("/transitions")) return null;
+      state.adr = { ...state.adr, status: "ACTIVE", revision: 4, allowedTransitions: [], canEditContent: false };
+      return jsonResponse(200, state.adr);
+    });
+    const user = userEvent.setup();
+    renderDetails();
+    await user.click(await screen.findByRole("button", { name: "Edit" }));
+    const context = await screen.findByRole("textbox", { name: /^Context/ });
+    await user.type(context, "Unsaved context");
+    await user.click(screen.getByRole("button", { name: "Send to review" }));
+    await screen.findByText("This ADR can no longer be edited. You can copy or discard your draft.");
+    expect(context).toHaveValue("Unsaved context");
+    expect(screen.getByRole("button", { name: "Save" })).toBeDisabled();
   });
 
   test("only an ADMIN deletes: confirm, leave for the list and drop the ADR from the caches", async () => {

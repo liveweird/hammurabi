@@ -1,6 +1,7 @@
 import { useState, type ReactNode } from "react";
 import { useTranslation } from "react-i18next";
 import { Button, Group, Modal, Stack, Textarea } from "@mantine/core";
+import { useDraftGuard } from "../hooks/useDraftGuard";
 import { charCountDescription } from "../utils/charCount";
 import { DISCUSSION_RESOLUTION_MAX } from "../utils/adrDiscussion";
 
@@ -22,12 +23,13 @@ export default function DiscussionResolveModal({
 }) {
   const { t } = useTranslation();
   const [note, setNote] = useState("");
+  const { requestDiscard } = useDraftGuard(note !== "");
   const tooLong = note.length > DISCUSSION_RESOLUTION_MAX;
   return (
     <Modal
       opened
       onClose={() => {
-        if (!loading) onClose();
+        if (!loading) requestDiscard(onClose);
       }}
       title={t("adrs.discussion.resolveTitle")}
       closeButtonProps={{ "aria-label": t("common.action.close") }}
@@ -49,7 +51,7 @@ export default function DiscussionResolveModal({
         {charCountDescription(note.length, DISCUSSION_RESOLUTION_MAX)}
         {error}
         <Group justify="flex-end" gap="sm">
-          <Button variant="default" onClick={onClose} disabled={loading}>
+          <Button variant="default" onClick={() => requestDiscard(onClose)} disabled={loading}>
             {t("common.action.cancel")}
           </Button>
           <Button onClick={() => onResolve(note.trim())} loading={loading} disabled={tooLong}>

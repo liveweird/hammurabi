@@ -3,29 +3,35 @@
 import { type ReactElement } from "react";
 import { render, type RenderOptions } from "@testing-library/react";
 import { MantineProvider } from "@mantine/core";
-import { MemoryRouter } from "react-router-dom";
+import { createMemoryRouter, MemoryRouter, RouterProvider } from "react-router-dom";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { theme } from "../theme";
+import DraftGuardProvider from "../components/DraftGuardProvider";
 
 interface Options extends Omit<RenderOptions, "wrapper"> {
   route?: string;
   /** `location.state` for the initial entry — the sync modal's / Infer page's hand-off. */
   state?: unknown;
   queryClient?: QueryClient;
+  dataRouter?: boolean;
 }
 
 export function renderWithProviders(ui: ReactElement, options: Options = {}) {
-  const { route = "/", state, queryClient: suppliedQueryClient, ...rest } = options;
+  const { route = "/", state, queryClient: suppliedQueryClient, dataRouter = false, ...rest } = options;
   const [pathname, query] = route.split("?");
   const entry = state === undefined ? route : { pathname, search: query === undefined ? "" : `?${query}`, state };
   const queryClient = suppliedQueryClient ?? new QueryClient({
     defaultOptions: { queries: { retry: false } },
   });
-  return render(ui, {
+  const router = dataRouter ? createMemoryRouter(
+    [{ path: "*", element: <DraftGuardProvider>{ui}</DraftGuardProvider> }],
+    { initialEntries: [entry] },
+  ) : undefined;
+  return render(router ? <RouterProvider router={router} /> : ui, {
     wrapper: ({ children }) => (
       <MantineProvider env="test" theme={theme}>
         <QueryClientProvider client={queryClient}>
-          <MemoryRouter initialEntries={[entry]}>{children}</MemoryRouter>
+          {router ? children : <MemoryRouter initialEntries={[entry]}><DraftGuardProvider>{children}</DraftGuardProvider></MemoryRouter>}
         </QueryClientProvider>
       </MantineProvider>
     ),

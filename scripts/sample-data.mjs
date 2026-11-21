@@ -12,10 +12,12 @@
 //
 // Usage: node scripts/sample-data.mjs            (refuses unless the stack is on localhost and has no ADRs yet)
 // Env:   HAMMURABI_URL (default http://localhost:8090), ADMIN_PASSWORD (default changeme),
-//        PG_CONTAINER (default hammurabi-postgres), APP_CONTAINER (default hammurabi-app)
+//        PG_CONTAINER (default hammurabi-postgres), APP_CONTAINER (default hammurabi-app). Both containers must belong to the Compose
+//        project whose app service publishes HAMMURABI_URL; this is checked before the first write.
 //
 // Every sample account signs in with the password below (a local demo value, never a real one).
 import { execFileSync } from 'node:child_process';
+import { inspectSampleDataTarget } from './sample-data-target.mjs';
 
 const BASE = process.env.HAMMURABI_URL ?? 'http://localhost:8090';
 const ADMIN_EMAIL = 'admin@hammurabi.local';
@@ -167,6 +169,9 @@ const TEAMS = [
 const DOMAIN_TAGS = ['integration', 'frontend', 'infrastructure', 'security', 'data', 'backend', 'mobile', 'on-premises'];
 
 async function main() {
+  // The API creates ids later used in direct SQL, and APP is restarted for the real expiry sweep. Prove all three targets are one stack
+  // before the first API mutation, including when the caller selected an alternate local Compose project.
+  inspectSampleDataTarget(BASE, PG, APP);
   await login(ADMIN_EMAIL);
   const existing = await api(ADMIN_EMAIL, 'GET', '/adrs?pageSize=1');
   if (existing.total > 0) throw new Error(`The stack already has ${existing.total} ADR(s); sample data goes into an empty one only`);

@@ -6,6 +6,15 @@
 - **Owns** (exclusive server-side state): its two throwaway users (unique `E2E Driver-*` / `E2E Approver-*` names) and the ADRs (unique
   `e2e-adr-*` names) they raise — all deleted through the API after each test, the ADRs first
 
+## Scenario: a Driver can keep or discard an unsaved ADR before leaving
+
+1. The Driver opens the new ADR form, enters a problem and follows the link back to the ADRs.
+   - *Expected*: The page asks whether to discard the unsaved changes.
+2. The Driver chooses to keep editing.
+   - *Expected*: The problem text is still there.
+3. The Driver follows the same link and confirms the discard.
+   - *Expected*: The ADR list opens.
+
 ## Scenario: a Driver raises an ADR, drafts it and sends it to review, and the Approver activates it
 
 1. The Driver signs in, opens **New ADR** (`/adrs/new`), fills a unique name and the problem, picks the Approver in the **Approver**

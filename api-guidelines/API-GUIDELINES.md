@@ -683,8 +683,7 @@ prioritized. Reviewers cite these as "registered gap"; the Spectral ruleset carr
 
 ### Lost-update inventory (the API-CACHE-003 row's per-write record)
 
-Per API-CACHE-003, each concurrency-sensitive write documents its defense (current as of the
-v0.1.0 foundation — extend this list as domain features land):
+Per API-CACHE-003, each concurrency-sensitive write documents its defense:
 
 - **Accepted last-write-wins** — full replacements of users, feature flags, language, and teams.
   Permissions limit writers but do not prevent one authorized editor from overwriting another
@@ -695,6 +694,12 @@ v0.1.0 foundation — extend this list as domain features land):
   atomically increments `users.credential_revision`; refresh and MFA acceptance compare it
   against the current row and reject a stale credential rather than silently accepting it. See
   `.claude/docs/persistence.md` "Credential revision".
+- **ADR writes** — the document, transitions, participants, tags and predecessor-link replacements
+  compare `X-Expected-Revision` under the ADR lock. Detach compares the expected `successorId`
+  under the link lock when supplied. The SPA supplies it, and existing v1 callers may omit it.
+- **Discussion entry writes** — edits, state changes and deletes compare `X-Expected-Revision` to
+  the entry revision under the ADR lock when supplied. The SPA always supplies it. Existing v1
+  callers that omit it retain last-write-wins behavior.
 - **Parent-existence guards** — a mutation under a parent row re-checks the parent is still active inside its own transaction (`lockActiveForWrite`); a
   concurrently soft-deleted parent is a `404`, not a silent no-op. The first consumers arrive with the ADR increments (a discussion entry under an ADR).
 

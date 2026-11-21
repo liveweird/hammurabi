@@ -12,7 +12,7 @@ decisions written down so that they bind and can be looked up.
 Hammurabi's repository started as an exact copy of [Flow](https://github.com/liveweird/flow) (1.57.1, `4e43e480`), trimmed to its generic foundation (0.1.0); 0.2.0 built the ADR core on it, 0.3.0 added the discussion, 0.4.0 the tags and successors, 0.5.0 the search, 0.6.0 the notifications, 0.7.0 the send back and the withdrawal of a decision, 0.8.0 the Markdown export, 0.9.0 the decision log page, 1.0.0 the checkup (the hardening, the frozen API names, a decision in force ends only by its Approver) and 1.1.0 the visual Markdown editor and the Lifecycle diagram:
 
 - **ADRs** (`/api/v1/adrs`; the list, create and detail pages): a gapless `ADR-0001` key, a name, the problem, context, decision, alternatives and consequences in Markdown, an expiry date, and the
-  lifecycle `PROBLEM_RAISED` → `SOLUTION_DRAFT` → `IN_REVIEW` → `ACTIVE` (or `CANCELLED`, `WITHDRAWN`, and `EXPIRED` by a daily sweep). **DACI** decides who may do what — one Driver, one
+  lifecycle `PROBLEM_RAISED` → `SOLUTION_DRAFT` → `IN_REVIEW` → `ACTIVE`, with `CANCELLED`, `WITHDRAWN`, `SUPERSEDED`, and `EXPIRED` as endings. The expiry sweep runs at startup and hourly by default. **DACI** decides who may do what — one Driver, one
   Approver, Contributors and Informed — and the server serves each caller's allowed moves, including **sending an ADR back** from review to the draft (the Approver or the Driver) and **withdrawing a decision** in force (the Approver), each with an optional reason the history shows. Content freezes once an ADR is active; concurrent edits are guarded by `X-Expected-Revision`; every
   change is an event in a paged, localized **history**. The list filters by name or key, status and the ADRs you take part in, with the filters in the URL.
 - **Discussion** (`/api/v1/adrs/{id}/discussion`; the Discussion and Issues tabs of the ADR page): while an ADR is being drafted and reviewed anyone signed in can post a **comment** or ask a
@@ -82,7 +82,8 @@ email): <http://localhost:8031>.
 (`alice` and `oliver` are ADMINs; the shared password is `SAMPLE_PASSWORD` at the top of the script), 7 teams, tags, 16 ADRs in every
 status with their discussion and history, and saved lenses. It goes through the API as each user (so every rule, event and notice is
 real), restarts the app container once so the expiry sweep expires one ADR, and finally spreads the run's timestamps over the past year
-in the database. It refuses anything but `localhost` and a stack that already has ADRs; start over with `docker compose down -v`.
+in the database. It requires a local Compose stack with no ADRs. Before writing, it checks that `PG_CONTAINER` and `APP_CONTAINER` belong
+to the same Compose project and that the app publishes the endpoint named by `HAMMURABI_URL`.
 
 Ports are chosen to coexist with the sibling stacks on the same machine (the full table is in
 `.claude/docs/ci.md`): the app is on **8090**, Postgres is host-mapped to **5440**, the Vite dev server uses **5181**,

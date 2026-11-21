@@ -14,6 +14,7 @@ import ch.nokillswit.infra.paging.optionalString
 import ch.nokillswit.infra.paging.optionalUInt
 import ch.nokillswit.infra.paging.parsePaging
 import ch.nokillswit.infra.paging.repeatedStrings
+import ch.nokillswit.infra.paging.repeatedValues
 import ch.nokillswit.infra.paging.toPage
 import ch.nokillswit.infra.revision.expectedRevision
 import ch.nokillswit.plugins.RateLimits
@@ -161,9 +162,8 @@ internal fun adrFilterDocument(params: Parameters): AdrFilterDocument = AdrFilte
     text = params.optionalString("text"),
     participantId = params.optionalUInt("participantId"),
     participantRole = params.optionalEnum<AdrRole>("participantRole"),
-    // Bounded in count here (`repeatedStrings`: more than MAX_TAG_FILTERS distinct values is a 400);
-    // `normalized` bounds each name's length and form.
-    tag = params.repeatedStrings("tag", maxCount = MAX_TAG_FILTERS),
+    // `normalized` canonicalises and de-duplicates before bounding, and validates every name against the registry grammar.
+    tag = params.repeatedValues("tag"),
     createdFrom = params.optionalString("createdFrom"),
     createdTo = params.optionalString("createdTo"),
     updatedFrom = params.optionalString("updatedFrom"),
@@ -329,7 +329,8 @@ private fun Route.adrOrganise(adrService: AdrService) {
         val id = route.parent.id
         val caller = call.caller()
         requireMayOrganise(adrService.standing(id, caller).orNotFound("ADR"))
-        val change = adrService.detachSuccessor(id, caller)
+        val successorId = call.request.queryParameters.optionalUInt("successorId")
+        val change = adrService.detachSuccessor(id, caller, successorId)
         audit(
             "adr.successor_detached",
             "byUserId" to caller.userId.toLong(),

@@ -146,11 +146,11 @@ export async function setAdrSupersedes(id: number, revision: number, supersedesI
 }
 
 /**
- * The PREDECESSOR's owner detaches its pending successor (no revision header: the route names the one pending link and the server judges
- * it under its locks). The successor's revision bumps, so its open editors conflict; this ADR's own revision does not move.
+ * The PREDECESSOR's owner detaches the pending successor the caller saw (no revision header). Naming it protects a stale confirmation
+ * from detaching a replacement link; the successor's revision bumps, while this ADR's own revision does not move.
  */
-export async function detachAdrSuccessor(id: number): Promise<void> {
-  await voidRequest(`/api/v1/adrs/${id}/successor`, { method: "DELETE" });
+export async function detachAdrSuccessor(id: number, successorId: number): Promise<void> {
+  await voidRequest(`/api/v1/adrs/${id}/successor?${buildQuery({ successorId })}`, { method: "DELETE" });
 }
 
 /**

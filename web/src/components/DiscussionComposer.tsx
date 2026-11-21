@@ -3,6 +3,7 @@ import { useTranslation } from "react-i18next";
 import { Button, Group, SegmentedControl, Stack, Text } from "@mantine/core";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { postDiscussionEntry, type DiscussionKind } from "../api/adrDiscussion";
+import { useDraftGuard } from "../hooks/useDraftGuard";
 import { DISCUSSION_BODY_MAX } from "../utils/adrDiscussion";
 import { refreshQueriesAfterMutation } from "../utils/queryRefresh";
 import { showSuccessToast } from "../utils/toast";
@@ -19,17 +20,20 @@ export default function DiscussionComposer({
   adrId,
   kinds,
   composeLabel,
+  canPost,
   onPosted,
 }: {
   adrId: number;
   kinds: readonly DiscussionKind[];
   composeLabel: string;
+  canPost: boolean;
   onPosted: () => void;
 }) {
   const { t } = useTranslation();
   const queryClient = useQueryClient();
   const [kind, setKind] = useState<DiscussionKind>(kinds[0]);
   const [body, setBody] = useState("");
+  useDraftGuard(body !== "");
   const post = useMutation({
     mutationFn: () => postDiscussionEntry(adrId, kind, body.trim()),
     onSuccess: async () => {
@@ -40,12 +44,13 @@ export default function DiscussionComposer({
     },
   });
   const tooLong = body.length > DISCUSSION_BODY_MAX;
+  if (!canPost && body === "") return null;
 
   return (
     <form
       onSubmit={(event) => {
         event.preventDefault();
-        if (body.trim() !== "" && !tooLong) post.mutate();
+        if (canPost && body.trim() !== "" && !tooLong) post.mutate();
       }}
       noValidate
     >
@@ -72,7 +77,7 @@ export default function DiscussionComposer({
         />
         {post.isError && <AdrWriteError error={post.error} kind="discussion" onReloaded={post.reset} />}
         <Group justify="flex-end">
-          <Button type="submit" loading={post.isPending} disabled={body.trim() === "" || tooLong}>
+          <Button type="submit" loading={post.isPending} disabled={!canPost || body.trim() === "" || tooLong}>
             {t(`adrs.discussion.submit.${kind}`)}
           </Button>
         </Group>

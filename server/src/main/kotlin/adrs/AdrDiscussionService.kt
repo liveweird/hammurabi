@@ -7,6 +7,7 @@ import ch.nokillswit.infra.db.active
 import ch.nokillswit.infra.db.nowMillis
 import ch.nokillswit.infra.paging.PageRequest
 import ch.nokillswit.infra.paging.applyPaging
+import ch.nokillswit.infra.revision.requireRevision
 import ch.nokillswit.users.UserService
 import io.ktor.util.AttributeKey
 import kotlinx.coroutines.flow.map
@@ -66,6 +67,7 @@ class AdrDiscussionService(
 ) {
     object AdrDiscussion : UIntIdTable("adr_discussion"), SoftDeletable {
         val adrId = reference("adr_id", AdrService.Adrs)
+        val revision = long("revision").default(1)
         val kind = varchar("kind", length = 20)
 
         /** NULL for a comment and for a tombstone. */
@@ -132,6 +134,7 @@ class AdrDiscussionService(
         return DiscussionEntryResponse(
             id = this[entries.id].value,
             adrId = this[entries.adrId].value,
+            revision = this[entries.revision],
             kind = kind,
             state = this[entries.status]?.let(DiscussionState::valueOf),
             body = if (deleted) null else this[entries.body],
@@ -231,7 +234,13 @@ class AdrDiscussionService(
     }
 
     /** The author edits the text: guard (403), window (409), then body and `editedAt`; the same text writes nothing. No history event. */
-    suspend fun edit(adrId: UInt, entryId: UInt, caller: CallerPrincipal, raw: DiscussionEditRequest): DiscussionEdited {
+    suspend fun edit(
+        adrId: UInt,
+        entryId: UInt,
+        caller: CallerPrincipal,
+        raw: DiscussionEditRequest,
+        expectedRevision: Long? = null,
+    ): DiscussionEdited {
         val request = sanitizedDiscussionEdit(raw)
         validateDiscussionBody(request.body)
         return suspendTransaction(database) {
@@ -240,10 +249,12 @@ class AdrDiscussionService(
             val kind = DiscussionKind.valueOf(row[entries.kind])
             requireMayEditEntry(caller, row[entries.authorId].value)
             kind.requireAcceptedIn(status)
+            expectedRevision?.let { requireRevision(it, row[entries.revision]) }
             if (row[entries.body] == request.body) return@suspendTransaction DiscussionEdited(number, kind, changed = false)
             entries.update({ entries.id eq entryId }) {
                 it[body] = request.body
                 it[editedAt] = nowMillis()
+                it[revision] = row[entries.revision] + 1
             }
             DiscussionEdited(number, kind, changed = true)
         }
@@ -254,11 +265,17 @@ class AdrDiscussionService(
      * and the resolution are wiped, the status is cleared (so no status filter and no count sees it). Allowed in EVERY ADR status: the
      * moderation path is never closed. No history event.
      */
-    suspend fun delete(adrId: UInt, entryId: UInt, caller: CallerPrincipal): DiscussionDeleted = suspendTransaction(database) {
+    suspend fun delete(
+        adrId: UInt,
+        entryId: UInt,
+        caller: CallerPrincipal,
+        expectedRevision: Long? = null,
+    ): DiscussionDeleted = suspendTransaction(database) {
         val (number, _) = lockedAdr(adrId)
         val row = liveEntry(adrId, entryId)
         val authorId = row[entries.authorId].value
         requireMayDeleteEntry(caller, authorId)
+        expectedRevision?.let { requireRevision(it, row[entries.revision]) }
         entries.update({ entries.id eq entryId }) {
             it[markedAsDeleted] = true
             it[deletedAt] = nowMillis()
@@ -268,6 +285,7 @@ class AdrDiscussionService(
             it[editedAt] = null
             it[stateChangedBy] = null
             it[stateChangedAt] = null
+            it[revision] = row[entries.revision] + 1
         }
         DiscussionDeleted(number, DiscussionKind.valueOf(row[entries.kind]), byAdmin = !isAuthor(caller, authorId))
     }
@@ -278,7 +296,13 @@ class AdrDiscussionService(
      * that state is a no-op (null) - except a RESOLVED one given a DIFFERENT note: the note is replaced (an empty one clears it) and
      * who/when follow, with no history event (`from == to` in the result, for the audit line). Nothing else changes.
      */
-    suspend fun setState(adrId: UInt, entryId: UInt, caller: CallerPrincipal, raw: DiscussionStateRequest): DiscussionStateChanged? {
+    suspend fun setState(
+        adrId: UInt,
+        entryId: UInt,
+        caller: CallerPrincipal,
+        raw: DiscussionStateRequest,
+        expectedRevision: Long? = null,
+    ): DiscussionStateChanged? {
         val request = sanitizedDiscussionState(raw)
         return suspendTransaction(database) {
             events.reserveNotices(caller.userId, adrId)
@@ -287,6 +311,7 @@ class AdrDiscussionService(
             val kind = DiscussionKind.valueOf(row[entries.kind])
             requireMayChangeEntryState(standingOf(adrId, caller), kind, row[entries.authorId].value)
             validateDiscussionState(kind, request)
+            expectedRevision?.let { requireRevision(it, row[entries.revision]) }
             val from = DiscussionState.valueOf(checkNotNull(row[entries.status]) { "A live ${kind.name} has a state" })
             val stamp = nowMillis()
             if (from == request.state) {
@@ -296,6 +321,7 @@ class AdrDiscussionService(
                     it[resolution] = note
                     it[stateChangedBy] = caller.userId
                     it[stateChangedAt] = stamp
+                    it[revision] = row[entries.revision] + 1
                 }
                 return@suspendTransaction DiscussionStateChanged(number, kind, from, from)
             }
@@ -304,6 +330,7 @@ class AdrDiscussionService(
                 it[resolution] = request.resolution.orEmpty()
                 it[stateChangedBy] = caller.userId
                 it[stateChangedAt] = stamp
+                it[revision] = row[entries.revision] + 1
             }
             events.record(adrId, caller.userId, adrDiscussionStateEvent(entryId, kind, request.state), stamp)
             DiscussionStateChanged(number, kind, from, request.state)

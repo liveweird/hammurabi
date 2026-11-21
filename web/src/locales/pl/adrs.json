@@ -15,6 +15,7 @@
   "openAria": "Otwórz {{key}}: {{name}}",
   "edit": "Edytuj",
   "editTitle": "Edytuj ADR",
+  "editUnavailable": "Tego ADR nie można już edytować. Możesz skopiować lub odrzucić szkic.",
   "deleteTitle": "Usunąć ADR?",
   "deleteBody": "Usuniemy {{key}} „{{name}}”. Jego numer nigdy nie zostanie użyty ponownie.",
   "deleteFailed": "Nie udało się usunąć ADR-a",

@@ -4,7 +4,7 @@ import { Link as RouterLink } from "react-router-dom";
 import { Alert, Anchor, Button, Group, Stack } from "@mantine/core";
 import { IconArrowForwardUp, IconCheck, IconLinkOff } from "@tabler/icons-react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { acceptAdrSuccessor, detachAdrSuccessor, type AdrResponse } from "../api/adrs";
+import { acceptAdrSuccessor, detachAdrSuccessor, type AdrRef, type AdrResponse } from "../api/adrs";
 import { adrPath } from "../utils/adrLinks";
 import { isPreActive } from "../utils/adrStatus";
 import { refreshQueriesAfterMutation } from "../utils/queryRefresh";
@@ -27,7 +27,7 @@ import ConfirmActionModal from "./ConfirmActionModal";
 export default function AdrSupersededBanner({ adr }: { adr: AdrResponse }) {
   const { t } = useTranslation();
   const queryClient = useQueryClient();
-  const [confirming, setConfirming] = useState(false);
+  const [confirming, setConfirming] = useState<AdrRef | null>(null);
   const [accepting, setAccepting] = useState(false);
   const accept = useMutation({
     mutationFn: (successorId: number) => acceptAdrSuccessor(adr.id, successorId),
@@ -39,13 +39,13 @@ export default function AdrSupersededBanner({ adr }: { adr: AdrResponse }) {
     onError: () => setAccepting(false),
   });
   const detach = useMutation({
-    mutationFn: () => detachAdrSuccessor(adr.id),
+    mutationFn: (successorId: number) => detachAdrSuccessor(adr.id, successorId),
     onSuccess: async () => {
-      setConfirming(false);
+      setConfirming(null);
       await refreshQueriesAfterMutation(queryClient, ["adrs"]);
       showSuccessToast(t("adrs.toast.detached"));
     },
-    onError: () => setConfirming(false),
+    onError: () => setConfirming(null),
   });
   const by = adr.supersededBy;
   if (!by) return null;
@@ -74,7 +74,7 @@ export default function AdrSupersededBanner({ adr }: { adr: AdrResponse }) {
             </Button>
           )}
           {adr.canDetachSuccessor && (
-            <Button size="compact-xs" variant="default" leftSection={<IconLinkOff size={12} />} onClick={() => setConfirming(true)}>
+            <Button size="compact-xs" variant="default" leftSection={<IconLinkOff size={12} />} onClick={() => setConfirming(by)}>
               {t("adrs.banner.pending.detach")}
             </Button>
           )}
@@ -94,13 +94,13 @@ export default function AdrSupersededBanner({ adr }: { adr: AdrResponse }) {
         confirmColor="hammurabi"
       />
       <ConfirmActionModal
-        opened={confirming}
-        onClose={() => setConfirming(false)}
-        title={t("adrs.banner.pending.detachTitle", { key: by.key })}
-        message={t("adrs.banner.pending.detachMessage", { key: by.key })}
+        opened={confirming !== null}
+        onClose={() => setConfirming(null)}
+        title={t("adrs.banner.pending.detachTitle", { key: confirming?.key })}
+        message={t("adrs.banner.pending.detachMessage", { key: confirming?.key })}
         cancelLabel={t("adrs.banner.pending.cancel")}
         confirmLabel={t("adrs.banner.pending.detachConfirm")}
-        onConfirm={() => detach.mutate()}
+        onConfirm={() => confirming && detach.mutate(confirming.id)}
         loading={detach.isPending}
       />
     </Stack>

@@ -137,10 +137,10 @@ describe("ADR API wrappers", () => {
     expect(JSON.parse(lastCall()[1].body as string)).toEqual({ supersedesId: null });
   });
 
-  test("detaching the pending successor is a header-less DELETE on the predecessor's successor", async () => {
+  test("detaching the pending successor is a header-less DELETE guarded by the successor the caller saw", async () => {
     mockFetch.mockResolvedValue(new Response(null, { status: 204 }));
-    await detachAdrSuccessor(4);
-    expect(lastCall()[0]).toBe("/api/v1/adrs/4/successor");
+    await detachAdrSuccessor(4, 9);
+    expect(lastCall()[0]).toBe("/api/v1/adrs/4/successor?successorId=9");
     expect(lastCall()[1].method).toBe("DELETE");
     expect(header("X-Expected-Revision")).toBeNull();
   });

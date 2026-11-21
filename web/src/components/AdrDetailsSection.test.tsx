@@ -56,6 +56,21 @@ describe("AdrDetailsSection", () => {
     await waitFor(() => expect(stub.find("PUT", "/api/v1/adrs/1")?.body).toMatchObject({ expiresOn: null }));
   });
 
+  test("an open expiry draft uses its original document and revision after a refetch", async () => {
+    const stub = stubFetch(() => problem(409, "urn:hammurabi:problem:revision-conflict"));
+    const user = userEvent.setup();
+    const original = adrFixture({ revision: 8, context: "Original context", expiresOn: "2030-01-31" });
+    const { rerender } = renderWithProviders(<AdrDetailsSection adr={original} />);
+    await user.click(screen.getByRole("button", { name: "Edit the expiry date" }));
+    await user.clear(screen.getByLabelText("Expiry date"));
+    rerender(<AdrDetailsSection adr={{ ...original, revision: 9, context: "New context", expiresOn: "2030-02-01" }} />);
+    await user.click(screen.getByRole("button", { name: "Save" }));
+    await screen.findByRole("button", { name: "Reload the ADR" });
+    const put = stub.find("PUT", "/api/v1/adrs/1");
+    expect(put?.headers.get("X-Expected-Revision")).toBe("8");
+    expect(put?.body).toMatchObject({ context: "Original context", expiresOn: null });
+  });
+
   test("a date in the past is explained, a stale revision offers the reload, and Cancel leaves the editor", async () => {
     let answer = problem(400);
     stubFetch((r) => (r.method === "PUT" ? answer : jsonResponse(200, { items: [] })));

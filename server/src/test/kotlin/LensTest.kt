@@ -262,9 +262,17 @@ class LensTest {
         val owner = adrActor("lens-tag")
         val longest = request(filters = AdrFilterDocument(tag = listOf("t".repeat(MAX_TAG_NAME_LENGTH))))
         assertEquals(HttpStatusCode.Created, owner.client.postJson(path, longest).status)
+        val aliases = (0 until 21).map { bits ->
+            "alias".mapIndexed { index, character ->
+                if (bits and (1 shl index) == 0) character else character.uppercaseChar()
+            }.joinToString("")
+        }
+        val canonical = owner.client.save(request(name = "Aliases", filters = AdrFilterDocument(tag = aliases)))
+        assertEquals(listOf("alias"), canonical.filters.tag, "the cap applies after canonical de-duplication")
         for (bad in listOf(
             AdrFilterDocument(tag = listOf("t".repeat(MAX_TAG_NAME_LENGTH + 1))),
             AdrFilterDocument(tag = listOf("t".repeat(5000))),
+            AdrFilterDocument(tag = listOf("???")),
             AdrFilterDocument(q = "a\u0001b"),
             AdrFilterDocument(q = "a\u202Eb"),
         )) {

@@ -6,8 +6,8 @@ import io.ktor.server.plugins.BadRequestException
 
 /**
  * Optimistic concurrency for whole-document PUTs (Toadie's `X-Expected-Revision`, ported): the client names the revision it
- * read, and the write is refused with a typed 409 when the stored revision moved on. Unlike Toadie's, the header is REQUIRED
- * (Hammurabi has no legacy client): missing, repeated or malformed is a 400, a stale one a 409. Lives in `infra/` because `infra`
+ * read, and the write is refused with a typed 409 when the stored revision moved on. Document writes require the header.
+ * Existing v1 discussion clients may omit it. A repeated or malformed value is a 400. Lives in `infra/` because `infra`
  * may not import `authz`; the ErrorHandling mapping is `urn:hammurabi:problem:revision-conflict`.
  */
 const val EXPECTED_REVISION_HEADER = "X-Expected-Revision"
@@ -22,9 +22,13 @@ private val POSITIVE_REVISION = Regex("[1-9]\\d*")
  * The revision the caller based its edit on: exactly one `X-Expected-Revision` header carrying a positive int64, else a 400.
  * Call it after the guard (403 wins over 400) and before the body is decoded.
  */
-fun ApplicationCall.expectedRevision(): Long {
+fun ApplicationCall.expectedRevision(): Long =
+    optionalExpectedRevision() ?: throw BadRequestException("$EXPECTED_REVISION_HEADER header is required")
+
+/** The same strict check for a route that accepts writes from clients that predate the revision header. */
+fun ApplicationCall.optionalExpectedRevision(): Long? {
     val values = request.headers.getAll(EXPECTED_REVISION_HEADER)
-    if (values.isNullOrEmpty()) throw BadRequestException("$EXPECTED_REVISION_HEADER header is required")
+    if (values.isNullOrEmpty()) return null
     val raw = values.singleOrNull()
     if (raw == null || !POSITIVE_REVISION.matches(raw)) {
         throw BadRequestException("$EXPECTED_REVISION_HEADER must be one positive integer")

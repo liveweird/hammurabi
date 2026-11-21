@@ -56,6 +56,7 @@ export function entryFixture(overrides: Partial<DiscussionEntry> = {}): Discussi
   return {
     id: 11,
     adrId: 1,
+    revision: 1,
     kind: "QUESTION",
     state: "OPEN",
     body: "Why not MySQL?",

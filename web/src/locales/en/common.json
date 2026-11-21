@@ -19,6 +19,12 @@
     "description": "Description",
     "user": "User"
   },
+  "discard": {
+    "title": "Discard unsaved changes?",
+    "message": "Your unsaved changes will be lost.",
+    "keep": "Keep editing",
+    "confirm": "Discard changes"
+  },
   "state": {
     "any": "Any"
   },

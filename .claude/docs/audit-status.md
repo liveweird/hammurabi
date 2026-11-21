@@ -145,3 +145,11 @@ protection on `master` (repository settings), and closing issue #10 (C-GATE-3, C
 **CI.** The `e2e` workflow ran green on `029da12` (run 44865747177, after one transient Maven Central miss on the first attempt). C-GATE-1 stays a condition of the tag: the same green run is needed on the 1.0.0 release commit.
 
 **Not fixed in this round.** C-ARCH-3 (the AppCDS list): `scripts/cds-classlist.mjs` trains the image on a workload that never calls the ADR, notification, lens or tag routes, so a regenerated list would still hold no class of them; it needs the workload extended first, and is in the tier-2 backlog item. Everything else of the tiers is in `BACKLOG.md`.
+
+## Follow-up review on 1.2.1
+
+- Demo seeding verifies that the API endpoint, application container and Postgres container belong to the same local Compose stack. The target tests run in the local and CI gates.
+- Lifecycle confirmations, expiry drafts and successor detach use the revision or target shown when the action opens. Discussion entries have their own revision from V22. The SPA supplies the new preconditions, and existing v1 callers may omit them.
+- ADR pages, export plans and notification pages read from one database snapshot. Tag filters use registry validation and deduplicate before the cap. The digest claim size honors the configured send limit.
+- The shared draft guard protects ADR forms during navigation, reload and local discard. When a refetch closes editing or posting, changed document and composer drafts remain available to copy.
+- The expiry cadence in the README matches the runtime default. The V22 backup and restore drill passed 34 assertions, including a guarded write to a restored discussion entry.

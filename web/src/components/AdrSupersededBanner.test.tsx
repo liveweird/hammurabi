@@ -100,10 +100,28 @@ describe("AdrSupersededBanner", () => {
     renderWithProviders(<AdrSupersededBanner adr={adrFixture({ id: 4, status: "ACTIVE", supersededBy: PENDING, canDetachSuccessor: true })} />);
     await user.click(screen.getByRole("button", { name: "Detach" }));
     const dialog = await screen.findByRole("dialog", { name: "Detach ADR-0009?" });
-    expect(stub.find("DELETE", "/api/v1/adrs/4/successor")).toBeUndefined();
+    expect(stub.find("DELETE", "/api/v1/adrs/4/successor?successorId=9")).toBeUndefined();
     await user.click(within(dialog).getByRole("button", { name: "Detach" }));
-    await waitFor(() => expect(stub.find("DELETE", "/api/v1/adrs/4/successor")).toBeDefined());
+    await waitFor(() => expect(stub.find("DELETE", "/api/v1/adrs/4/successor?successorId=9")).toBeDefined());
     await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
+  });
+
+  test("Detach keeps the successor captured by the confirmation when the ADR rerenders", async () => {
+    const stub = stubFetch((r) => (r.method === "DELETE" ? noContent() : jsonResponse(200, { items: [] })));
+    const user = userEvent.setup();
+    const adr = adrFixture({ id: 4, status: "ACTIVE", supersededBy: PENDING, canDetachSuccessor: true });
+    const view = renderWithProviders(<AdrSupersededBanner adr={adr} />);
+    await user.click(screen.getByRole("button", { name: "Detach" }));
+    const dialog = await screen.findByRole("dialog", { name: "Detach ADR-0009?" });
+
+    const replacement = { id: 10, key: "ADR-0010", name: "Use PostgreSQL", status: "IN_REVIEW" as const };
+    view.rerender(<AdrSupersededBanner adr={{ ...adr, supersededBy: replacement }} />);
+    expect(within(dialog).getByRole("heading", { name: "Detach ADR-0009?" })).toBeInTheDocument();
+    expect(within(dialog).queryByText(/ADR-0010/)).not.toBeInTheDocument();
+
+    await user.click(within(dialog).getByRole("button", { name: "Detach" }));
+    await waitFor(() => expect(stub.find("DELETE", "/api/v1/adrs/4/successor?successorId=9")).toBeDefined());
+    expect(stub.find("DELETE", "/api/v1/adrs/4/successor?successorId=10")).toBeUndefined();
   });
 
   test("Keep it closes the confirmation without a request", async () => {

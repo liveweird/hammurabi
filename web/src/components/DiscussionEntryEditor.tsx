@@ -3,6 +3,7 @@ import { useTranslation } from "react-i18next";
 import { Button, Group, Stack } from "@mantine/core";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { editDiscussionEntry, type DiscussionEntry } from "../api/adrDiscussion";
+import { useDraftGuard } from "../hooks/useDraftGuard";
 import { DISCUSSION_BODY_MAX } from "../utils/adrDiscussion";
 import { refreshQueriesAfterMutation } from "../utils/queryRefresh";
 import { showSuccessToast } from "../utils/toast";
@@ -16,10 +17,14 @@ import MarkdownField from "./MarkdownField";
 export default function DiscussionEntryEditor({ entry, onClose }: { entry: DiscussionEntry; onClose: () => void }) {
   const { t } = useTranslation();
   const queryClient = useQueryClient();
-  const [body, setBody] = useState(entry.body ?? "");
+  const [initialBody] = useState(entry.body ?? "");
+  const [body, setBody] = useState(initialBody);
+  const [revision] = useState(entry.revision);
+  const { markSaved, requestDiscard } = useDraftGuard(body !== initialBody);
   const save = useMutation({
-    mutationFn: () => editDiscussionEntry(entry.adrId, entry.id, body.trim()),
+    mutationFn: () => editDiscussionEntry(entry.adrId, entry.id, revision, body.trim()),
     onSuccess: async () => {
+      markSaved();
       await refreshQueriesAfterMutation(queryClient, ["adrs"]);
       showSuccessToast(t("adrs.discussion.toast.edited"));
       onClose();
@@ -39,7 +44,7 @@ export default function DiscussionEntryEditor({ entry, onClose }: { entry: Discu
       />
       {save.isError && <AdrWriteError error={save.error} kind="discussion" onReloaded={onClose} />}
       <Group justify="flex-end" gap="sm">
-        <Button variant="default" onClick={onClose} disabled={save.isPending}>
+        <Button variant="default" onClick={() => requestDiscard(onClose)} disabled={save.isPending}>
           {t("common.action.cancel")}
         </Button>
         <Button onClick={() => save.mutate()} loading={save.isPending} disabled={body.trim() === "" || tooLong}>

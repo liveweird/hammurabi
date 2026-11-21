@@ -1,8 +1,8 @@
 // ADR discussion API (`/api/v1/adrs/{id}/discussion`, 0.3.0): comments and questions before the decision is in force, issues and
-// escalations while it is. Thin wrappers: transport in ./http, types from ./schema. No revision header: the discussion is not part
-// of the ADR document, so a post never conflicts with an edit.
+// escalations while it is. Thin wrappers: transport in ./http, types from ./schema. Entry mutations carry the entry's own revision;
+// discussion writes never change the parent ADR document revision.
 
-import { buildQuery, jsonRequest, voidRequest } from "./http";
+import { buildQuery, jsonRequest, REVISION_HEADER, voidRequest } from "./http";
 import type { components } from "./schema";
 
 export type DiscussionKind = components["schemas"]["DiscussionKind"];
@@ -31,24 +31,26 @@ export async function postDiscussionEntry(adrId: number, kind: DiscussionKind, b
   return jsonRequest<DiscussionEntry>(base(adrId), { method: "POST", body: JSON.stringify({ kind, body }) });
 }
 
-export async function editDiscussionEntry(adrId: number, entryId: number, body: string): Promise<DiscussionEntry> {
-  return jsonRequest<DiscussionEntry>(`${base(adrId)}/${entryId}`, { method: "PUT", body: JSON.stringify({ body }) });
+export async function editDiscussionEntry(adrId: number, entryId: number, revision: number, body: string): Promise<DiscussionEntry> {
+  return jsonRequest<DiscussionEntry>(`${base(adrId)}/${entryId}`, { method: "PUT", headers: { [REVISION_HEADER]: String(revision) }, body: JSON.stringify({ body }) });
 }
 
 /** A soft delete: the entry stays as a tombstone. */
-export async function deleteDiscussionEntry(adrId: number, entryId: number): Promise<void> {
-  await voidRequest(`${base(adrId)}/${entryId}`, { method: "DELETE" });
+export async function deleteDiscussionEntry(adrId: number, entryId: number, revision: number): Promise<void> {
+  await voidRequest(`${base(adrId)}/${entryId}`, { method: "DELETE", headers: { [REVISION_HEADER]: String(revision) } });
 }
 
 /** Answers, resolves or reopens an entry (idempotent); the optional note rides a resolution only. */
 export async function setDiscussionEntryState(
   adrId: number,
   entryId: number,
+  revision: number,
   state: DiscussionState,
   resolution?: string,
 ): Promise<DiscussionEntry> {
   return jsonRequest<DiscussionEntry>(`${base(adrId)}/${entryId}/state`, {
     method: "PUT",
+    headers: { [REVISION_HEADER]: String(revision) },
     body: JSON.stringify(resolution ? { state, resolution } : { state }),
   });
 }

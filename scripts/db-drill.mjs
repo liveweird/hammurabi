@@ -11,7 +11,7 @@
 // writes telemetry at boot); (6) start the app: "Flyway applied 0 migration(s)", both logins work, the accented ADR is found by
 // `text=zolw`, a duplicate name is 409, a new ADR takes the next number, a live backup works; (7) `--replace` over a database AHEAD of
 // the dump (an extra table with a foreign key into adrs, a fake higher Flyway row, an extra ADR): afterwards exactly the dump;
-// (8) the forward migration: a 1.1.0-shaped database (V21 undone), dump, restore, start: "applied 1 migration(s); schema at version 21";
+// (8) the forward migration: a V21-shaped database (V22's discussion revision undone), dump, restore, start: one migration applied;
 // (9) tear down.
 //
 // By default it BUILDS the image from the working tree under its own project (`docker compose -p hammurabi-backup-drill build app`).
@@ -49,8 +49,8 @@ const override = join(work, "compose.override.yaml");
 const PASSWORD = "hammurabi-drill-1";
 const ACCENTED_NAME = "Żółw jako wzorzec trwałości";
 // The forward-migration step (8) models the newest migration as "not yet applied": it undoes this one by hand. When a newer migration
-// lands, repoint the table and version at it (the step asserts the migration directory still ends at or after this version).
-const FORWARD = { version: 21, table: "notification_email_budget" };
+// lands, repoint the shape and version at it (the step asserts the migration directory ends exactly at this version).
+const FORWARD = { version: 22, table: "adr_discussion", column: "revision" };
 
 writeFileSync(
   override,
@@ -225,7 +225,10 @@ try {
   must(await call(driver, "PUT", `/adrs/${first.id}/tags`, { tags: ["drill-tag"] }, (await adr(driver, first.id)).revision), "tagging the ADR");
   await move(driver, first.id, "SOLUTION_DRAFT");
   await move(driver, first.id, "IN_REVIEW");
-  must(await call(users.contributor.email, "POST", `/adrs/${first.id}/discussion`, { kind: "COMMENT", body: "Seeded by the drill." }), "posting the comment");
+  const comment = must(
+    await call(users.contributor.email, "POST", `/adrs/${first.id}/discussion`, { kind: "COMMENT", body: "Seeded by the drill." }),
+    "posting the comment",
+  );
   await move(users.approver.email, first.id, "ACTIVE");
   must(await call(driver, "POST", "/lenses", { name: "drill lens", visibility: "PRIVATE", filters: { status: ["ACTIVE"] } }), "creating the lens");
   check((await adr(driver, first.id)).status === "ACTIVE", `step 1: the seeded ADR ${first.key} is ACTIVE with two participants, a tag, a comment and a lens beside it`);
@@ -307,11 +310,18 @@ INSERT INTO flyway_schema_history (installed_rank, version, description, type, s
   await startApp();
   check(appLog().includes("Flyway applied 0 migration(s)"), "step 7: the app boots on the replaced database, applying 0 migrations");
 
-  // ---- 8. forward migration: a 1.1.0-shaped database restored into a newer app
+  // ---- 8. forward migration: a V21-shaped database restored into a newer app
   log(`step 8: forward migration (V${FORWARD.version} undone by hand, then applied on boot)`);
   check(latest === FORWARD.version, `step 8: the newest migration is V${latest}, the one this step models (a newer one: repoint FORWARD at it)`);
   stopApp();
-  psql(`DROP TABLE ${FORWARD.table}; DELETE FROM flyway_schema_history WHERE version = '${FORWARD.version}';`);
+  psql(`ALTER TABLE ${FORWARD.table} DROP COLUMN ${FORWARD.column}; DELETE FROM flyway_schema_history WHERE version = '${FORWARD.version}';`);
+  check(
+    psql(`SELECT NOT EXISTS (
+      SELECT FROM information_schema.columns
+      WHERE table_schema = 'public' AND table_name = '${FORWARD.table}' AND column_name = '${FORWARD.column}'
+    )`) === "t",
+    `step 8: the older shape has no ${FORWARD.table}.${FORWARD.column}`,
+  );
   const old = join(work, "old.dump");
   check(script("db-backup.sh", [old]).status === 0, "step 8: dumped the older-shaped database");
   compose("down", "-v", "--remove-orphans");
@@ -320,7 +330,16 @@ INSERT INTO flyway_schema_history (installed_rank, version, description, type, s
   check(r5.status === 0 && r5.out.includes(`schema at Flyway version ${FORWARD.version - 1}`), `step 8: restored the older-shaped dump into an empty database (Flyway ${FORWARD.version - 1})`);
   await startApp();
   check(appLog().includes(`Flyway applied 1 migration(s); schema at version ${latest}`), `step 8: the app log says 'Flyway applied 1 migration(s); schema at version ${latest}'`);
-  check(psql(`SELECT to_regclass('public.${FORWARD.table}') IS NOT NULL`) === "t", `step 8: ${FORWARD.table} exists again`);
+  check(
+    psql(`SELECT count(*) > 0 AND bool_and(${FORWARD.column} = 1) FROM ${FORWARD.table}`) === "t",
+    `step 8: V${FORWARD.version} restored ${FORWARD.table}.${FORWARD.column} and backfilled every existing entry to 1`,
+  );
+  must(await login(users.contributor.email, PASSWORD), "contributor login after the forward migration");
+  const guardedDelete = await call(users.contributor.email, "DELETE", `/adrs/${first.id}/discussion/${comment.id}`, undefined, 1);
+  check(
+    guardedDelete.status === 204 && psql(`SELECT marked_as_deleted AND ${FORWARD.column} = 2 FROM ${FORWARD.table} WHERE id = ${comment.id}`) === "t",
+    `step 8: a discussion write guarded by the backfilled revision succeeds and advances it to 2 (was ${guardedDelete.status})`,
+  );
   must(await login(driver, PASSWORD), "driver login after the forward migration");
   const migrated = await call(driver, "POST", "/adrs", { ...adrDoc("After the forward migration"), participants: [{ userId: users.approver.id, role: "APPROVER" }] });
   check(migrated.status === 201, `step 8: a write that makes notices works on the migrated database (was ${migrated.status})`);

@@ -247,7 +247,7 @@ jobs:
   e2e-static:
     # The Docker-free e2e gates: eslint+sonarjs and knip (the web sibling), typecheck
     # (Playwright only TRANSPILES TS), and spec↔scenario parity — the same-commit rule made
-    # mechanical (e2e/README.md), plus the repo-level toolchain-pins check.
+    # mechanical (e2e/README.md), plus the repo-level toolchain-pins and sample-data target checks.
     runs-on: ubuntu-24.04
     timeout-minutes: 10
     defaults:
@@ -272,6 +272,9 @@ jobs:
       - name: Toolchain pins agree (mise.toml, .nvmrc, ci.yml, Dockerfile)
         working-directory: ${{ github.workspace }}
         run: node scripts/check-toolchain-pins.mjs
+      - name: Sample-data target checks
+        working-directory: ${{ github.workspace }}
+        run: node --test scripts/sample-data-target.test.mjs
       # Last on purpose (see the web job): an overnight advisory must not hide the real gates. Everything
       # in e2e/ is a dev tool (Playwright and its lint stack), so the full tree is audited.
       - name: Audit dependencies (high+)

@@ -12,6 +12,7 @@ import AdrContentFields from "../components/AdrContentFields";
 import AdrParticipantsFields from "../components/AdrParticipantsFields";
 import FormErrorAlert from "../components/FormErrorAlert";
 import PageHeader from "../components/PageHeader";
+import { useDraftGuard } from "../hooks/useDraftGuard";
 import { adrFormValidation, ADR_TEXT_FIELDS, EMPTY_ADR_FORM, toCreateBody, type AdrFormValues } from "../utils/adrForm";
 import { adrWriteError } from "../utils/adrErrors";
 import { adrPath, adrsPath } from "../utils/adrLinks";
@@ -38,12 +39,16 @@ export default function CreateAdr() {
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const form = useForm<AdrFormValues>({ initialValues: EMPTY_ADR_FORM, validate: adrFormValidation(t, { nameRequired: false }) });
+  const { markSaved } = useDraftGuard(
+    form.isDirty() || participants.approver !== null || participants.contributors.length + participants.informed.length > 0,
+  );
 
   async function submit(values: AdrFormValues) {
     setError(null);
     setSubmitting(true);
     try {
       const created = await createAdr(toCreateBody(values, participants));
+      markSaved();
       await refreshQueriesAfterMutation(queryClient, ["adrs"]);
       showSuccessToast(t("adrs.toast.created"));
       navigate(adrPath(created.id), { replace: true });

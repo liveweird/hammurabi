@@ -15,6 +15,7 @@
   "openAria": "Open {{key}}: {{name}}",
   "edit": "Edit",
   "editTitle": "Edit the ADR",
+  "editUnavailable": "This ADR can no longer be edited. You can copy or discard your draft.",
   "deleteTitle": "Delete ADR?",
   "deleteBody": "{{key}} \"{{name}}\" will be deleted. Its number is never reused.",
   "deleteFailed": "Could not delete the ADR",

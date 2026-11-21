@@ -913,8 +913,8 @@ paths:
             `urn:hammurabi:problem:search-timeout` or `urn:hammurabi:problem:search-busy`, both with `Retry-After`. `pageSize` is at most 20
             with `text`. The term is never logged.
           - `participantId` - a user id: the ADRs that user holds a role on; `participantRole` narrows it to one DACI role (`400` without `participantId`).
-          - `tag` - repeatable, any-of (`tag=data&tag=security`), a tag name (normalised: trimmed and lower-cased), at most 20, duplicates collapsed.
-            An unregistered name simply matches nothing (a retired tag still matches the ADRs that kept it).
+          - `tag` - repeatable, any-of (`tag=data&tag=security`). At most 20 distinct names after trimming, collapsing whitespace and
+            lower-casing. A malformed name is `400`. An unregistered name matches nothing (a retired tag still matches the ADRs that kept it).
           - `createdFrom` / `createdTo` and `updatedFrom` / `updatedTo` - inclusive UTC days (`YYYY-MM-DD`) on the creation and last-change
             times; a malformed or impossible date, or a `...From` after its `...To`, is `400`.
           - `expiresBefore` - a day (`YYYY-MM-DD`): the ADRs with an expiry date strictly before it (any status; an ADR with no expiry date never matches).
@@ -1350,11 +1350,19 @@ paths:
       description: |
         The PREDECESSOR's owner removes the successor that is set to replace THIS ADR but has not activated yet (linking is the successor's
         write, so without this a stranger could park a link on an ADR and block everyone else). Who: the Driver, the Approver or `ADMIN` of
-        THIS ADR (the predecessor; the successor's roles do not matter), else `403` before anything else. No header and no body: the route
-        names the pending successor (there is at most one) and the service judges it under the locks. In order: a terminal ADR is `409`
-        `urn:hammurabi:problem:adr-frozen` (a successor that already activated superseded it), then no pending successor is `404`. A detach
+        THIS ADR (the predecessor; the successor's roles do not matter), else `403` before anything else. No header and no body. An optional
+        `successorId` query guard names the pending successor the caller saw, so a link replaced since confirmation is `404` instead of
+        detaching the replacement; omitting it preserves the original client contract. The service judges the link under its locks. In order:
+        a terminal ADR is `409` `urn:hammurabi:problem:adr-frozen` (a successor that already activated superseded it), then no matching pending
+        successor is `404`. A detach
         clears the successor's `supersedesId` (and with it any acceptance), bumps the SUCCESSOR's revision (its open editors and a racing
         activation conflict), leaves this ADR's revision alone and records `SUCCESSOR_UNLINKED` on both ADRs.
+      parameters:
+        - name: successorId
+          in: query
+          required: false
+          schema: { type: integer, format: int32, minimum: 1 }
+          description: The pending successor seen by the caller; a different current successor is `404`. Omit for legacy blind detach.
       responses:
         '204':
           description: Detached
@@ -1570,7 +1578,11 @@ paths:
         The AUTHOR only (`403` for anyone else, an `ADMIN` included, before the body is read). Replaces the Markdown body (1 to 10,000
         characters, `400` otherwise); the kind never changes. The same window as posting applies (`409`
         `urn:hammurabi:problem:discussion-closed` once the ADR's status no longer takes the kind). A deleted entry is `404`. Sets `editedAt`;
-        the same text writes nothing. An edit is audit-only, not a history event. Answers the entry.
+        the same text writes nothing. `X-Expected-Revision` is optional for v1 compatibility; when supplied, a stale entry revision is a
+        typed `409` before the no-op check. A real edit increments the entry revision; the parent ADR revision is untouched. An edit is
+        audit-only, not a history event. Answers the entry.
+      parameters:
+        - $ref: '#/components/parameters/OptionalDiscussionRevision'
       requestBody:
         required: true
         content:
@@ -1600,13 +1612,19 @@ paths:
       description: |
         The author or an `ADMIN` (`403` otherwise). A soft delete that leaves a TOMBSTONE: the entry stays in the list as `deleted` with no
         body, no state and no resolution (the text is wiped from the store too). Allowed in EVERY ADR status - the moderation path is never
-        closed. An already deleted entry is `404`. Audit-only, not a history event.
+        closed. An already deleted entry is `404`. `X-Expected-Revision` is optional for v1 compatibility; when supplied, a stale entry
+        revision is a typed `409`. A delete increments the tombstone's entry revision; the parent ADR revision is untouched. Audit-only,
+        not a history event.
+      parameters:
+        - $ref: '#/components/parameters/OptionalDiscussionRevision'
       responses:
         '204':
           description: Deleted
+        '400': { $ref: '#/components/responses/BadRequest' }
         '401': { $ref: '#/components/responses/Unauthorized' }
         '403': { $ref: '#/components/responses/Forbidden' }
         '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/Conflict' }
         '429': { $ref: '#/components/responses/TooManyRequests' }
         '500': { $ref: '#/components/responses/InternalServerError' }
 
@@ -1625,7 +1643,11 @@ paths:
         (at most 2,000 characters) travels only with `RESOLVED`; a reopen clears it. There is NO window: the state
         changes in every ADR status (an issue on an expired or superseded ADR can still be resolved). Records a `QUESTION_ANSWERED`, `QUESTION_REOPENED`, `ISSUE_RESOLVED` or `ISSUE_REOPENED`
         event when the state really changes. Setting the state the entry already has writes and records nothing, except that a `RESOLVED` entry sent
-        `RESOLVED` with a different `resolution` has its note replaced (none clears it) with no event. Answers the entry.
+        `RESOLVED` with a different `resolution` has its note replaced (none clears it) with no event. `X-Expected-Revision` is optional
+        for v1 compatibility; when supplied, a stale entry revision is a typed `409` before the no-op check. A real state or note change
+        increments the entry revision; the parent ADR revision is untouched. Answers the entry.
+      parameters:
+        - $ref: '#/components/parameters/OptionalDiscussionRevision'
       requestBody:
         required: true
         content:
@@ -1644,6 +1666,7 @@ paths:
         '401': { $ref: '#/components/responses/Unauthorized' }
         '403': { $ref: '#/components/responses/Forbidden' }
         '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/Conflict' }
         '413': { $ref: '#/components/responses/PayloadTooLarge' }
         '429': { $ref: '#/components/responses/TooManyRequests' }
         '500': { $ref: '#/components/responses/InternalServerError' }
@@ -2065,7 +2088,7 @@ components:
         minItems: 1
         maxItems: 20
         items: { type: string, minLength: 1, maxLength: 40 }
-      description: Any-of filter on the ADR's tags; repeat the key for several.
+      description: Any-of filter on the ADR's tags. Repeat the key for several. The limit applies to distinct, normalized registry names.
     AdrFilterCreatedFrom:
       name: createdFrom
       in: query
@@ -2120,6 +2143,14 @@ components:
       required: true
       schema: { type: integer, format: int32, minimum: 1 }
       description: A discussion entry of the ADR in the path; one of another ADR is `404`.
+    OptionalDiscussionRevision:
+      name: X-Expected-Revision
+      in: header
+      required: false
+      schema: { type: integer, format: int64, minimum: 1 }
+      description: |
+        The discussion entry revision the caller read. Optional for v1 compatibility; when present, repeated or malformed is `400` and
+        stale is `409` `urn:hammurabi:problem:revision-conflict`. Checked under the ADR lock before deciding a write is a no-op.
     ExpectedRevision:
       name: X-Expected-Revision
       in: header
@@ -3190,6 +3221,7 @@ components:
       required:
         - id
         - adrId
+        - revision
         - kind
         - body
         - deleted
@@ -3209,6 +3241,7 @@ components:
       properties:
         id: { type: integer, format: int32, minimum: 0 }
         adrId: { type: integer, format: int32, minimum: 0 }
+        revision: { type: integer, format: int64, minimum: 1, description: "The per-entry concurrency token; real edits, state or note changes, and deletion increment it. Discussion writes never increment the parent ADR revision." }
         kind: { $ref: '#/components/schemas/DiscussionKind' }
         state:
           allOf:

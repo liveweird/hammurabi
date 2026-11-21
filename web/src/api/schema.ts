@@ -611,8 +611,8 @@ export interface paths {
          *         `urn:hammurabi:problem:search-timeout` or `urn:hammurabi:problem:search-busy`, both with `Retry-After`. `pageSize` is at most 20
          *         with `text`. The term is never logged.
          *       - `participantId` - a user id: the ADRs that user holds a role on; `participantRole` narrows it to one DACI role (`400` without `participantId`).
-         *       - `tag` - repeatable, any-of (`tag=data&tag=security`), a tag name (normalised: trimmed and lower-cased), at most 20, duplicates collapsed.
-         *         An unregistered name simply matches nothing (a retired tag still matches the ADRs that kept it).
+         *       - `tag` - repeatable, any-of (`tag=data&tag=security`). At most 20 distinct names after trimming, collapsing whitespace and
+         *         lower-casing. A malformed name is `400`. An unregistered name matches nothing (a retired tag still matches the ADRs that kept it).
          *       - `createdFrom` / `createdTo` and `updatedFrom` / `updatedTo` - inclusive UTC days (`YYYY-MM-DD`) on the creation and last-change
          *         times; a malformed or impossible date, or a `...From` after its `...To`, is `400`.
          *       - `expiresBefore` - a day (`YYYY-MM-DD`): the ADRs with an expiry date strictly before it (any status; an ADR with no expiry date never matches).
@@ -907,9 +907,11 @@ export interface paths {
          * Detach this ADR's pending successor
          * @description The PREDECESSOR's owner removes the successor that is set to replace THIS ADR but has not activated yet (linking is the successor's
          *     write, so without this a stranger could park a link on an ADR and block everyone else). Who: the Driver, the Approver or `ADMIN` of
-         *     THIS ADR (the predecessor; the successor's roles do not matter), else `403` before anything else. No header and no body: the route
-         *     names the pending successor (there is at most one) and the service judges it under the locks. In order: a terminal ADR is `409`
-         *     `urn:hammurabi:problem:adr-frozen` (a successor that already activated superseded it), then no pending successor is `404`. A detach
+         *     THIS ADR (the predecessor; the successor's roles do not matter), else `403` before anything else. No header and no body. An optional
+         *     `successorId` query guard names the pending successor the caller saw, so a link replaced since confirmation is `404` instead of
+         *     detaching the replacement; omitting it preserves the original client contract. The service judges the link under its locks. In order:
+         *     a terminal ADR is `409` `urn:hammurabi:problem:adr-frozen` (a successor that already activated superseded it), then no matching pending
+         *     successor is `404`. A detach
          *     clears the successor's `supersedesId` (and with it any acceptance), bumps the SUCCESSOR's revision (its open editors and a racing
          *     activation conflict), leaves this ADR's revision alone and records `SUCCESSOR_UNLINKED` on both ADRs.
          */
@@ -1061,7 +1063,9 @@ export interface paths {
          * @description The AUTHOR only (`403` for anyone else, an `ADMIN` included, before the body is read). Replaces the Markdown body (1 to 10,000
          *     characters, `400` otherwise); the kind never changes. The same window as posting applies (`409`
          *     `urn:hammurabi:problem:discussion-closed` once the ADR's status no longer takes the kind). A deleted entry is `404`. Sets `editedAt`;
-         *     the same text writes nothing. An edit is audit-only, not a history event. Answers the entry.
+         *     the same text writes nothing. `X-Expected-Revision` is optional for v1 compatibility; when supplied, a stale entry revision is a
+         *     typed `409` before the no-op check. A real edit increments the entry revision; the parent ADR revision is untouched. An edit is
+         *     audit-only, not a history event. Answers the entry.
          */
         put: operations["editAdrDiscussionEntry"];
         post?: never;
@@ -1069,7 +1073,9 @@ export interface paths {
          * Delete a discussion entry
          * @description The author or an `ADMIN` (`403` otherwise). A soft delete that leaves a TOMBSTONE: the entry stays in the list as `deleted` with no
          *     body, no state and no resolution (the text is wiped from the store too). Allowed in EVERY ADR status - the moderation path is never
-         *     closed. An already deleted entry is `404`. Audit-only, not a history event.
+         *     closed. An already deleted entry is `404`. `X-Expected-Revision` is optional for v1 compatibility; when supplied, a stale entry
+         *     revision is a typed `409`. A delete increments the tombstone's entry revision; the parent ADR revision is untouched. Audit-only,
+         *     not a history event.
          */
         delete: operations["deleteAdrDiscussionEntry"];
         options?: never;
@@ -1097,7 +1103,9 @@ export interface paths {
          *     (at most 2,000 characters) travels only with `RESOLVED`; a reopen clears it. There is NO window: the state
          *     changes in every ADR status (an issue on an expired or superseded ADR can still be resolved). Records a `QUESTION_ANSWERED`, `QUESTION_REOPENED`, `ISSUE_RESOLVED` or `ISSUE_REOPENED`
          *     event when the state really changes. Setting the state the entry already has writes and records nothing, except that a `RESOLVED` entry sent
-         *     `RESOLVED` with a different `resolution` has its note replaced (none clears it) with no event. Answers the entry.
+         *     `RESOLVED` with a different `resolution` has its note replaced (none clears it) with no event. `X-Expected-Revision` is optional
+         *     for v1 compatibility; when supplied, a stale entry revision is a typed `409` before the no-op check. A real state or note change
+         *     increments the entry revision; the parent ADR revision is untouched. Answers the entry.
          */
         put: operations["setAdrDiscussionEntryState"];
         post?: never;
@@ -2115,6 +2123,11 @@ export interface components {
             id: number;
             /** Format: int32 */
             adrId: number;
+            /**
+             * Format: int64
+             * @description The per-entry concurrency token; real edits, state or note changes, and deletion increment it. Discussion writes never increment the parent ADR revision.
+             */
+            revision: number;
             kind: components["schemas"]["DiscussionKind"];
             /** @description Absent for a comment and for a tombstone (neither has a state). */
             state?: components["schemas"]["DiscussionState"];
@@ -2550,7 +2563,7 @@ export interface components {
         AdrFilterParticipantId: number;
         /** @description Narrows `participantId` to one role (`400` without `participantId`). */
         AdrFilterParticipantRole: components["schemas"]["AdrRole"];
-        /** @description Any-of filter on the ADR's tags; repeat the key for several. */
+        /** @description Any-of filter on the ADR's tags. Repeat the key for several. The limit applies to distinct, normalized registry names. */
         AdrFilterTag: string[];
         /** @description Created on or after this UTC day. */
         AdrFilterCreatedFrom: string;
@@ -2570,6 +2583,11 @@ export interface components {
         AdrFilterHasSuccessor: boolean;
         /** @description A discussion entry of the ADR in the path; one of another ADR is `404`. */
         DiscussionEntryId: number;
+        /**
+         * @description The discussion entry revision the caller read. Optional for v1 compatibility; when present, repeated or malformed is `400` and
+         *     stale is `409` `urn:hammurabi:problem:revision-conflict`. Checked under the ADR lock before deciding a write is a no-op.
+         */
+        OptionalDiscussionRevision: number;
         /**
          * @description The revision of the document the caller read (`revision`). Missing, repeated or malformed is a `400`; a stale one is a `409`
          *     of type `urn:hammurabi:problem:revision-conflict`. Every successful PUT bumps the revision.
@@ -3461,7 +3479,7 @@ export interface operations {
                 participantId?: components["parameters"]["AdrFilterParticipantId"];
                 /** @description Narrows `participantId` to one role (`400` without `participantId`). */
                 participantRole?: components["parameters"]["AdrFilterParticipantRole"];
-                /** @description Any-of filter on the ADR's tags; repeat the key for several. */
+                /** @description Any-of filter on the ADR's tags. Repeat the key for several. The limit applies to distinct, normalized registry names. */
                 tag?: components["parameters"]["AdrFilterTag"];
                 /** @description Full-text search (0.5.0), OPTIONAL where declared (the ADR list): accent- and case-insensitive, every word must match, a word of three characters or more as a prefix. 2 to 100 characters (code points) after trimming with a letter or a digit (`400` otherwise); blank is no search. Distinct from `q`, the name-or-key substring. */
                 text?: components["parameters"]["SearchText"];
@@ -3557,7 +3575,7 @@ export interface operations {
                 participantId?: components["parameters"]["AdrFilterParticipantId"];
                 /** @description Narrows `participantId` to one role (`400` without `participantId`). */
                 participantRole?: components["parameters"]["AdrFilterParticipantRole"];
-                /** @description Any-of filter on the ADR's tags; repeat the key for several. */
+                /** @description Any-of filter on the ADR's tags. Repeat the key for several. The limit applies to distinct, normalized registry names. */
                 tag?: components["parameters"]["AdrFilterTag"];
                 /** @description Created on or after this UTC day. */
                 createdFrom?: components["parameters"]["AdrFilterCreatedFrom"];
@@ -3881,7 +3899,10 @@ export interface operations {
     };
     detachAdrSuccessor: {
         parameters: {
-            query?: never;
+            query?: {
+                /** @description The pending successor seen by the caller; a different current successor is `404`. Omit for legacy blind detach. */
+                successorId?: number;
+            };
             header?: never;
             path: {
                 id: components["parameters"]["ResourceId"];
@@ -4112,7 +4133,13 @@ export interface operations {
     editAdrDiscussionEntry: {
         parameters: {
             query?: never;
-            header?: never;
+            header?: {
+                /**
+                 * @description The discussion entry revision the caller read. Optional for v1 compatibility; when present, repeated or malformed is `400` and
+                 *     stale is `409` `urn:hammurabi:problem:revision-conflict`. Checked under the ADR lock before deciding a write is a no-op.
+                 */
+                "X-Expected-Revision"?: components["parameters"]["OptionalDiscussionRevision"];
+            };
             path: {
                 id: components["parameters"]["ResourceId"];
                 /** @description A discussion entry of the ADR in the path; one of another ADR is `404`. */
@@ -4149,7 +4176,13 @@ export interface operations {
     deleteAdrDiscussionEntry: {
         parameters: {
             query?: never;
-            header?: never;
+            header?: {
+                /**
+                 * @description The discussion entry revision the caller read. Optional for v1 compatibility; when present, repeated or malformed is `400` and
+                 *     stale is `409` `urn:hammurabi:problem:revision-conflict`. Checked under the ADR lock before deciding a write is a no-op.
+                 */
+                "X-Expected-Revision"?: components["parameters"]["OptionalDiscussionRevision"];
+            };
             path: {
                 id: components["parameters"]["ResourceId"];
                 /** @description A discussion entry of the ADR in the path; one of another ADR is `404`. */
@@ -4166,9 +4199,11 @@ export interface operations {
                 };
                 content?: never;
             };
+            400: components["responses"]["BadRequest"];
             401: components["responses"]["Unauthorized"];
             403: components["responses"]["Forbidden"];
             404: components["responses"]["NotFound"];
+            409: components["responses"]["Conflict"];
             429: components["responses"]["TooManyRequests"];
             500: components["responses"]["InternalServerError"];
         };
@@ -4176,7 +4211,13 @@ export interface operations {
     setAdrDiscussionEntryState: {
         parameters: {
             query?: never;
-            header?: never;
+            header?: {
+                /**
+                 * @description The discussion entry revision the caller read. Optional for v1 compatibility; when present, repeated or malformed is `400` and
+                 *     stale is `409` `urn:hammurabi:problem:revision-conflict`. Checked under the ADR lock before deciding a write is a no-op.
+                 */
+                "X-Expected-Revision"?: components["parameters"]["OptionalDiscussionRevision"];
+            };
             path: {
                 id: components["parameters"]["ResourceId"];
                 /** @description A discussion entry of the ADR in the path; one of another ADR is `404`. */
@@ -4203,6 +4244,7 @@ export interface operations {
             401: components["responses"]["Unauthorized"];
             403: components["responses"]["Forbidden"];
             404: components["responses"]["NotFound"];
+            409: components["responses"]["Conflict"];
             413: components["responses"]["PayloadTooLarge"];
             415: components["responses"]["UnsupportedMediaType"];
             429: components["responses"]["TooManyRequests"];

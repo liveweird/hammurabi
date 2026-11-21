@@ -63,6 +63,8 @@ data class DiscussionStateRequest(val state: DiscussionState, val resolution: St
 data class DiscussionEntryResponse(
     val id: UInt,
     val adrId: UInt,
+    /** The per-entry optimistic-concurrency token; discussion writes never change the parent ADR revision. */
+    val revision: Long,
     val kind: DiscussionKind,
     /**
      * Absent from the JSON for a comment and for a tombstone: the spec cannot say "nullable enum" in a way every tool accepts (the

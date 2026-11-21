@@ -62,7 +62,11 @@ describe("DiscussionEntryCard", () => {
     await user.clear(field);
     await user.type(field, "Why not Oracle?");
     await user.click(screen.getByRole("button", { name: "Save" }));
-    await waitFor(() => expect(stub.find("PUT", "/api/v1/adrs/1/discussion/11")?.body).toEqual({ body: "Why not Oracle?" }));
+    await waitFor(() => {
+      const request = stub.find("PUT", "/api/v1/adrs/1/discussion/11");
+      expect(request?.body).toEqual({ body: "Why not Oracle?" });
+      expect(request?.headers.get("X-Expected-Revision")).toBe("1");
+    });
     await waitFor(() => expect(screen.queryByRole("textbox")).not.toBeInTheDocument());
   });
 
@@ -81,7 +85,7 @@ describe("DiscussionEntryCard", () => {
     const user = userEvent.setup();
     const { unmount } = renderWithProviders(<DiscussionEntryCard entry={entryFixture({ canChangeState: true })} />);
     await user.click(screen.getByRole("button", { name: "Mark answered" }));
-    await waitFor(() => expect(stub.find("PUT", "/api/v1/adrs/1/discussion/11/state")?.body).toEqual({ state: "ANSWERED" }));
+    await waitFor(() => expect(stub.find("PUT", "/api/v1/adrs/1/discussion/11/state")?.headers.get("X-Expected-Revision")).toBe("1"));
     unmount();
     renderWithProviders(
       <DiscussionEntryCard
@@ -145,6 +149,8 @@ describe("DiscussionEntryCard", () => {
     expect(await within(dialog).findByRole("alert")).toHaveTextContent("Your role on this ADR does not allow this.");
     expect(within(dialog).getByRole("textbox", { name: /Resolution note/ })).toHaveValue("A careful note");
     await user.click(within(dialog).getByRole("button", { name: "Cancel" }));
+    const discard = await screen.findByRole("dialog", { name: "Discard unsaved changes?" });
+    await user.click(within(discard).getByRole("button", { name: "Discard changes" }));
     await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
     expect(screen.queryByRole("alert")).not.toBeInTheDocument();
   });
@@ -157,7 +163,7 @@ describe("DiscussionEntryCard", () => {
     const dialog = await screen.findByRole("dialog", { name: "Delete this entry?" });
     expect(stub.count("DELETE", "/api/v1")).toBe(0);
     await user.click(within(dialog).getByRole("button", { name: "Delete" }));
-    await waitFor(() => expect(stub.find("DELETE", "/api/v1/adrs/1/discussion/11")).toBeDefined());
+    await waitFor(() => expect(stub.find("DELETE", "/api/v1/adrs/1/discussion/11")?.headers.get("X-Expected-Revision")).toBe("1"));
   });
 
   test("a closed window is the orange reload notice; any other failure a red alert in fixed words", async () => {

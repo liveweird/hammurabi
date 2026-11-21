@@ -14,10 +14,10 @@ in-network consumers use `postgres:5432`). There is one persistence stack:
   makes every long-lived database refuse to boot (a failure no fresh-container CI run can see).
   `MigrationChecksumTest` pins every file's checksum; a new migration adds one manifest line, and
   a red pin means REVERT the edit (clarifications go into this doc), never update the pinned
-  value. The range today is **V1–V21**: V1 `users`, V2 `revoked_tokens`, V3 the seed admin, V4 the
+  value. The range today is **V1–V22**: V1 `users`, V2 `revoked_tokens`, V3 the seed admin, V4 the
   `unaccent` extension, V5 `user_disabled_features` (V1–V5 are Flow's), V6 `teams` (with the optional
   manager), V7 `users.credential_revision`, V8 `password_reset_tokens`, V9 the `ops` telemetry
-  schema, V10 `adrs` + `adr_participants`, V11 `adr_events`, V12 `adr_discussion`, V13 `tag_categories` + `tags` + `adr_tags` (and the seed), V14 `adrs.supersedes_id`, V15 `adrs.search` (the generated `tsvector`, the `hammurabi_search` configuration, the GIN index and the filter indexes), V16 `lenses`, V17 `notifications` + `user_notification_preferences`, V18 `adr_expiry_reminders`, V19 `adrs.supersedes_accepted_id`, V20 the lens filter names, V21 the per-actor mail budget (`notification_email_budget`). (The bootstrap renumbered the donor's history; from V10 on, migrations are append-only like any other.)
+  schema, V10 `adrs` + `adr_participants`, V11 `adr_events`, V12 `adr_discussion`, V13 `tag_categories` + `tags` + `adr_tags` (and the seed), V14 `adrs.supersedes_id`, V15 `adrs.search` (the generated `tsvector`, the `hammurabi_search` configuration, the GIN index and the filter indexes), V16 `lenses`, V17 `notifications` + `user_notification_preferences`, V18 `adr_expiry_reminders`, V19 `adrs.supersedes_accepted_id`, V20 the lens filter names, V21 the per-actor mail budget (`notification_email_budget`), and V22 the discussion entry revision. (The bootstrap renumbered the donor's history; from V10 on, migrations are append-only like any other.)
 - **Exposed + R2DBC** (`infra/db/Database.kt` + the feature services) — runtime DB access.
   `Database.kt` connects the `R2dbcDatabase` and is the composition root: it constructs the
   services and publishes them into `Application.attributes` (today: `UserServiceKey`, `TeamServiceKey`, `NotificationServiceKey`, `AdrEventServiceKey`, `AdrDiscussionServiceKey`, `TagCategoryServiceKey`, `AdrServiceKey`, `AdrListServiceKey`, `AdrExportServiceKey`, `AdrOverviewServiceKey`, `LensServiceKey`, `TokenBlocklistServiceKey`, `PasswordResetServiceKey`; `notifications/NotificationPreferenceRoutes.kt` and `telemetry/TelemetryRoutes.kt` build their own, `conventions.md` "Deliberate exceptions"); each service itself lives next to the feature it serves
@@ -313,6 +313,8 @@ A Kotlin enum is stored by NAME in a `VARCHAR` with no CHECK (the V5 rule: the e
   `idx_adr_discussion_adr_created (adr_id, created_at, id)` serves the oldest-first page; the PARTIAL `idx_adr_discussion_open (adr_id, kind) WHERE status = 'OPEN' AND NOT marked_as_deleted` serves the counts the ADR rows carry
   (`openIssueCount`, `unansweredQuestionCount`): one `GROUP BY adr_id, kind` per read or list page, whose predicate repeats the index's (`status = 'OPEN'` and `active()`) so the planner can use it. Every discussion write locks the `adrs` row
   `FOR NO KEY UPDATE` (the window is judged under it) and never bumps `adrs.revision`; `AdrRowLockTest` pins both halves.
+  V22 adds `adr_discussion.revision BIGINT NOT NULL DEFAULT 1`, including for existing entries and tombstones. The revision is checked
+  and advanced under the same lock. A no-op keeps it.
 - **Locking.** Every ADR write: `FOR NO KEY UPDATE` on the `adrs` row ("Row locks vs. FK locks"), the caller's role re-read under it, then state, revision, requirements, writes and events in ONE transaction.
 
 ### Tag categories and tags (V13)
@@ -422,8 +424,9 @@ default `hammurabi`/`hammurabi`; the value is word-split on purpose):
   drops the volume, restores into a fresh Postgres (the fingerprint is equal, taken before the app starts because telemetry writes at boot),
   starts the app (`Flyway applied 0 migration(s)`, both logins, `GET /adrs?text=zolw` finds the accented ADR, a duplicate name is `409`, a new
   ADR takes the next number), runs `--replace` over a database AHEAD of the dump (an extra table with a foreign key into `adrs`, an extra ADR, a fake
-  higher Flyway row: afterwards exactly the dump), and a forward migration (V21 undone by hand, i.e. a 1.1.0-shaped database; the boot logs
-  `applied 1 migration(s); schema at version 21` and a notice-making write works). It exits non-zero at the first failed assertion and takes
+  higher Flyway row: afterwards exactly the dump), and a forward migration from V21 after removing the V22 column in the drill database.
+  The boot applies V22, the original comment starts at revision 1, and a guarded delete advances it to revision 2. A notice-making
+  ADR write also succeeds. The drill exits non-zero at the first failed assertion and takes
   the project down (`down -v`; an image the drill built itself goes with it, one passed with `--image` is yours and stays), also on Ctrl-C or SIGTERM. In a git worktree build the image from a scratch clone and pass `--image`. Repeat the
   drill after a migration that adds a schema or an extension, and repoint its forward step (`FORWARD` in the script) at the newest migration.
 - **Drilled** 2026-11-21, on the 1.2.0 tree (V1-V21, image built from a scratch clone of the commit before this one): `node scripts/db-drill.mjs` exited 0 with 32
@@ -431,3 +434,5 @@ default `hammurabi`/`hammurabi`; the value is word-split on purpose):
   (no `hammurabi` namespace exists on the local cluster, and the manifests, the scale-down and the claim swap were not exercised); only the `kubectl exec` transport was
   exercised, with the final scripts against a bare `postgres` Deployment in a throwaway namespace (backup `0600`, restore into an empty database, the refusal over a
   leftover extension, `--replace`; the namespace is gone). Append a dated entry on every repeat; a failing drill is a failing backup.
+- **Drilled** 2026-11-21 on the review follow-up tree (V1–V22). `node scripts/db-drill.mjs` passed 34 assertions on the disposable
+  Compose stack, including restoring a populated V21 database, applying V22 and deleting the backfilled entry with its revision.

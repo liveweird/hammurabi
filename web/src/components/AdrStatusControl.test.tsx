@@ -89,6 +89,18 @@ describe("AdrStatusControl", () => {
     expect(await screen.findByRole("dialog", { name: "Withdraw this ADR?" })).toBeInTheDocument();
   });
 
+  test("a withdrawal confirmation keeps the revision it was opened at after activation", async () => {
+    const stub = stubFetch(() => problem(409, "urn:hammurabi:problem:revision-conflict"));
+    const user = userEvent.setup();
+    const reviewing = adrFixture({ status: "IN_REVIEW", revision: 7, allowedTransitions: ["WITHDRAWN"] });
+    const { rerender } = renderWithProviders(<AdrStatusControl adr={reviewing} />);
+    await user.click(screen.getByRole("button", { name: "Withdraw" }));
+    rerender(<AdrStatusControl adr={{ ...reviewing, status: "ACTIVE", revision: 8 }} />);
+    const dialog = await screen.findByRole("dialog", { name: "Withdraw this ADR?" });
+    await user.click(within(dialog).getByRole("button", { name: "Withdraw" }));
+    await waitFor(() => expect(stub.find("POST", "/api/v1/adrs/1/transitions")?.headers.get("X-Expected-Revision")).toBe("7"));
+  });
+
   test("an ADR in review offers the Approver a send back that is not the filled button, and the Driver one beside Cancel", () => {
     const { unmount } = renderWithProviders(
       <AdrStatusControl adr={adrFixture({ status: "IN_REVIEW", ...COMPLETE, participants: WITH_APPROVER, allowedTransitions: ["SOLUTION_DRAFT", "ACTIVE", "WITHDRAWN"] })} />,

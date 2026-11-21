@@ -120,6 +120,7 @@ fun Application.configureNotificationSweep() {
             appUrl = app.mailAppUrl(),
             delayMillis = delaySeconds * 1000,
             minIntervalMillis = minIntervalSeconds * 1000,
+            batchSize = digestBatchSize(maxPerRun),
             maxPerRun = maxPerRun,
         )
         val reminders = ExpiryReminders(database, service, reminderDays)

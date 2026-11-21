@@ -25,22 +25,22 @@ export default function DiscussionEntryCard({ entry }: { entry: DiscussionEntry 
   const { t } = useTranslation();
   const queryClient = useQueryClient();
   const [editing, setEditing] = useState(false);
-  const [confirmingDelete, setConfirmingDelete] = useState(false);
-  const [resolving, setResolving] = useState(false);
+  const [deleteRevision, setDeleteRevision] = useState<number | null>(null);
+  const [resolveRevision, setResolveRevision] = useState<number | null>(null);
   const refresh = () => refreshQueriesAfterMutation(queryClient, ["adrs"]);
   const remove = useMutation({
-    mutationFn: () => deleteDiscussionEntry(entry.adrId, entry.id),
+    mutationFn: (revision: number) => deleteDiscussionEntry(entry.adrId, entry.id, revision),
     onSuccess: async () => {
-      setConfirmingDelete(false);
+      setDeleteRevision(null);
       await refresh();
       showSuccessToast(t("adrs.discussion.toast.deleted"));
     },
-    onError: () => setConfirmingDelete(false),
+    onError: () => setDeleteRevision(null),
   });
   const move = useMutation({
-    mutationFn: (input: { state: DiscussionState; note?: string }) => setDiscussionEntryState(entry.adrId, entry.id, input.state, input.note),
+    mutationFn: (input: { revision: number; state: DiscussionState; note?: string }) => setDiscussionEntryState(entry.adrId, entry.id, input.revision, input.state, input.note),
     onSuccess: async (_entry, input) => {
-      setResolving(false);
+      setResolveRevision(null);
       await refresh();
       showSuccessToast(t(`adrs.discussion.toast.${input.state}`));
     },
@@ -52,9 +52,9 @@ export default function DiscussionEntryCard({ entry }: { entry: DiscussionEntry 
   const stateLabel = open ? (question ? "markAnswered" : "resolve") : question ? "reopenQuestion" : "reopenIssue";
   // A question is answered at once; an issue or escalation is resolved through the note dialog; either reopens at once.
   const changeState = () => {
-    if (!open) move.mutate({ state: "OPEN" });
-    else if (question) move.mutate({ state: "ANSWERED" });
-    else setResolving(true);
+    if (!open) move.mutate({ revision: entry.revision, state: "OPEN" });
+    else if (question) move.mutate({ revision: entry.revision, state: "ANSWERED" });
+    else setResolveRevision(entry.revision);
   };
   const settledBy = entry.stateChangedByName != null && entry.stateChangedAt != null ? { name: entry.stateChangedByName, date: formatDate(entry.stateChangedAt, "—", browserTimeZone()) } : null;
 
@@ -80,7 +80,7 @@ export default function DiscussionEntryCard({ entry }: { entry: DiscussionEntry 
               </ActionIcon>
             )}
             {entry.canDelete && (
-              <ActionIcon color="red" aria-label={t("adrs.discussion.action.deleteAria", { name: entry.authorName })} onClick={() => setConfirmingDelete(true)}>
+              <ActionIcon color="red" aria-label={t("adrs.discussion.action.deleteAria", { name: entry.authorName })} onClick={() => setDeleteRevision(entry.revision)}>
                 <IconTrash size={16} />
               </ActionIcon>
             )}
@@ -122,28 +122,28 @@ export default function DiscussionEntryCard({ entry }: { entry: DiscussionEntry 
             </Button>
           </Group>
         )}
-        {move.isError && !resolving && <AdrWriteError error={move.error} kind="discussion" onReloaded={move.reset} />}
+        {move.isError && resolveRevision == null && <AdrWriteError error={move.error} kind="discussion" onReloaded={move.reset} />}
         {remove.isError && <AdrWriteError error={remove.error} kind="discussion" onReloaded={remove.reset} />}
       </Stack>
-      {resolving && (
+      {resolveRevision != null && (
         <DiscussionResolveModal
           error={move.isError ? <AdrWriteError error={move.error} kind="discussion" onReloaded={move.reset} /> : null}
           onClose={() => {
-            setResolving(false);
+            setResolveRevision(null);
             move.reset();
           }}
-          onResolve={(note) => move.mutate({ state: "RESOLVED", note: note || undefined })}
+          onResolve={(note) => move.mutate({ revision: resolveRevision, state: "RESOLVED", note: note || undefined })}
           loading={move.isPending}
         />
       )}
       <ConfirmActionModal
-        opened={confirmingDelete}
-        onClose={() => setConfirmingDelete(false)}
+        opened={deleteRevision != null}
+        onClose={() => setDeleteRevision(null)}
         title={t("adrs.discussion.deleteTitle")}
         message={t("adrs.discussion.deleteBody")}
         cancelLabel={t("common.action.cancel")}
         confirmLabel={t("common.action.delete")}
-        onConfirm={() => remove.mutate()}
+        onConfirm={() => deleteRevision != null && remove.mutate(deleteRevision)}
         loading={remove.isPending}
       />
     </Paper>

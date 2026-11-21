@@ -1,6 +1,6 @@
 import { StrictMode } from "react";
 import { createRoot } from "react-dom/client";
-import { BrowserRouter } from "react-router-dom";
+import { createBrowserRouter, RouterProvider } from "react-router-dom";
 import { Notifications } from "@mantine/notifications";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import "@fontsource-variable/inter/index.css";
@@ -29,6 +29,10 @@ const queryClient = new QueryClient({
 });
 bindSessionQueryCache(queryClient);
 
+const router = createBrowserRouter([
+  { path: "*", element: <SessionBoundary><App /></SessionBoundary> },
+]);
+
 // A redeploy invalidates the hashed lazy chunks — the first failed dynamic import reloads the
 // page once to pick up the new index.html. Rate-limited via sessionStorage (at most one
 // reload per minute) so a genuinely missing chunk can't loop; past that, the rejection falls
@@ -56,11 +60,7 @@ createRoot(document.getElementById("root")!).render(
           the Shell (App.tsx), so this one only catches crashes of the shell itself. */}
       <ErrorBoundary>
         <QueryClientProvider client={queryClient}>
-          <BrowserRouter>
-            <SessionBoundary>
-              <App />
-            </SessionBoundary>
-          </BrowserRouter>
+          <RouterProvider router={router} />
         </QueryClientProvider>
       </ErrorBoundary>
     </PrintAwareMantineProvider>

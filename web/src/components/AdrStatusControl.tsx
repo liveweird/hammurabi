@@ -26,24 +26,22 @@ function movedToast(kind: AdrMove, t: TFunction): string {
  */
 const isReasonRefusal = (error: unknown): boolean => error instanceof ApiError && error.status === 400;
 
-/** One request of the mutation: the target status and the reason the reader typed, if any. */
-type Move = { to: AdrStatus; reason?: string };
+type Move = { id: number; revision: number; to: AdrStatus; kind: AdrMove; reason?: string };
 
 /**
  * The Status section: the badge and one button per move THIS caller may request (`allowedTransitions` — the server's verdict, never
  * re-derived here). Forward moves act at once; cancelling, withdrawing (a review or a decision in force) and sending an ADR back to the
- * draft confirm first and take an optional reason, which the history shows. The moves send the revision the page holds
+ * draft confirm first and take an optional reason, which the history shows. The moves send the revision the user acted on
  * (`X-Expected-Revision`); a stale one, or a move the map no longer allows, is the orange reload notice. Entering review or activation
  * needs the context, decision, consequences and an Approver: the section lists what is still missing (a hint — the server judges).
  */
 export default function AdrStatusControl({ adr }: { adr: AdrResponse }) {
   const { t } = useTranslation();
   const queryClient = useQueryClient();
-  const [confirming, setConfirming] = useState<{ move: ConfirmedMove; to: AdrStatus } | null>(null);
+  const [confirming, setConfirming] = useState<(Move & { kind: ConfirmedMove }) | null>(null);
   const move = useMutation({
-    mutationFn: ({ to, reason }: Move) => transitionAdr(adr.id, adr.revision, to, reason),
-    onSuccess: async (_adr, { to }) => {
-      const kind = moveOf(adr.status, to);
+    mutationFn: ({ id, revision, to, reason }: Move) => transitionAdr(id, revision, to, reason),
+    onSuccess: async (_adr, { kind }) => {
       setConfirming(null);
       await refreshQueriesAfterMutation(queryClient, ["adrs"]);
       showSuccessToast(movedToast(kind, t));
@@ -79,7 +77,11 @@ export default function AdrStatusControl({ adr }: { adr: AdrResponse }) {
               color={ENDING_MOVES.has(kind) ? "red" : undefined}
               loading={move.isPending && move.variables?.to === to}
               disabled={move.isPending}
-              onClick={() => (isConfirmedMove(kind) ? setConfirming({ move: kind, to }) : move.mutate({ to }))}
+              onClick={() => {
+                const target = { id: adr.id, revision: adr.revision, to };
+                if (isConfirmedMove(kind)) setConfirming({ ...target, kind });
+                else move.mutate({ ...target, kind });
+              }}
             >
               {t(`adrs.transition.${kind}`)}
             </Button>
@@ -103,12 +105,12 @@ export default function AdrStatusControl({ adr }: { adr: AdrResponse }) {
       {move.isError && !reasonRefused && <AdrWriteError error={move.error} kind="transition" onReloaded={move.reset} />}
       {confirming && (
         <AdrTransitionModal
-          move={confirming.move}
+          move={confirming.kind}
           onClose={() => {
             setConfirming(null);
             if (reasonRefused) move.reset();
           }}
-          onConfirm={(reason) => move.mutate({ to: confirming.to, reason: reason || undefined })}
+          onConfirm={(reason) => move.mutate({ ...confirming, reason: reason || undefined })}
           loading={move.isPending}
           rejected={reasonRefused}
         />

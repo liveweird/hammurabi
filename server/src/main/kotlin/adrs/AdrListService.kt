@@ -9,6 +9,7 @@ import ch.nokillswit.infra.db.ftsRank
 import ch.nokillswit.infra.db.ftsVector
 import ch.nokillswit.infra.paging.PageRequest
 import ch.nokillswit.infra.paging.applyPaging
+import io.r2dbc.spi.IsolationLevel
 import io.ktor.util.AttributeKey
 import kotlinx.coroutines.flow.toList
 import kotlinx.coroutines.sync.Semaphore
@@ -32,9 +33,10 @@ private val LIST_COLUMNS = with(AdrService.Adrs) {
 const val MAX_SEARCH_PAGE_SIZE = 20
 
 /**
- * `GET /adrs`: the count and the page on ONE predicate in ONE transaction (`list-endpoints.md`), with the rows' participants, counts
- * and tags read in the same transaction. Without `text` it is the plain list. WITH `text` (0.5.0, `adr-model.md` "Search") it is the
- * full-text search: ONE read transaction under ONE deadline of [timeoutSeconds] ([SearchBudget]: each statement's `queryTimeout`, the only
+ * `GET /adrs`: the count and the page on ONE predicate in ONE read-only REPEATABLE READ transaction (`list-endpoints.md`), with the rows'
+ * participants, counts and tags read in the same snapshot. Without `text` it is the plain list. WITH `text` (0.5.0, `adr-model.md`
+ * "Search") it is the full-text search: ONE read transaction under ONE deadline of [timeoutSeconds] ([SearchBudget]: each statement's
+ * `queryTimeout`, the only
  * way a statement timeout may be set, is the time LEFT): a statement past it, or a deadline spent between two statements, is the typed
  * `429` `search-timeout`, audited `search.timeout` with ids only, and the throwable is never logged (a database failure's message can
  * echo the term). At most [maxConcurrent] searches run in this process at once: the next one is refused AT ONCE with the typed `429`
@@ -71,7 +73,11 @@ class AdrListService(
         noMatch: T,
         block: suspend R2dbcTransaction.(queryText: String?, budget: SearchBudget?) -> T,
     ): T {
-        text ?: return suspendTransaction(database) { block(null, null) }
+        text ?: return suspendTransaction(
+            database,
+            transactionIsolation = IsolationLevel.REPEATABLE_READ,
+            readOnly = true,
+        ) { block(null, null) }
         if (!permits.tryAcquire()) {
             audit("search.busy", "byUserId" to callerUserId.toLong())
             throw searchBusy()

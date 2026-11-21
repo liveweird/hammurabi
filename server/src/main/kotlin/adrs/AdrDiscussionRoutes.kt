@@ -9,6 +9,7 @@ import ch.nokillswit.infra.paging.optionalEnum
 import ch.nokillswit.infra.paging.parsePaging
 import ch.nokillswit.infra.paging.repeatedStrings
 import ch.nokillswit.infra.paging.toPage
+import ch.nokillswit.infra.revision.optionalExpectedRevision
 import ch.nokillswit.plugins.RateLimits
 import io.ktor.http.HttpHeaders
 import io.ktor.http.HttpStatusCode
@@ -30,7 +31,6 @@ import io.ktor.server.routing.routing
 
 /** Oldest first: a discussion reads in the order it was said (the `id` ascending tiebreaker is appended by `parsePaging`). */
 private val DISCUSSION_DEFAULT_SORT = listOf(SortField("createdAt", descending = false))
-
 /**
  * The ADR discussion surface (`/api/v1/adrs/{id}/discussion`, `.claude/docs/adr-model.md` "Discussion", `authorization.md`). Reads and
  * posts
@@ -113,9 +113,10 @@ private fun Route.discussionEdit(discussion: AdrDiscussionService) {
         val caller = call.caller()
         val target = discussion.target(adrId, route.entryId, caller)
         requireMayEditEntry(caller, target.authorId)
+        val expectedRevision = call.optionalExpectedRevision()
         val request = sanitizedDiscussionEdit(call.receive())
         validateDiscussionBody(request.body)
-        val edited = discussion.edit(adrId, route.entryId, caller, request)
+        val edited = discussion.edit(adrId, route.entryId, caller, request, expectedRevision)
         if (edited.changed) {
             audit(
                 "adr.discussion_edited",
@@ -133,7 +134,7 @@ private fun Route.discussionEdit(discussion: AdrDiscussionService) {
         val caller = call.caller()
         val target = discussion.target(adrId, route.entryId, caller)
         requireMayDeleteEntry(caller, target.authorId)
-        val deleted = discussion.delete(adrId, route.entryId, caller)
+        val deleted = discussion.delete(adrId, route.entryId, caller, call.optionalExpectedRevision())
         audit(
             "adr.discussion_deleted",
             "byUserId" to caller.userId.toLong(),
@@ -155,9 +156,10 @@ private fun Route.discussionState(discussion: AdrDiscussionService) {
         val caller = call.caller()
         val target = discussion.target(adrId, entryId, caller)
         requireMayChangeEntryState(target.standing, target.kind, target.authorId)
+        val expectedRevision = call.optionalExpectedRevision()
         val request = sanitizedDiscussionState(call.receive())
         validateDiscussionState(target.kind, request)
-        val changed = discussion.setState(adrId, entryId, caller, request)
+        val changed = discussion.setState(adrId, entryId, caller, request, expectedRevision)
         if (changed != null) {
             // from == to is a resolution whose NOTE changed (no state move, no history event).
             audit(

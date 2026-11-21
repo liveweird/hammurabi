@@ -33,7 +33,7 @@ import org.slf4j.LoggerFactory
 
 private val log = LoggerFactory.getLogger("ch.nokillswit.notifications.NotificationDigest")
 
-/** PEOPLE one run claims at most (the rest wait): oldest waiting first per recipient, so one flooded backlog crowds out nobody. */
+/** Default ceiling on people claimed. Higher configured send limits increase it to fit the send budget and skip margin. */
 internal const val DIGEST_BATCH = 500
 
 /** Notices of ONE person a mail reads as entries (it lists [DIGEST_MAX_ENTRIES]); the re-check's survivors beyond are only counted. */
@@ -56,11 +56,16 @@ internal const val DIGEST_STATEMENT_TIMEOUT_SECONDS = 10
 /** People a claim takes beyond the run's send budget (at least this, or a fifth of it): the margin for those skipped at send time. */
 internal const val DIGEST_MIN_SLACK = 10
 
+private fun claimTarget(maxPerRun: Int): Int = maxPerRun + maxOf(DIGEST_MIN_SLACK, maxPerRun / 5)
+
+/** A production claim can honour [maxPerRun], including its skip margin, while retaining [DIGEST_BATCH] as the default floor. */
+internal fun digestBatchSize(maxPerRun: Int): Int = maxOf(DIGEST_BATCH, claimTarget(maxPerRun))
+
 /**
  * People one claim takes: the send budget plus a margin (people skipped at send time do not use a send), never more than [batchSize].
  * A claim of 5x what a run may send would stamp the rest only to release it again.
  */
-internal fun peopleToClaim(batchSize: Int, maxPerRun: Int): Int = minOf(batchSize, maxPerRun + maxOf(DIGEST_MIN_SLACK, maxPerRun / 5))
+internal fun peopleToClaim(batchSize: Int, maxPerRun: Int): Int = minOf(batchSize, claimTarget(maxPerRun))
 
 /** Mails one run sends at most when `notifications.email.maxPerRun` is not given (`security.md`: the digest shares the `Mailer`). */
 internal const val DIGEST_MAX_PER_RUN = 100

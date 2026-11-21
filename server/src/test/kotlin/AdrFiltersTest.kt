@@ -96,10 +96,17 @@ class AdrFiltersTest {
     fun `a tag longer than any tag name and a q with control characters are refused`() = testApplication {
         usePostgresTestcontainer()
         val client = adrActor("flt-tag").client
+        val aliases = (0 until 21).joinToString("&") { bits ->
+            "tag=" + "alias".mapIndexed { index, character ->
+                if (bits and (1 shl index) == 0) character else character.uppercaseChar()
+            }.joinToString("")
+        }
         assertEquals(HttpStatusCode.OK, client.get("/api/v1/adrs?tag=${"t".repeat(MAX_TAG_NAME_LENGTH)}").status, "the longest name")
         assertEquals(HttpStatusCode.BadRequest, client.get("/api/v1/adrs?tag=${"t".repeat(MAX_TAG_NAME_LENGTH + 1)}").status)
         assertEquals(HttpStatusCode.BadRequest, client.get("/api/v1/adrs?tag=${"t".repeat(5000)}").status)
+        assertEquals(HttpStatusCode.BadRequest, client.get("/api/v1/adrs?tag=%3F%3F%3F").status, "the registry's tag grammar")
         assertEquals(HttpStatusCode.OK, client.get("/api/v1/adrs?tag=ok&tag=%20ok%20").status, "normalised and de-duplicated")
+        assertEquals(HttpStatusCode.OK, client.get("/api/v1/adrs?$aliases").status, "the cap applies after canonical de-duplication")
         assertEquals(HttpStatusCode.BadRequest, client.get("/api/v1/adrs?q=a%01b").status, "control character")
         assertEquals(HttpStatusCode.BadRequest, client.get("/api/v1/adrs?q=a%E2%80%AEb").status, "hidden direction override")
         assertEquals(HttpStatusCode.OK, client.get("/api/v1/adrs?q=%20ok%20").status, "trimmed")

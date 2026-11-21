@@ -18,6 +18,7 @@ import ch.nokillswit.plugins.ProblemDetail
 import io.ktor.client.call.body
 import io.ktor.client.request.delete
 import io.ktor.client.request.get
+import io.ktor.client.request.header
 import io.ktor.client.request.post
 import io.ktor.client.request.put
 import io.ktor.client.request.setBody
@@ -204,21 +205,73 @@ class AdrDiscussionTest {
         val cast = adrCast()
         val adr = cast.raise(complete = true)
         val entry = cast.contributor.client.postEntryOk(adr.id, DiscussionKind.COMMENT, "Original")
+        assertEquals(1, entry.revision)
         assertNull(entry.editedAt)
         val same = cast.contributor.client.editEntry(adr.id, entry.id, "Original")
         assertEquals(HttpStatusCode.OK, same.status)
-        assertNull(same.body<DiscussionEntryResponse>().editedAt, "the same text is not an edit")
+        assertEquals(1, same.body<DiscussionEntryResponse>().revision, "the same text is not an edit")
         val edited = cast.contributor.client.editEntry(adr.id, entry.id, "Changed *text*\r\nsecond line  \n")
         assertEquals(HttpStatusCode.OK, edited.status)
         val after = edited.body<DiscussionEntryResponse>()
         assertEquals("Changed *text*\nsecond line", after.body)
         assertNotNull(after.editedAt)
+        assertEquals(2, after.revision)
         assertEquals(entry.createdAt, after.createdAt)
         // An edit is audit-only: the history holds the post and nothing else.
         val types = cast.driver.client.adrEvents(adr.id).items.map { it.type }
         assertEquals(1, types.count { it == AdrEventType.COMMENTED })
         val aboutEntry = cast.driver.client.adrEvents(adr.id).items.filter { it.params["entryId"] == entry.id.toString() }
         assertEquals(listOf(AdrEventType.COMMENTED), aboutEntry.map { it.type })
+    }
+
+    @Test
+    fun `stale discussion edits and resolutions are typed conflicts even when they would now be no-ops`() = testApplication {
+        usePostgresTestcontainer()
+        val cast = adrCast()
+        val adr = cast.raise(complete = true)
+        val comment = cast.contributor.client.postEntryOk(adr.id, DiscussionKind.COMMENT, "Original")
+        val edited = cast.contributor.client.put("/api/v1/adrs/${adr.id}/discussion/${comment.id}") {
+            header("X-Expected-Revision", comment.revision)
+            contentType(ContentType.Application.Json)
+            setBody("""{"body":"Changed"}""")
+        }.body<DiscussionEntryResponse>()
+        assertEquals(2, edited.revision)
+
+        val staleEdit = cast.contributor.client.put("/api/v1/adrs/${adr.id}/discussion/${comment.id}") {
+            header("X-Expected-Revision", comment.revision)
+            contentType(ContentType.Application.Json)
+            setBody("""{"body":"Changed"}""")
+        }
+        assertEquals(HttpStatusCode.Conflict, staleEdit.status)
+        assertEquals(ProblemTypes.REVISION_CONFLICT, staleEdit.body<ProblemDetail>().type)
+        val staleDelete = cast.contributor.client.delete("/api/v1/adrs/${adr.id}/discussion/${comment.id}") {
+            header("X-Expected-Revision", comment.revision)
+        }
+        assertEquals(HttpStatusCode.Conflict, staleDelete.status)
+        assertEquals(ProblemTypes.REVISION_CONFLICT, staleDelete.body<ProblemDetail>().type)
+        assertFalse(cast.contributor.client.entry(adr.id, comment.id).deleted)
+
+        val question = cast.stranger.client.postEntryOk(adr.id, DiscussionKind.QUESTION)
+        val answered = cast.driver.client.put("/api/v1/adrs/${adr.id}/discussion/${question.id}/state") {
+            header("X-Expected-Revision", question.revision)
+            contentType(ContentType.Application.Json)
+            setBody("""{"state":"ANSWERED"}""")
+        }.body<DiscussionEntryResponse>()
+        assertEquals(2, answered.revision)
+        val staleResolution = cast.driver.client.put("/api/v1/adrs/${adr.id}/discussion/${question.id}/state") {
+            header("X-Expected-Revision", question.revision)
+            contentType(ContentType.Application.Json)
+            setBody("""{"state":"ANSWERED"}""")
+        }
+        assertEquals(HttpStatusCode.Conflict, staleResolution.status)
+        assertEquals(ProblemTypes.REVISION_CONFLICT, staleResolution.body<ProblemDetail>().type)
+
+        val freshNoOp = cast.driver.client.put("/api/v1/adrs/${adr.id}/discussion/${question.id}/state") {
+            header("X-Expected-Revision", answered.revision)
+            contentType(ContentType.Application.Json)
+            setBody("""{"state":"ANSWERED"}""")
+        }.body<DiscussionEntryResponse>()
+        assertEquals(answered.revision, freshNoOp.revision, "a fresh no-op does not increment the entry revision")
     }
 
     @Test

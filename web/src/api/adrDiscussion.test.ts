@@ -38,22 +38,25 @@ describe("ADR discussion API wrappers", () => {
     expect(lastCall()[0]).toBe("/api/v1/adrs/4/discussion");
     expect(lastCall()[1].method).toBe("POST");
     expect(JSON.parse(lastCall()[1].body as string)).toEqual({ kind: "QUESTION", body: "Why?" });
-    await editDiscussionEntry(4, 9, "Why not?");
+    await editDiscussionEntry(4, 9, 7, "Why not?");
     expect(lastCall()[0]).toBe("/api/v1/adrs/4/discussion/9");
     expect(lastCall()[1].method).toBe("PUT");
+    expect(new Headers(lastCall()[1].headers).get("X-Expected-Revision")).toBe("7");
     expect(JSON.parse(lastCall()[1].body as string)).toEqual({ body: "Why not?" });
     mockFetch.mockImplementation(() => Promise.resolve(new Response(null, { status: 204 })));
-    await deleteDiscussionEntry(4, 9);
+    await deleteDiscussionEntry(4, 9, 8);
     expect(lastCall()[0]).toBe("/api/v1/adrs/4/discussion/9");
     expect(lastCall()[1].method).toBe("DELETE");
+    expect(new Headers(lastCall()[1].headers).get("X-Expected-Revision")).toBe("8");
   });
 
   test("the state PUT sends the note only when there is one", async () => {
     mockFetch.mockImplementation(() => Promise.resolve(jsonResponse(200, { id: 9 })));
-    await setDiscussionEntryState(4, 9, "RESOLVED", "Fixed");
+    await setDiscussionEntryState(4, 9, 7, "RESOLVED", "Fixed");
     expect(lastCall()[0]).toBe("/api/v1/adrs/4/discussion/9/state");
     expect(JSON.parse(lastCall()[1].body as string)).toEqual({ state: "RESOLVED", resolution: "Fixed" });
-    await setDiscussionEntryState(4, 9, "OPEN");
+    expect(new Headers(lastCall()[1].headers).get("X-Expected-Revision")).toBe("7");
+    await setDiscussionEntryState(4, 9, 8, "OPEN");
     expect(JSON.parse(lastCall()[1].body as string)).toEqual({ state: "OPEN" });
   });
 });

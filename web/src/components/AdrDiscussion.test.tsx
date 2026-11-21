@@ -135,6 +135,53 @@ describe("AdrDiscussion", () => {
     await waitFor(() => expect(listUrls(stub)).toContain("/api/v1/adrs/1/discussion?page=2&pageSize=20&kind=COMMENT&kind=QUESTION"));
   });
 
+  test("paging protects an edited entry without discarding a separate composer draft", async () => {
+    stubFetch((r) => jsonResponse(200, discussionPageFixture(
+      r.url.includes("page=2") ? [entryFixture({ id: 2, body: "Next entry" })] : [entryFixture({ canEdit: true })],
+      21,
+    )));
+    const user = userEvent.setup();
+    renderWithProviders(<AdrDiscussion adr={adrFixture()} variant="discussion" />);
+    const composer = await screen.findByRole("textbox", { name: /Your comment or question/ });
+    await user.type(composer, "A separate draft");
+    await user.click(await screen.findByRole("button", { name: /Edit the entry by/ }));
+    const editor = await screen.findByRole("textbox", { name: /Edit/ });
+    await user.type(editor, " more");
+    const next = screen.getByRole("button", { name: "Next page" });
+    await user.click(next);
+    await user.click(within(await screen.findByRole("dialog")).getByRole("button", { name: "Keep editing" }));
+    expect(editor).toBeInTheDocument();
+    await user.click(next);
+    await user.click(within(await screen.findByRole("dialog")).getByRole("button", { name: "Discard changes" }));
+    expect(await screen.findByText("Next entry")).toBeInTheDocument();
+    expect(composer).toHaveValue("A separate draft");
+  });
+
+  test("discarding before filtering resets the editor even if the same entry still matches", async () => {
+    const issue = entryFixture({ kind: "ISSUE", state: "OPEN", body: "First issue", canEdit: true });
+    stubFetch(() => jsonResponse(200, discussionPageFixture([issue])));
+    const user = userEvent.setup();
+    renderWithProviders(<AdrDiscussion adr={adrFixture({ status: "ACTIVE", canRaiseIssue: true })} variant="issues" />);
+    await user.click(await screen.findByRole("button", { name: /Edit the entry by/ }));
+    await user.type(await screen.findByRole("textbox", { name: /Edit/ }), " unsaved edit");
+    await user.click(screen.getByRole("switch", { name: "Only open issues" }));
+    await user.click(within(await screen.findByRole("dialog")).getByRole("button", { name: "Discard changes" }));
+    expect(await screen.findByText("First issue")).toBeInTheDocument();
+    expect(screen.queryByRole("textbox", { name: /Edit/ })).not.toBeInTheDocument();
+  });
+
+  test("a discussion window closing keeps the existing composer draft available", async () => {
+    stubFetch(() => jsonResponse(200, discussionPageFixture([])));
+    const user = userEvent.setup();
+    const adr = adrFixture();
+    const { rerender } = renderWithProviders(<AdrDiscussion adr={adr} variant="discussion" />);
+    const composer = await screen.findByRole("textbox", { name: /Your comment or question/ });
+    await user.type(composer, "A comment in progress");
+    rerender(<AdrDiscussion adr={{ ...adr, status: "ACTIVE", canComment: false }} variant="discussion" />);
+    expect(composer).toHaveValue("A comment in progress");
+    expect(screen.getByRole("button", { name: "Post comment" })).toBeDisabled();
+  });
+
   test("when the thread shrinks below the page we are on, the page steps back to the last one", async () => {
     const many = Array.from({ length: 20 }, (_, index) => entryFixture({ id: 200 + index, body: `Entry ${index}` }));
     const stub = stubFetch((r) =>

@@ -19,6 +19,12 @@
     "description": "Opis",
     "user": "Użytkownik/czka"
   },
+  "discard": {
+    "title": "Odrzucić niezapisane zmiany?",
+    "message": "Utracisz niezapisane zmiany.",
+    "keep": "Edytuj dalej",
+    "confirm": "Odrzuć zmiany"
+  },
   "state": {
     "any": "Dowolna"
   },

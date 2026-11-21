@@ -5,7 +5,7 @@ import { adrFixture } from "../test/adrFixtures";
 import { problem, stubFetch } from "../test/fetchStub";
 import { jsonResponse } from "../test/http";
 import { headingOutline } from "../test/headings";
-import { renderWithProviders, screen, waitFor } from "../test/render";
+import { renderWithProviders, screen, waitFor, within } from "../test/render";
 import CreateAdr from "./CreateAdr";
 
 // The visual editor (Lexical) is not what these tests are about: a plain textarea stands in (MarkdownRichEditor.test.tsx runs the real one).
@@ -33,7 +33,7 @@ function renderCreate() {
       <Route path="/adrs" element={<Probe />} />
       <Route path="/adrs/:id" element={<Probe />} />
     </Routes>,
-    { route: "/adrs/new" },
+    { route: "/adrs/new", dataRouter: true },
   );
 }
 
@@ -140,6 +140,34 @@ describe("CreateAdr page", () => {
     const user = userEvent.setup();
     renderCreate();
     await user.click(screen.getByRole("link", { name: "Cancel" }));
+    expect(await screen.findByText("at /adrs")).toBeInTheDocument();
+  });
+
+  test("browser unload is allowed for a clean form and blocked for an unsaved draft", async () => {
+    serve();
+    const user = userEvent.setup();
+    renderCreate();
+    const unload = () => window.dispatchEvent(new Event("beforeunload", { cancelable: true }));
+    expect(unload()).toBe(true);
+    await user.type(await screen.findByRole("textbox", { name: /^Problem/ }), "A draft");
+    expect(unload()).toBe(false);
+    await user.click(screen.getByRole("button", { name: "Create" }));
+    expect(await screen.findByText("at /adrs/12")).toBeInTheDocument();
+    expect(unload()).toBe(true);
+  });
+
+  test("a dirty form can stay open or discard its draft before following a link", async () => {
+    serve();
+    const user = userEvent.setup();
+    renderCreate();
+    const problem = await screen.findByRole("textbox", { name: /^Problem/ });
+    await user.type(problem, "A draft");
+    const back = screen.getByRole("link", { name: "Back to the ADRs" });
+    await user.click(back);
+    await user.click(within(await screen.findByRole("dialog")).getByRole("button", { name: "Keep editing" }));
+    expect(problem).toHaveValue("A draft");
+    await user.click(back);
+    await user.click(within(await screen.findByRole("dialog")).getByRole("button", { name: "Discard changes" }));
     expect(await screen.findByText("at /adrs")).toBeInTheDocument();
   });
 });

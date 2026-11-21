@@ -25,6 +25,21 @@ test.describe("the ADR lifecycle", () => {
     await deleteViaApi(cleanup);
   });
 
+  test("a Driver can keep or discard an unsaved ADR before leaving", async ({ page }) => {
+    await login(page, driver.email, driver.password);
+    await page.goto("/adrs/new");
+    const problem = page.getByRole("textbox", { name: /^Problem/ });
+    await problem.fill("Which queue do we run?");
+    const back = page.getByRole("link", { name: "Back to the ADRs" });
+    const discard = page.getByRole("dialog", { name: "Discard unsaved changes?" });
+    await back.click();
+    await discard.getByRole("button", { name: "Keep editing" }).click();
+    await expect(problem).toHaveText("Which queue do we run?");
+    await back.click();
+    await discard.getByRole("button", { name: "Discard changes" }).click();
+    await expect(page).toHaveURL(/\/adrs$/);
+  });
+
   test("a Driver raises an ADR, drafts it and sends it to review, and the Approver activates it", async ({ page }) => {
     const name = uniqueText("e2e-adr");
     await login(page, driver.email, driver.password);

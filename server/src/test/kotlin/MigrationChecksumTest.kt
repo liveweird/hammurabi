@@ -41,6 +41,7 @@ class MigrationChecksumTest {
         "V19__adr_successor_acceptance.sql" to 1611554628,
         "V20__lens_filter_names.sql" to -51571595,
         "V21__create_notification_email_budget.sql" to -121870227,
+        "V22__add_discussion_revision.sql" to -2131683620,
     )
 
     @Test

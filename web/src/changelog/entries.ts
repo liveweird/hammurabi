@@ -17,6 +17,22 @@ interface ChangelogEntry {
 
 export const CHANGELOG: readonly ChangelogEntry[] = [
   {
+    version: "0.9.0",
+    date: "2026-11-21",
+    en: `**Hammurabi 0.9.0: the decision log.**
+
+- The new Decision log page, between Home and the ADRs, shows the whole log at a glance: how many ADRs are in each status, what is waiting for a decision, what expires soon, what was decided recently and what is in force.
+- ADRs in review are listed with the longest wait first, and the ones waiting for you as the Approver are highlighted, with a link to your own review queue.
+- The decisions in force are grouped by tag category and tag (an ADR appears under each of its tags, and ADRs without a tag have their own group). Each group shows its newest ADRs and a "+N more" link to the ADR list filtered to the rest.
+- Expiring soon looks 30 days ahead by default and puts any date that has already passed first, marked Overdue.`,
+    pl: `**Hammurabi 0.9.0: rejestr decyzji.**
+
+- Nowa strona Rejestr decyzji, między stroną główną a listą ADR-ów, pokazuje cały rejestr na jednym ekranie: ile ADR-ów jest w każdym statusie, co czeka na decyzję, co wkrótce wygasa, co niedawno rozstrzygnięto i co obowiązuje.
+- ADR-y w przeglądzie są wymienione od najdłużej czekających, a te, które czekają na Ciebie jako Zatwierdzającego/ą, są wyróżnione i prowadzą do Twojej kolejki przeglądów.
+- Obowiązujące decyzje są pogrupowane według kategorii tagów i tagów (ADR pojawia się pod każdym ze swoich tagów, a ADR-y bez tagu mają własną grupę). Każda grupa pokazuje najnowsze ADR-y i odnośnik „+N więcej” do listy ADR-ów przefiltrowanej do pozostałych.
+- Wkrótce wygasające domyślnie sięgają 30 dni w przód, a daty już minione są na początku i oznaczone jako po terminie.`,
+  },
+  {
     version: "0.8.0",
     date: "2026-11-21",
     en: `**Hammurabi 0.8.0: Markdown export.**

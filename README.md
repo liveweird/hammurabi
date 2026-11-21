@@ -7,7 +7,7 @@ the decision, the alternatives considered and the accepted consequences; every c
 they are active (comments and questions) and challenged after (issues and escalations). The name is Hammurabi of Babylon, whose stele carried one of the oldest written codes:
 decisions written down so that they bind and can be looked up.
 
-## What's here today (1.1.0 — write and see)
+## What's here today (1.2.0 — safety net)
 
 Hammurabi's repository started as an exact copy of [Flow](https://github.com/liveweird/flow) (1.57.1, `4e43e480`), trimmed to its generic foundation (0.1.0); 0.2.0 built the ADR core on it, 0.3.0 added the discussion, 0.4.0 the tags and successors, 0.5.0 the search, 0.6.0 the notifications, 0.7.0 the send back and the withdrawal of a decision, 0.8.0 the Markdown export, 0.9.0 the decision log page, 1.0.0 the checkup (the hardening, the frozen API names, a decision in force ends only by its Approver) and 1.1.0 the visual Markdown editor and the Lifecycle diagram:
 
@@ -23,9 +23,9 @@ Hammurabi's repository started as an exact copy of [Flow](https://github.com/liv
   consequences (accent- and case-insensitive, ranked by where the words occur, with highlighted snippets), next to filters for status, tags, participants and roles, created and updated date
   ranges, expiry, open issues and successor links; the whole filtered view lives in the URL, so it is a shareable link. **Lenses** save a combination of filters under a name, private or shared with everyone.
 - **Notify** (`/api/v1/notifications`; the bell in the header and the Notification preferences page): being given or losing a DACI role, a status change, a comment, question, issue or escalation, an
-  answer or resolution, an expiry or a supersede, a successor linked or detached, and an **expiry reminder** (`ADRS_EXPIRY_REMINDER_DAYS`, 14 by default, `0` off) reach the people it concerns, never
+  answer or resolution, an expiry or a supersede, a successor linked or detached, a pending successor's predecessor ending, and an **expiry reminder** (`ADRS_EXPIRY_REMINDER_DAYS`, 14 by default, `0` off) reach the people it concerns, never
   the person who caused it. Every notice is made in the same transaction as the change; an **email digest** (`NOTIFICATIONS_EMAIL_*`) in the recipient's language follows what stays unseen, through
-  the configured mailer, and each kind can be switched off for the bell and for email.
+  the configured mailer (at most 200 notices a day per account reach email, `NOTIFICATIONS_EMAIL_MAX_NOTICES_PER_ACTOR_PER_DAY`), and each kind can be switched off for the bell and for email.
 
 - **Export** (`GET /api/v1/adrs/{id}/export`, `GET /api/v1/adrs/export`; the Export Markdown button of the ADR page and the Export (ZIP) button of the list): any signed-in user downloads an ADR as one
   Markdown file in the [adr-tools](https://github.com/npryce/adr-tools) layout (status, context, decision, consequences, plus the alternatives, the DACI roles and the tags), named
@@ -45,7 +45,7 @@ Hammurabi's repository started as an exact copy of [Flow](https://github.com/liv
 
 ## Roadmap
 
-0.2.0 ADR core (ids, lifecycle, DACI, history, expiry) · 0.3.0 discussion (comments, questions, issues, escalations) · 0.4.0 tags and successors · 0.5.0 find (full-text search, the remaining filters, URL-synced filters, saved lenses) · 0.6.0 notify (the bell, email digest, preferences, expiry reminders) · 0.7.0 send back and withdraw · 0.8.0 Markdown export · 0.9.0 the decision log page · 1.0.0 checkup · 1.1.0 write and see (the visual editor, the Lifecycle tab).
+0.2.0 ADR core (ids, lifecycle, DACI, history, expiry) · 0.3.0 discussion (comments, questions, issues, escalations) · 0.4.0 tags and successors · 0.5.0 find (full-text search, the remaining filters, URL-synced filters, saved lenses) · 0.6.0 notify (the bell, email digest, preferences, expiry reminders) · 0.7.0 send back and withdraw · 0.8.0 Markdown export · 0.9.0 the decision log page · 1.0.0 checkup · 1.1.0 write and see (the visual editor, the Lifecycle tab) · 1.2.0 safety net (the mail budget and write bucket, the predecessor-ended notice, backup and restore).
 The scope of each version and the decisions behind it: `.claude/docs/product.md`; the domain model: `.claude/docs/adr-model.md`; open items: `BACKLOG.md`. `CLAUDE.md`'s "Product" and
 "Donors" sections say which sibling project each capability ports from.
 

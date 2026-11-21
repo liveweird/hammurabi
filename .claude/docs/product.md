@@ -90,7 +90,7 @@ stele of the Code of Hammurabi on a lapis disc — the sun disc of Shamash crown
 
 ## Roadmap
 
-Each increment is built and gated on its own. **Current version: 1.1.0** (write and see; the release commit bumps `APP_VERSION`).
+Each increment is built and gated on its own. **Current version: 1.2.0** (safety net; the release commit bumps `APP_VERSION`).
 
 | Ver | Scope |
 |---|---|
@@ -105,6 +105,7 @@ Each increment is built and gated on its own. **Current version: 1.1.0** (write 
 | **0.9.0 Decision log** (extra, approved by the user 2026-11-21) | `GET /adrs/overview` and the read-only Decision log page: status counts, what waits for a decision (the Approver's own highlighted), what expires soon, what was decided recently, what is in force by tag category and tag, every section capped with a "+N more" link, released |
 | **1.0.0 Checkup** | The family's technical checkup (docs, DRY/SRP, tests, UI consistency, security, guardrails, infra): fixes in `audit-status.md` "Fixed so far", the follow-ups in `BACKLOG.md`, released |
 | **1.1.0 Write and see** (requested by the user 2026-11-21) | The visual Markdown editor for every long text field (Lettuce's `MarkdownEditor`, MDXEditor, with a Markdown source view; a save without typing changes nothing) and the Lifecycle tab on the ADR page (Lettuce's `LifecycleDiagram`: every status and move, who may make it, where the ADR is and the caller's own moves highlighted), released |
+| **1.2.0 Safety net** (the user's "1.2.0 = 1–3", 2026-11-21) | C-SEC-4: the per-actor mail budget (V21, 200 notices a UTC day, system notices charged to the Approver) and the `adr-write` bucket (120/min); the `PREDECESSOR_ENDED` event and notice for a pending successor whose predecessor ends unreplaced; C-ARCH-2: `db-backup.sh`/`db-restore.sh` (Adder's), the drill and the runbook, released |
 
 ## Donors
 
@@ -129,6 +130,10 @@ Left in Flow on purpose: `ingest/`, `fetch/`, `jira/`, `gitlab/`, `norm/`, `iden
 `infra/outbound/` (the SSRF guard — port it with the first server-initiated call other than SMTP), `plugins/Role.kt`, `EncryptedAtRest`/`Reencrypt`.
 
 ## Release history
+
+### v1.2.0 — safety net (2026-11-21)
+
+The user's "1.2.0 = 1–3" with decisions D1–D4. C-SEC-4: V21 `notification_email_budget` (200 notices per actor per UTC day, `NOTIFICATIONS_EMAIL_MAX_NOTICES_PER_ACTOR_PER_DAY`; over it the bell notice stays and the email is withheld, leads first; the sweep's and reminders' notices charged to the ADR's Approver; the budget row the first lock of every notice-making write, reserved per transaction; every withholding write audited; reminders re-armed at most once a day) and the per-user `adr-write` bucket (120/min, the 13 ADR and discussion writes, `429`). The stuck successor: ending an ADR unreplaced records `PREDECESSOR_ENDED` on its pending successor and tells its leads; `supersededBy`, `hasSuccessor`, the panel and the export no longer list it (D3: the link stays). C-ARCH-2: `scripts/db-backup.sh`, `db-restore.sh` (Adder's, hardened), `db-drill.mjs` and `persistence.md` "Backup and restore". Upgrade notes: V21 runs on boot; `hasSuccessor=true` and `supersededBy` no longer count a pending successor of an ADR that ended unreplaced; rolling back to 1.1.x needs `DELETE FROM adr_events WHERE event_type = 'PREDECESSOR_ENDED'` first (1.1.x cannot read that event). Released.
 
 ### v1.1.0 — write and see (2026-11-21)
 

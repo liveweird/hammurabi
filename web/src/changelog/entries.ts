@@ -17,6 +17,22 @@ interface ChangelogEntry {
 
 export const CHANGELOG: readonly ChangelogEntry[] = [
   {
+    version: "1.2.0",
+    date: "2026-11-21",
+    en: `**Hammurabi 1.2.0: safety net.**
+
+- One person's changes can no longer flood everyone's inbox. Each account may cause 200 notifications a day; past that, the people concerned still see every notification in the bell, but no email is sent for it. Notifications the app makes on its own (an ADR expiring, an expiry reminder) count towards the ADR's Approver, and an expiry reminder comes at most once a day.
+- Changes to ADRs and their discussion are limited to 120 a minute per person. Past that, the app asks you to wait a moment instead of failing.
+- When an ADR is cancelled, withdrawn or expires while another ADR is waiting to replace it, that successor's Driver and Approver are now told, and its history says so. The ended ADR no longer lists it as its successor; the successor keeps the link until its Driver removes it.
+- For administrators: scripts to back up the database and restore it, with a step-by-step guide and a rehearsal that checks the whole round trip.`,
+    pl: `**Hammurabi 1.2.0: siatka bezpieczeństwa.**
+
+- Zmiany jednej osoby nie zaleją już niczyjej skrzynki. Każde konto może wywołać 200 powiadomień dziennie; ponad ten limit osoby, których to dotyczy, nadal widzą każde powiadomienie w dzwonku, ale nie dostają już o nim e-maila. Powiadomienia, które aplikacja tworzy sama (wygaśnięcie ADR-u, przypomnienie o wygaśnięciu), liczą się do limitu Zatwierdzającego/ej tego ADR-u, a przypomnienie o wygaśnięciu przychodzi najwyżej raz dziennie.
+- Zmiany w ADR-ach i w ich dyskusji są ograniczone do 120 na minutę na osobę. Powyżej tego limitu aplikacja prosi o chwilę cierpliwości zamiast zgłaszać błąd.
+- Gdy ADR zostaje anulowany, wycofany albo wygasa, a inny ADR czeka, żeby go zastąpić, Prowadzący/a i Zatwierdzający/a tego następcy dostają teraz powiadomienie, a jego historia to odnotowuje. Zakończony ADR nie wskazuje go już jako następcy; następca zachowuje powiązanie, dopóki jego Prowadzący/a go nie usunie.
+- Dla administratorów/ek: skrypty do kopii zapasowej bazy danych i jej odtwarzania, z instrukcją krok po kroku i próbą, która sprawdza całą drogę w obie strony.`,
+  },
+  {
     version: "1.1.0",
     date: "2026-11-21",
     en: `**Hammurabi 1.1.0: write and see.**

@@ -8,7 +8,10 @@ import ch.nokillswit.adrs.AdrExportService
 import ch.nokillswit.adrs.AdrExportServiceKey
 import ch.nokillswit.adrs.AdrListService
 import ch.nokillswit.adrs.AdrListServiceKey
+import ch.nokillswit.adrs.AdrOverviewService
+import ch.nokillswit.adrs.AdrOverviewServiceKey
 import ch.nokillswit.adrs.AdrParticipantService
+import ch.nokillswit.adrs.OVERVIEW_EXPIRING_DAYS_MAX
 import ch.nokillswit.adrs.AdrService
 import ch.nokillswit.adrs.AdrServiceKey
 import ch.nokillswit.adrs.AdrSuccessorService
@@ -292,6 +295,9 @@ suspend fun Application.configureDatabase() {
     )
     // The Markdown export (0.8.0): reads the ADR, its people, tags, links and first activation.
     attributes.put(AdrExportServiceKey, AdrExportService(database, adrParticipants, adrTags, adrSuccessors, adrEvents))
+    // The decision log (0.9.0): counts, the in-force groups and three short lists in one read transaction.
+    val expiringSoonDays = requireConfigInt(environment.config, "adrs.overview.expiringSoonDays", min = 1, max = OVERVIEW_EXPIRING_DAYS_MAX)
+    attributes.put(AdrOverviewServiceKey, AdrOverviewService(database, adrParticipants, expiringSoonDays))
     attributes.put(LensServiceKey, LensService(database))
     attributes.put(
         TokenBlocklistServiceKey,

@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: hammurabi-api
-  version: 0.8.0
+  version: 0.9.0
   description: |
     JWT-authenticated REST API for Hammurabi — Architecture Decision Records (ADRs) across their lifecycle, with DACI
     responsibility. It serves the Hammurabi web app and is versioned by its `/api/v1` path prefix. It exposes the ADRs
@@ -1011,6 +1011,40 @@ paths:
           content:
             application/problem+json:
               schema: { $ref: '#/components/schemas/ProblemDetail' }
+        '500': { $ref: '#/components/responses/InternalServerError' }
+
+  /api/v1/adrs/overview:
+    get:
+      tags: [adrs]
+      operationId: getAdrOverview
+      summary: The decision log
+      description: |
+        Any authenticated user (ADRs are an open decision log). ONE purpose-built read, outside the paged envelope: a page cannot show
+        "what is in force by tag", "what was decided lately", "what expires soon" and "what waits for a decision" together. It takes no
+        parameters, and EVERY section is capped and says how many ADRs it left out (`more`, `total - items.length`, never negative) -
+        the shape exception is recorded in `list-endpoints.md`. Built from a constant number of statements in one transaction.
+
+        - `counts`: every status in lifecycle order, zero included (live ADRs only).
+        - `inForce`: the ACTIVE ADRs. `categories` group them by tag category, then by LIVE tag (alphabetical, case-insensitive); an ADR is
+          listed under each of its live tags, newest number first, at most 20 per tag (`more` = the rest); at most 100 tags are shown
+          (`hiddenTags` counts those left out). A category or tag with no ACTIVE ADR is absent. `untagged` holds the ACTIVE ADRs with no live
+          tag (a retired tag does not group an ADR), at most 20.
+        - `recentlyDecided`: the 10 ADRs that became ACTIVE most recently and are still ACTIVE (`statusChangedAt` is the activation).
+        - `expiringSoon`: ACTIVE ADRs whose expiry date (the LAST day in force) is within `days` days of today (UTC), soonest first, at most
+          20; a date already past that the sweep has not acted on is included (it leads). `days` is `adrs.overview.expiringSoonDays` (30).
+        - `awaitingDecision`: ADRs IN_REVIEW, the longest-waiting first, at most 20, each with its Approver and `mine` (the caller IS the
+          Approver); `mineTotal` counts ALL the caller's, including any beyond the cap (the list filters `status=IN_REVIEW&participant=<me>&role=APPROVER` show them).
+
+        Rows link to the ADR (`/adrs/{id}`); the sections' "more" links are the list's own filters (`status`, `tag`). No rate bucket (like
+        `GET /adrs`: bounded, one call per page load); not audited (a read).
+      responses:
+        '200':
+          description: The decision log
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdrOverview'
+        '401': { $ref: '#/components/responses/Unauthorized' }
         '500': { $ref: '#/components/responses/InternalServerError' }
 
   /api/v1/adrs/{id}:
@@ -2645,6 +2679,115 @@ components:
           type: integer
           format: int64
           minimum: 0
+    AdrLogItem:
+      type: object
+      required: [id, number, key, name, expiresOn, statusChangedAt]
+      description: An ADR as the decision log lists it.
+      properties:
+        id: { type: integer, format: int32, minimum: 0 }
+        number: { type: integer, format: int32, minimum: 1 }
+        key: { type: string, example: ADR-0042 }
+        name: { type: string }
+        expiresOn: { type: string, format: date, nullable: true, description: The last day the decision is in force; null = none. }
+        statusChangedAt:
+          type: integer
+          format: int64
+          description: When the ADR entered its current status (epoch millis) - the activation of an ACTIVE one, the submission of one in review.
+    AdrAwaitingItem:
+      type: object
+      required: [id, number, key, name, expiresOn, statusChangedAt, approver, mine]
+      description: An ADR in review - the fields of a log item plus who has to decide.
+      properties:
+        id: { type: integer, format: int32, minimum: 0 }
+        number: { type: integer, format: int32, minimum: 1 }
+        key: { type: string, example: ADR-0042 }
+        name: { type: string }
+        expiresOn: { type: string, format: date, nullable: true, description: The last day the decision is in force; null = none. }
+        statusChangedAt: { type: integer, format: int64, description: When the ADR was submitted for review (epoch millis). }
+        approver:
+          allOf:
+            - $ref: '#/components/schemas/AdrParticipant'
+          nullable: true
+          description: The Approver seat; null when it is empty.
+        mine: { type: boolean, description: "The caller is the Approver, so the ADR waits for them." }
+    AdrLogSection:
+      type: object
+      required: [total, items, more]
+      properties:
+        total: { type: integer, format: int64, minimum: 0, description: The ADRs the section was cut from. }
+        items:
+          type: array
+          items: { $ref: '#/components/schemas/AdrLogItem' }
+        more: { type: integer, format: int64, minimum: 0, description: "`total` minus the items shown." }
+    AdrExpiringSection:
+      type: object
+      required: [days, total, items, more]
+      properties:
+        days: { type: integer, minimum: 1, maximum: 365, description: The horizon in days from today (UTC). }
+        total: { type: integer, format: int64, minimum: 0 }
+        items:
+          type: array
+          items: { $ref: '#/components/schemas/AdrLogItem' }
+        more: { type: integer, format: int64, minimum: 0 }
+    AdrAwaitingSection:
+      type: object
+      required: [total, items, more, mineTotal]
+      properties:
+        total: { type: integer, format: int64, minimum: 0 }
+        items:
+          type: array
+          items: { $ref: '#/components/schemas/AdrAwaitingItem' }
+        more: { type: integer, format: int64, minimum: 0 }
+        mineTotal: { type: integer, format: int64, minimum: 0, description: "All the ADRs in review whose Approver is the caller, beyond the cap too." }
+    AdrTagGroup:
+      type: object
+      required: [name, total, items, more]
+      properties:
+        name: { type: string, description: The tag name. }
+        total: { type: integer, format: int64, minimum: 1, description: The ACTIVE ADRs carrying the tag. }
+        items:
+          type: array
+          items: { $ref: '#/components/schemas/AdrLogItem' }
+          description: The newest 20.
+        more: { type: integer, format: int64, minimum: 0 }
+    AdrCategoryGroup:
+      type: object
+      required: [id, name, tags]
+      properties:
+        id: { type: integer, format: int32, minimum: 0 }
+        name: { type: string }
+        tags:
+          type: array
+          items: { $ref: '#/components/schemas/AdrTagGroup' }
+    AdrInForce:
+      type: object
+      required: [total, categories, hiddenTags, untagged]
+      properties:
+        total: { type: integer, format: int64, minimum: 0, description: The ACTIVE ADRs. }
+        categories:
+          type: array
+          items: { $ref: '#/components/schemas/AdrCategoryGroup' }
+        hiddenTags: { type: integer, minimum: 0, description: Tags with an ACTIVE ADR that the 100-tag cap left out. }
+        untagged: { $ref: '#/components/schemas/AdrLogSection' }
+    AdrStatusCount:
+      type: object
+      required: [status, count]
+      properties:
+        status: { $ref: '#/components/schemas/AdrStatus' }
+        count: { type: integer, format: int64, minimum: 0 }
+    AdrOverview:
+      type: object
+      required: [generatedAt, counts, inForce, recentlyDecided, expiringSoon, awaitingDecision]
+      properties:
+        generatedAt: { type: integer, format: int64 }
+        counts:
+          type: array
+          items: { $ref: '#/components/schemas/AdrStatusCount' }
+          description: Every status in lifecycle order, zero included.
+        inForce: { $ref: '#/components/schemas/AdrInForce' }
+        recentlyDecided: { $ref: '#/components/schemas/AdrLogSection' }
+        expiringSoon: { $ref: '#/components/schemas/AdrExpiringSection' }
+        awaitingDecision: { $ref: '#/components/schemas/AdrAwaitingSection' }
     AdrEventType:
       type: string
       enum:

@@ -85,6 +85,13 @@ class AdrParticipantService(private val events: AdrEventService) {
     suspend fun leadsOf(adrIds: List<UInt>): Map<UInt, List<AdrParticipant>> =
         rowsOf(adrIds, listOf(AdrRole.DRIVER, AdrRole.APPROVER))
 
+    /** Which of [userIds] are ACTIVE accounts (one query): a soft-deleted user keeps a seat row and a name but cannot act. */
+    suspend fun activeAmong(userIds: Collection<UInt>): Set<UInt> {
+        if (userIds.isEmpty()) return emptySet()
+        return users.select(users.id).where { (users.id inList userIds.distinct()) and users.active() }
+            .map { it[users.id].value }.toList().toSet()
+    }
+
     /** The caller's role on [adrId], or null when they hold none. */
     suspend fun roleOf(adrId: UInt, userId: UInt): AdrRole? =
         AdrParticipants.select(AdrParticipants.role)

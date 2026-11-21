@@ -639,6 +639,43 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/adrs/overview": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * The decision log
+         * @description Any authenticated user (ADRs are an open decision log). ONE purpose-built read, outside the paged envelope: a page cannot show
+         *     "what is in force by tag", "what was decided lately", "what expires soon" and "what waits for a decision" together. It takes no
+         *     parameters, and EVERY section is capped and says how many ADRs it left out (`more`, `total - items.length`, never negative) -
+         *     the shape exception is recorded in `list-endpoints.md`. Built from a constant number of statements in one transaction.
+         *
+         *     - `counts`: every status in lifecycle order, zero included (live ADRs only).
+         *     - `inForce`: the ACTIVE ADRs. `categories` group them by tag category, then by LIVE tag (alphabetical, case-insensitive); an ADR is
+         *       listed under each of its live tags, newest number first, at most 20 per tag (`more` = the rest); at most 100 tags are shown
+         *       (`hiddenTags` counts those left out). A category or tag with no ACTIVE ADR is absent. `untagged` holds the ACTIVE ADRs with no live
+         *       tag (a retired tag does not group an ADR), at most 20.
+         *     - `recentlyDecided`: the 10 ADRs that became ACTIVE most recently and are still ACTIVE (`statusChangedAt` is the activation).
+         *     - `expiringSoon`: ACTIVE ADRs whose expiry date (the LAST day in force) is within `days` days of today (UTC), soonest first, at most
+         *       20; a date already past that the sweep has not acted on is included (it leads). `days` is `adrs.overview.expiringSoonDays` (30).
+         *     - `awaitingDecision`: ADRs IN_REVIEW, the longest-waiting first, at most 20, each with its Approver and `mine` (the caller IS the
+         *       Approver); `mineTotal` counts ALL the caller's, including any beyond the cap (the list filters `status=IN_REVIEW&participant=<me>&role=APPROVER` show them).
+         *
+         *     Rows link to the ADR (`/adrs/{id}`); the sections' "more" links are the list's own filters (`status`, `tag`). No rate bucket (like
+         *     `GET /adrs`: bounded, one call per page load); not audited (a read).
+         */
+        get: operations["getAdrOverview"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/adrs/{id}": {
         parameters: {
             query?: never;
@@ -1663,6 +1700,129 @@ export interface components {
             pageSize: number;
             /** Format: int64 */
             total: number;
+        };
+        /** @description An ADR as the decision log lists it. */
+        AdrLogItem: {
+            /** Format: int32 */
+            id: number;
+            /** Format: int32 */
+            number: number;
+            /** @example ADR-0042 */
+            key: string;
+            name: string;
+            /**
+             * Format: date
+             * @description The last day the decision is in force; null = none.
+             */
+            expiresOn: string | null;
+            /**
+             * Format: int64
+             * @description When the ADR entered its current status (epoch millis) - the activation of an ACTIVE one, the submission of one in review.
+             */
+            statusChangedAt: number;
+        };
+        /** @description An ADR in review - the fields of a log item plus who has to decide. */
+        AdrAwaitingItem: {
+            /** Format: int32 */
+            id: number;
+            /** Format: int32 */
+            number: number;
+            /** @example ADR-0042 */
+            key: string;
+            name: string;
+            /**
+             * Format: date
+             * @description The last day the decision is in force; null = none.
+             */
+            expiresOn: string | null;
+            /**
+             * Format: int64
+             * @description When the ADR was submitted for review (epoch millis).
+             */
+            statusChangedAt: number;
+            /** @description The Approver seat; null when it is empty. */
+            approver: components["schemas"]["AdrParticipant"] | null;
+            /** @description The caller is the Approver, so the ADR waits for them. */
+            mine: boolean;
+        };
+        AdrLogSection: {
+            /**
+             * Format: int64
+             * @description The ADRs the section was cut from.
+             */
+            total: number;
+            items: components["schemas"]["AdrLogItem"][];
+            /**
+             * Format: int64
+             * @description `total` minus the items shown.
+             */
+            more: number;
+        };
+        AdrExpiringSection: {
+            /** @description The horizon in days from today (UTC). */
+            days: number;
+            /** Format: int64 */
+            total: number;
+            items: components["schemas"]["AdrLogItem"][];
+            /** Format: int64 */
+            more: number;
+        };
+        AdrAwaitingSection: {
+            /** Format: int64 */
+            total: number;
+            items: components["schemas"]["AdrAwaitingItem"][];
+            /** Format: int64 */
+            more: number;
+            /**
+             * Format: int64
+             * @description All the ADRs in review whose Approver is the caller, beyond the cap too.
+             */
+            mineTotal: number;
+        };
+        AdrTagGroup: {
+            /** @description The tag name. */
+            name: string;
+            /**
+             * Format: int64
+             * @description The ACTIVE ADRs carrying the tag.
+             */
+            total: number;
+            /** @description The newest 20. */
+            items: components["schemas"]["AdrLogItem"][];
+            /** Format: int64 */
+            more: number;
+        };
+        AdrCategoryGroup: {
+            /** Format: int32 */
+            id: number;
+            name: string;
+            tags: components["schemas"]["AdrTagGroup"][];
+        };
+        AdrInForce: {
+            /**
+             * Format: int64
+             * @description The ACTIVE ADRs.
+             */
+            total: number;
+            categories: components["schemas"]["AdrCategoryGroup"][];
+            /** @description Tags with an ACTIVE ADR that the 100-tag cap left out. */
+            hiddenTags: number;
+            untagged: components["schemas"]["AdrLogSection"];
+        };
+        AdrStatusCount: {
+            status: components["schemas"]["AdrStatus"];
+            /** Format: int64 */
+            count: number;
+        };
+        AdrOverview: {
+            /** Format: int64 */
+            generatedAt: number;
+            /** @description Every status in lifecycle order, zero included. */
+            counts: components["schemas"]["AdrStatusCount"][];
+            inForce: components["schemas"]["AdrInForce"];
+            recentlyDecided: components["schemas"]["AdrLogSection"];
+            expiringSoon: components["schemas"]["AdrExpiringSection"];
+            awaitingDecision: components["schemas"]["AdrAwaitingSection"];
         };
         /**
          * @description The kinds of history, with their `params` (all strings): `CREATED` {key, name}; `UPDATED` {changed: comma-joined field names, `name.from`/`name.to`/`expiresOn.from`/`expiresOn.to` where short}; `TRANSITIONED` {from, to, reason?} (the optional free-text reason of the move, 0.7.0); `PARTICIPANT_ADDED` and `PARTICIPANT_REMOVED` {userId, name, role}; `PARTICIPANT_CHANGED` {userId, name, from, to}; `EXPIRED` {expiresOn}, a system event; `SUPERSEDED` {successorId, key, name}, on the predecessor, when its successor became `ACTIVE` (the actor is the user who activated it); `SUCCESSOR_ACTIVATED` {predecessorId, key, name}, on the successor, in the same transaction; `TAGS_CHANGED` {added, removed}, comma-joined tag names, each key only when non-empty; `SUCCESSOR_LINKED` / `SUCCESSOR_UNLINKED` {predecessorId, key, name}, on the successor (a `SUCCESSOR_UNLINKED` is also written on the predecessor when its owner detaches the pending successor, then {successorId, key, name}). The discussion events (`COMMENTED`, `QUESTION_ASKED`, `QUESTION_ANSWERED`, `QUESTION_REOPENED`, `ISSUE_RAISED`, `ESCALATED`, `ISSUE_RESOLVED`, `ISSUE_REOPENED`) carry {entryId, kind} - never the text; an edit or a delete of an entry is not an event.
@@ -3355,6 +3515,28 @@ export interface operations {
                     "application/problem+json": components["schemas"]["ProblemDetail"];
                 };
             };
+            500: components["responses"]["InternalServerError"];
+        };
+    };
+    getAdrOverview: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The decision log */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AdrOverview"];
+                };
+            };
+            401: components["responses"]["Unauthorized"];
             500: components["responses"]["InternalServerError"];
         };
     };

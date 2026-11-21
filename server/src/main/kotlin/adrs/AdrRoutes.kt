@@ -43,6 +43,11 @@ class AdrsRoute {
     @Resource("export")
     class Export(val parent: AdrsRoute = AdrsRoute())
 
+    /** `GET /adrs/overview` (0.9.0): the decision log; a literal, so it beats `{id}`. */
+    @Serializable
+    @Resource("overview")
+    class Overview(val parent: AdrsRoute = AdrsRoute())
+
     @Serializable
     @Resource("{id}")
     class Id(val parent: AdrsRoute = AdrsRoute(), val id: UInt) {

@@ -256,3 +256,10 @@ suspend fun forceAdrTimes(id: UInt, createdAt: Long, updatedAt: Long = createdAt
         }
     }
 }
+
+/** Forces the stored `status_changed_at` of [id] (epoch millis): the instant the decision log orders by (the API stamps the wall clock). */
+suspend fun forceAdrStatusChangedAt(id: UInt, at: Long) {
+    suspendTransaction(sharedDatabaseForTests()) {
+        AdrService.Adrs.update({ AdrService.Adrs.id eq id }) { it[AdrService.Adrs.statusChangedAt] = at }
+    }
+}

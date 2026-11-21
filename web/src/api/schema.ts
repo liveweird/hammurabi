@@ -993,6 +993,107 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/notifications": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List the caller's notifications
+         * @description Any authenticated user: the caller's OWN notices only (there is nothing to disclose and no guard), newest first by default, on ADRs
+         *     that still exist, of a kind this build knows. Paged; sortable by `id` and `createdAt`; `seen` filters (`false` = the unseen ones,
+         *     the bell's badge). **The `total` is capped at 1000** (a count reads at most 1001 rows, so it never grows with a person's history;
+         *     a page starting at or past row 1000 is empty). A notice is a pointer: the actor's name and the ADR's key and name are read when the
+         *     page is read, so a rename shows at once. A read: no audit line. Rides the per-user `read-state` bucket (240/min, `429`).
+         *     `.claude/docs/adr-model.md` "Notifications".
+         */
+        get: operations["listNotifications"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/notifications/seen-all": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Mark every unseen notification of the caller seen
+         * @description Any authenticated user; touches only the caller's own rows, in chunks of 1000. `204` even when none was unseen. Not audited (view
+         *     state). Rides the per-user `read-state` bucket (`429`).
+         */
+        post: operations["markAllNotificationsSeen"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/notifications/{id}/seen": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["parameters"]["ResourceId"];
+            };
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Mark one notification of the caller seen
+         * @description Any authenticated user. Seen again is `204`. Someone else's notice and one that does not exist are the same `404` (no `403` to probe
+         *     with). Not audited (view state). Rides the per-user `read-state` bucket (`429`), taken before the id is looked at.
+         */
+        post: operations["markNotificationSeen"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/users/{id}/notification-preferences": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["parameters"]["ResourceId"];
+            };
+            cookie?: never;
+        };
+        /**
+         * Read a user's notification switches (target user or ADMIN)
+         * @description Every kind with its two switches: `inApp` (the bell: a switched-off kind makes no notice for the person from then on) and `email`
+         *     (the digest: a switched-off kind is never mailed; the bell is unchanged). A kind with no stored row is on. `emailAvailable` is false
+         *     on a deployment with no outbound email (the email switches then do nothing; the bell works). **Target user or ADMIN**: `403`
+         *     before anything is read, then `404` for an unknown or soft-deleted user. Rides the per-user `read-state` bucket (`429`).
+         */
+        get: operations["getNotificationPreferences"];
+        /**
+         * Replace a user's disabled notification switches (target user or ADMIN)
+         * @description A **wholesale replace** of the person's DISABLED `(type, channel)` pairs - an empty array switches everything on (idempotent, a
+         *     same-set re-PUT is `204` again). Order: `403` (target user or ADMIN) first, then the body (`400`: an unknown type or channel, a pair
+         *     listed twice), then the target (`404`). Audited as `user.notification_preferences_changed` on an actual change. It changes what is
+         *     made or mailed from then on and deletes nothing already made. Rides the per-user `read-state` bucket (`429`).
+         */
+        put: operations["setNotificationPreferences"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/telemetry/current": {
         parameters: {
             query?: never;
@@ -1593,6 +1694,74 @@ export interface components {
             canEdit: boolean;
             /** @description The caller is the creator, or an ADMIN looking at a PUBLIC lens. */
             canDelete: boolean;
+        };
+        /**
+         * @description What happened. `ROLE_ASSIGNED` / `ROLE_REMOVED` (`detail` = the DACI role), `STATUS_CHANGED` (`detail` = the new status; every participant, Informed included), `DISCUSSION_POSTED` (`detail` = the entry kind; the Driver and the Approver, Contributors too for a comment or a question), `DISCUSSION_SETTLED` (`detail` = the kind; the author of the answered question or resolved issue), `ADR_EXPIRED` (`detail` = the expiry date) and `ADR_SUPERSEDED` (`otherAdr` = the successor) for every participant, `SUCCESSOR_LINKED` / `SUCCESSOR_UNLINKED` (the predecessor's Driver and Approver; `adr` is the predecessor, `otherAdr` the successor) and `EXPIRY_REMINDER` (`detail` = the expiry date; the Driver and the Approver; a system notice). A client treats an unknown value as plain text.
+         * @enum {string}
+         */
+        NotificationType: "ROLE_ASSIGNED" | "ROLE_REMOVED" | "STATUS_CHANGED" | "DISCUSSION_POSTED" | "DISCUSSION_SETTLED" | "ADR_EXPIRED" | "ADR_SUPERSEDED" | "SUCCESSOR_LINKED" | "SUCCESSOR_UNLINKED" | "EXPIRY_REMINDER";
+        /**
+         * @description `IN_APP` is the bell, `EMAIL` the digest.
+         * @enum {string}
+         */
+        NotificationChannel: "IN_APP" | "EMAIL";
+        Notification: {
+            /** Format: int32 */
+            id: number;
+            type: components["schemas"]["NotificationType"];
+            seen: boolean;
+            /** Format: int64 */
+            createdAt: number;
+            /**
+             * Format: int32
+             * @description The person whose write caused the notice; null = the system.
+             */
+            actorId: number | null;
+            /** @description The actor's current name, read when the page is read. */
+            actorName: string | null;
+            /**
+             * Format: int32
+             * @description The ADR the notice is about; the deep link is `/adrs/{adrId}`.
+             */
+            adrId: number;
+            /** @description `ADR-0042`. */
+            adrKey: string;
+            /** @description The ADR's current name. */
+            adrName: string;
+            /**
+             * Format: int32
+             * @description The second ADR of a successor notice.
+             */
+            otherAdrId: number | null;
+            otherAdrKey: string | null;
+            /** @description The role, status, entry kind or date the type needs; null otherwise. */
+            detail: string | null;
+        };
+        NotificationPage: {
+            items: components["schemas"]["Notification"][];
+            page: number;
+            pageSize: number;
+            /**
+             * Format: int64
+             * @description The number of rows, CAPPED at 1000 (a count at the cap means "at least this many").
+             */
+            total: number;
+        };
+        NotificationPreferenceKind: {
+            type: components["schemas"]["NotificationType"];
+            inApp: boolean;
+            email: boolean;
+        };
+        NotificationPreferences: {
+            emailAvailable: boolean;
+            kinds: components["schemas"]["NotificationPreferenceKind"][];
+        };
+        DisabledNotificationPreference: {
+            type: components["schemas"]["NotificationType"];
+            channel: components["schemas"]["NotificationChannel"];
+        };
+        NotificationPreferencesUpdateRequest: {
+            disabled: components["schemas"]["DisabledNotificationPreference"][];
         };
         LensPage: {
             items: components["schemas"]["Lens"][];
@@ -3679,6 +3848,166 @@ export interface operations {
             401: components["responses"]["Unauthorized"];
             403: components["responses"]["Forbidden"];
             404: components["responses"]["NotFound"];
+            500: components["responses"]["InternalServerError"];
+        };
+    };
+    listNotifications: {
+        parameters: {
+            query?: {
+                /** @description 1-based page index. Defaults to 1. */
+                page?: components["parameters"]["Page"];
+                /** @description Rows per page. Defaults to 20, maximum 100. */
+                pageSize?: components["parameters"]["PageSize"];
+                /**
+                 * @description Sort spec. Format: `field` (ascending) or `-field` (descending). Multiple fields are
+                 *     comma-separated, leftmost wins: `sort=-updatedAt,name`. The endpoint declares its
+                 *     sortable-field whitelist; unknown fields are rejected with `400`. `id` ascending is
+                 *     always appended as a deterministic tiebreaker.
+                 */
+                sort?: components["parameters"]["Sort"];
+                /** @description `true`: the seen notices; `false`: the unseen ones; omitted: both. */
+                seen?: boolean;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description A page of the caller's notifications */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["NotificationPage"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            429: components["responses"]["TooManyRequests"];
+            500: components["responses"]["InternalServerError"];
+        };
+    };
+    markAllNotificationsSeen: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Every unseen notification of the caller is seen */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            401: components["responses"]["Unauthorized"];
+            429: components["responses"]["TooManyRequests"];
+            500: components["responses"]["InternalServerError"];
+        };
+    };
+    markNotificationSeen: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["parameters"]["ResourceId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The notification is seen */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            404: components["responses"]["NotFound"];
+            429: components["responses"]["TooManyRequests"];
+            500: components["responses"]["InternalServerError"];
+        };
+    };
+    getNotificationPreferences: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["parameters"]["ResourceId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The switches */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["NotificationPreferences"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            /** @description Caller is not the target user and not ADMIN */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetail"];
+                };
+            };
+            404: components["responses"]["NotFound"];
+            429: components["responses"]["TooManyRequests"];
+            500: components["responses"]["InternalServerError"];
+        };
+    };
+    setNotificationPreferences: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["parameters"]["ResourceId"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["NotificationPreferencesUpdateRequest"];
+            };
+        };
+        responses: {
+            /** @description Switches replaced */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            /** @description Caller is not the target user and not ADMIN */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetail"];
+                };
+            };
+            404: components["responses"]["NotFound"];
+            413: components["responses"]["PayloadTooLarge"];
+            415: components["responses"]["UnsupportedMediaType"];
+            429: components["responses"]["TooManyRequests"];
             500: components["responses"]["InternalServerError"];
         };
     };

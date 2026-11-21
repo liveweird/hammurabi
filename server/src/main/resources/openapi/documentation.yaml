@@ -1,12 +1,13 @@
 openapi: 3.1.0
 info:
   title: hammurabi-api
-  version: 0.5.0
+  version: 0.6.0
   description: |
     JWT-authenticated REST API for Hammurabi — Architecture Decision Records (ADRs) across their lifecycle, with DACI
     responsibility. It serves the Hammurabi web app and is versioned by its `/api/v1` path prefix. It exposes the ADRs
     (`/adrs`: the record, its lifecycle transitions, its DACI participants, its tags, its successor link, its history and its discussion)
-    the tag registry (`/tag-categories`) and the saved ADR-list filters (`/lenses`) on top of the accounts, teams, feature-flag and operational surface of the foundation.
+    the tag registry (`/tag-categories`), the saved ADR-list filters (`/lenses`) and the caller's own notifications (`/notifications`, with the
+    per-user switches under `/users/{id}/notification-preferences`) on top of the accounts, teams, feature-flag and operational surface of the foundation.
 
     Authorization model: every user is implicitly a regular user; additional global roles (`ADMIN`) are carried as
     the `roles` array and only ever ADD privileges on top of that baseline. Every operation requires a bearer
@@ -45,6 +46,8 @@ tags:
     description: Architecture Decision Records - the record, its lifecycle transitions, its DACI participants, its tags, its successor link, its history and its discussion (comments and questions before the decision is in force, issues and escalations while it is); readable and postable by any authenticated user, the record written by the roles the caller holds on the ADR.
   - name: lenses
     description: Lenses - named, saved ADR-list filters (the list's own filter names), PRIVATE to their creator or PUBLIC to every signed-in user; mutable by their creator only.
+  - name: notifications
+    description: The caller's own notices about the ADRs they take part in (a role given or taken away, a status change, discussion, expiry, successors, expiry reminders), the "seen" writes and the per-user switches of the bell and the digest email.
   - name: telemetry
     description: Hammurabi's own vital signs (process memory, JVM, storage, request latency) and their 24h/7d/90d trends - ADMIN only.
 
@@ -1594,6 +1597,126 @@ paths:
         '403': { $ref: '#/components/responses/Forbidden' }
         '404': { $ref: '#/components/responses/NotFound' }
         '500': { $ref: '#/components/responses/InternalServerError' }
+  /api/v1/notifications:
+    get:
+      tags: [notifications]
+      operationId: listNotifications
+      summary: List the caller's notifications
+      description: |
+        Any authenticated user: the caller's OWN notices only (there is nothing to disclose and no guard), newest first by default, on ADRs
+        that still exist, of a kind this build knows. Paged; sortable by `id` and `createdAt`; `seen` filters (`false` = the unseen ones,
+        the bell's badge). **The `total` is capped at 1000** (a count reads at most 1001 rows, so it never grows with a person's history;
+        a page starting at or past row 1000 is empty). A notice is a pointer: the actor's name and the ADR's key and name are read when the
+        page is read, so a rename shows at once. A read: no audit line. Rides the per-user `read-state` bucket (240/min, `429`).
+        `.claude/docs/adr-model.md` "Notifications".
+      parameters:
+        - $ref: '#/components/parameters/Page'
+        - $ref: '#/components/parameters/PageSize'
+        - $ref: '#/components/parameters/Sort'
+        - name: seen
+          in: query
+          required: false
+          schema: { type: boolean }
+          description: "`true`: the seen notices; `false`: the unseen ones; omitted: both."
+      responses:
+        '200':
+          description: A page of the caller's notifications
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/NotificationPage'
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '429': { $ref: '#/components/responses/TooManyRequests' }
+        '500': { $ref: '#/components/responses/InternalServerError' }
+  /api/v1/notifications/seen-all:
+    post:
+      tags: [notifications]
+      operationId: markAllNotificationsSeen
+      summary: Mark every unseen notification of the caller seen
+      description: |
+        Any authenticated user; touches only the caller's own rows, in chunks of 1000. `204` even when none was unseen. Not audited (view
+        state). Rides the per-user `read-state` bucket (`429`).
+      responses:
+        '204': { description: Every unseen notification of the caller is seen }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '429': { $ref: '#/components/responses/TooManyRequests' }
+        '500': { $ref: '#/components/responses/InternalServerError' }
+  /api/v1/notifications/{id}/seen:
+    parameters:
+      - $ref: '#/components/parameters/ResourceId'
+    post:
+      tags: [notifications]
+      operationId: markNotificationSeen
+      summary: Mark one notification of the caller seen
+      description: |
+        Any authenticated user. Seen again is `204`. Someone else's notice and one that does not exist are the same `404` (no `403` to probe
+        with). Not audited (view state). Rides the per-user `read-state` bucket (`429`), taken before the id is looked at.
+      responses:
+        '204': { description: The notification is seen }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '429': { $ref: '#/components/responses/TooManyRequests' }
+        '500': { $ref: '#/components/responses/InternalServerError' }
+  /api/v1/users/{id}/notification-preferences:
+    parameters:
+      - $ref: '#/components/parameters/ResourceId'
+    get:
+      tags: [notifications]
+      operationId: getNotificationPreferences
+      summary: Read a user's notification switches (target user or ADMIN)
+      description: |
+        Every kind with its two switches: `inApp` (the bell: a switched-off kind makes no notice for the person from then on) and `email`
+        (the digest: a switched-off kind is never mailed; the bell is unchanged). A kind with no stored row is on. `emailAvailable` is false
+        on a deployment with no outbound email (the email switches then do nothing; the bell works). **Target user or ADMIN**: `403`
+        before anything is read, then `404` for an unknown or soft-deleted user. Rides the per-user `read-state` bucket (`429`).
+      responses:
+        '200':
+          description: The switches
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/NotificationPreferences'
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403':
+          description: Caller is not the target user and not ADMIN
+          content:
+            application/problem+json:
+              schema: { $ref: '#/components/schemas/ProblemDetail' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '429': { $ref: '#/components/responses/TooManyRequests' }
+        '500': { $ref: '#/components/responses/InternalServerError' }
+    put:
+      tags: [notifications]
+      operationId: setNotificationPreferences
+      summary: Replace a user's disabled notification switches (target user or ADMIN)
+      description: |
+        A **wholesale replace** of the person's DISABLED `(type, channel)` pairs - an empty array switches everything on (idempotent, a
+        same-set re-PUT is `204` again). Order: `403` (target user or ADMIN) first, then the body (`400`: an unknown type or channel, a pair
+        listed twice), then the target (`404`). Audited as `user.notification_preferences_changed` on an actual change. It changes what is
+        made or mailed from then on and deletes nothing already made. Rides the per-user `read-state` bucket (`429`).
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/NotificationPreferencesUpdateRequest'
+      responses:
+        '415': { $ref: '#/components/responses/UnsupportedMediaType' }
+        '204': { description: Switches replaced }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403':
+          description: Caller is not the target user and not ADMIN
+          content:
+            application/problem+json:
+              schema: { $ref: '#/components/schemas/ProblemDetail' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '413': { $ref: '#/components/responses/PayloadTooLarge' }
+        '429': { $ref: '#/components/responses/TooManyRequests' }
+        '500': { $ref: '#/components/responses/InternalServerError' }
   /api/v1/telemetry/current:
     get:
       tags: [telemetry]
@@ -2532,6 +2655,91 @@ components:
         updatedAt: { type: integer, format: int64 }
         canEdit: { type: boolean, description: "The caller is the creator: may rename, flip the visibility and replace the filters." }
         canDelete: { type: boolean, description: "The caller is the creator, or an ADMIN looking at a PUBLIC lens." }
+    NotificationType:
+      type: string
+      enum:
+        - ROLE_ASSIGNED
+        - ROLE_REMOVED
+        - STATUS_CHANGED
+        - DISCUSSION_POSTED
+        - DISCUSSION_SETTLED
+        - ADR_EXPIRED
+        - ADR_SUPERSEDED
+        - SUCCESSOR_LINKED
+        - SUCCESSOR_UNLINKED
+        - EXPIRY_REMINDER
+      description: >-
+        What happened. `ROLE_ASSIGNED` / `ROLE_REMOVED` (`detail` = the DACI role), `STATUS_CHANGED` (`detail` = the new status; every
+        participant, Informed included), `DISCUSSION_POSTED` (`detail` = the entry kind; the Driver and the Approver, Contributors too for
+        a comment or a question), `DISCUSSION_SETTLED` (`detail` = the kind; the author of the answered question or resolved issue),
+        `ADR_EXPIRED` (`detail` = the expiry date) and `ADR_SUPERSEDED` (`otherAdr` = the successor) for every participant,
+        `SUCCESSOR_LINKED` / `SUCCESSOR_UNLINKED` (the predecessor's Driver and Approver; `adr` is the predecessor, `otherAdr` the
+        successor) and `EXPIRY_REMINDER` (`detail` = the expiry date; the Driver and the Approver; a system notice). A client treats an
+        unknown value as plain text.
+    NotificationChannel:
+      type: string
+      enum: [IN_APP, EMAIL]
+      description: "`IN_APP` is the bell, `EMAIL` the digest."
+    Notification:
+      type: object
+      required: [id, type, seen, createdAt, actorId, actorName, adrId, adrKey, adrName, otherAdrId, otherAdrKey, detail]
+      properties:
+        id: { type: integer, format: int32, minimum: 0 }
+        type: { $ref: '#/components/schemas/NotificationType' }
+        seen: { type: boolean }
+        createdAt: { type: integer, format: int64 }
+        actorId: { type: integer, format: int32, minimum: 0, nullable: true, description: "The person whose write caused the notice; null = the system." }
+        actorName: { type: string, nullable: true, description: "The actor's current name, read when the page is read." }
+        adrId: { type: integer, format: int32, minimum: 0, description: "The ADR the notice is about; the deep link is `/adrs/{adrId}`." }
+        adrKey: { type: string, description: "`ADR-0042`." }
+        adrName: { type: string, description: "The ADR's current name." }
+        otherAdrId: { type: integer, format: int32, minimum: 0, nullable: true, description: "The second ADR of a successor notice." }
+        otherAdrKey: { type: string, nullable: true }
+        detail: { type: string, nullable: true, description: "The role, status, entry kind or date the type needs; null otherwise." }
+    NotificationPage:
+      type: object
+      required: [items, page, pageSize, total]
+      properties:
+        items:
+          type: array
+          items: { $ref: '#/components/schemas/Notification' }
+        page: { type: integer, minimum: 1 }
+        pageSize: { type: integer, minimum: 1, maximum: 100 }
+        total:
+          type: integer
+          format: int64
+          minimum: 0
+          maximum: 1000
+          description: The number of rows, CAPPED at 1000 (a count at the cap means "at least this many").
+    NotificationPreferenceKind:
+      type: object
+      required: [type, inApp, email]
+      properties:
+        type: { $ref: '#/components/schemas/NotificationType' }
+        inApp: { type: boolean }
+        email: { type: boolean }
+    NotificationPreferences:
+      type: object
+      required: [emailAvailable, kinds]
+      properties:
+        emailAvailable: { type: boolean }
+        kinds:
+          type: array
+          items: { $ref: '#/components/schemas/NotificationPreferenceKind' }
+    DisabledNotificationPreference:
+      type: object
+      required: [type, channel]
+      properties:
+        type: { $ref: '#/components/schemas/NotificationType' }
+        channel: { $ref: '#/components/schemas/NotificationChannel' }
+    NotificationPreferencesUpdateRequest:
+      type: object
+      required: [disabled]
+      properties:
+        disabled:
+          type: array
+          maxItems: 20
+          items: { $ref: '#/components/schemas/DisabledNotificationPreference' }
     LensPage:
       type: object
       required: [items, page, pageSize, total]

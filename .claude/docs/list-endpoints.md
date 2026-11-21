@@ -52,3 +52,5 @@ outside it only with a documented cap and a line here in the commit that introdu
 **Sub-collections and facets:** a record's own unbounded sub-collection is paged like any other list; the plain `{items}`
 wrapper is reserved for genuinely bounded, admin-curated sets. Facet counts (`GET .../facets`) are not implemented — port Covenant's
 pattern with the first filterable list that needs them.
+
+**Capped totals.** `GET /notifications` (0.6.0, the caller's own notices) is the one list whose `total` is CAPPED: 1000 (`MAX_COUNTED_NOTICES`; the count reads at most 1001 rows and a page starting at row 1000 is empty without the OFFSET), because a recipient's rows are not bounded; filter `seen` (strict boolean), sort `id` (default, newest first) and `createdAt`.

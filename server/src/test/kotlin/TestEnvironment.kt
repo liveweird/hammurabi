@@ -66,6 +66,9 @@ fun TestApplicationBuilder.configureApp(vararg overrides: Pair<String, String>) 
                 // The ADR expiry sweep is off for the suite (a loop would expire ADRs other tests forced into the past and race their
                 // assertions); its tests build the sweep directly with a pinned clock or opt in with "adrs.expiry.enabled" to "true".
                 "adrs.expiry.enabled" to "false",
+                // The notification sweep (digest, expiry reminders, retention) is off for the suite for the same reason; its tests
+                // build the digest, the reminders and the sweep directly or opt in with "notifications.sweepEnabled" to "true".
+                "notifications.sweepEnabled" to "false",
                 *overrides,
             )
         )

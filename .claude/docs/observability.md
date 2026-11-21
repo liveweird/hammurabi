@@ -100,6 +100,9 @@ with `hasKeyValue` from `TestEnvironment.kt`). Emitted today:
   missing current password),
 - `user.features_changed` (byUserId/targetUserId/featuresFrom/featuresTo — only on an actual
   change),
+- `user.notification_preferences_changed` (byUserId/targetUserId/`from`/`to` as sorted `TYPE:CHANNEL` lists; only on an actual change; the bell and digest switches, V17; `NotificationRoutesTest`),
+- `notification.email_sent` (userId/count - one digest left; the count is the notices it lists) and `notification.email_failed` (userId/errorType - the class name only, never the provider's message; the notices stay claimed and are not retried): emitted by `notifications/NotificationDigest.kt` per recipient, never a subject, body or address,
+- `adr.expiry_reminded` (adrId/number/expiresOn/recipients - NO `byUserId`: the system; the reminder pass made the Driver's and Approver's notices for that expiry date, once per date; `ExpiryRemindersTest`),
 - `user.language_changed` (the per-user language — byUserId/targetUserId + `from`/`to` codes;
   emitted only on an actual change; `user.created` additionally carries `language` when
   non-default),
@@ -151,6 +154,8 @@ pure view state may stay unaudited, with a documented justification) — the cat
 (adr, participant, transition, discussion entry, tag, successor link: each gets its `area.event` names here in the commit that adds the route). Tested in
 `AuditTest` via a Logback `ListAppender` on the audit logger (the shared `LogCapture` helper in
 `TestEnvironment.kt`).
+
+**Notices themselves are not audited (0.6.0).** A notice is a CONSEQUENCE of an audited ADR write (`adr.transitioned`, `adr.participants_changed`, `adr.discussion_posted`, `adr.expired`, `adr.superseded`, the successor events), made in that write's transaction from its history event; the trail already says who did what, so a line per recipient would only multiply it. `POST /notifications/{id}/seen`, `.../seen-all` and the retention are view state / housekeeping: no audit line (the bound is the `read-state` bucket, `security.md`). The sweep's logger is `ch.nokillswit.notifications.NotificationSweep`: INFO `notification retention: N notice(s) deleted` when a pass deleted any, WARN `notification retention failed, the rows stay until the next pass: <class names and SQLSTATE>`, WARN `expiry reminders failed: ...` and `notification email digest failed: ...` (all scrubbed, `scrubbedSummary`); the digest (`...NotificationDigest`) logs INFO `notification email digest: N notice(s) claimed, N email(s) sent, N failed, N released` per non-empty run and once `notification email digest is off` without a mailer; the reminder pass (`...ExpiryReminders`) WARNs `Could not remind about the expiry of ADR <id>: <exception class>`. No ADR name, text or email address reaches any of them.
 
 **The ADR expiry sweep (WARN logs, `adrs/AdrExpirySweep.kt`, logger `ch.nokillswit.adrs.AdrExpirySweep`).** `Could not expire ADR <id>: <exception class>` when one ADR's own transaction fails (the rest still run; the class name only, a driver message can carry values) and `The ADR expiry sweep failed: <exception class>` when a whole pass fails (retried at the next interval). The sweep audits `adr.expired` per ADR it moves (above); a pass that moves nothing logs nothing. Config `adrs.expiry.enabled` (env `ADRS_EXPIRY_ENABLED`, default true) and `adrs.expiry.intervalSeconds` (`ADRS_EXPIRY_INTERVAL_SECONDS`, default 3600, 1..86400), validated on every boot, enabled or not; the loop runs on `backgroundScope("hammurabi-adr-expiry")`. Tests: `AdrExpirySweepTest`.
 

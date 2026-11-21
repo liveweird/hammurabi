@@ -97,8 +97,11 @@ class AdrSuccessorService(private val events: AdrEventService) {
         if (requested == record.supersedesId) return null
         val target = requested?.let { requireLinkablePredecessor(record, it) }
         val old = refOfAny(record.supersedesId)
-        old?.let { events.record(record.id, byUserId, adrSuccessorUnlinkedEvent(it), stamp) }
-        target?.let { events.record(record.id, byUserId, adrSuccessorLinkedEvent(it), stamp) }
+        events.recordAll(
+            record.id, byUserId,
+            listOfNotNull(old?.let { adrSuccessorUnlinkedEvent(it) }, target?.let { adrSuccessorLinkedEvent(it) }),
+            stamp,
+        )
         return SuccessorChange(old, target)
     }
 

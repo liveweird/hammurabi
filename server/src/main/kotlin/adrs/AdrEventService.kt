@@ -183,9 +183,10 @@ data class AdrEventListResult(val items: List<AdrEventResponse>, val total: Long
  * The ADR's history (`adr_events`, V11, append-only): a thin wrapper over the shared [EventLog] mechanics (`infra/db/EventLog.kt`),
  * which takes the acting-user table as a parameter because `infra/` may not name `users/`. An ADR write appends through [record] INSIDE
  * its own transaction, so each event commits or rolls back with the change it describes. There is no create endpoint and nothing here
- * ever updates or deletes a row.
+ * ever updates or deletes a row. The notices ([AdrNotices], 0.6.0) hang off [record]: every notice derives from an event of its own
+ * transaction.
  */
-class AdrEventService(database: R2dbcDatabase) {
+class AdrEventService(database: R2dbcDatabase, private val notices: AdrNotices = AdrNotices.NONE) {
     object AdrEvents : EventLogTable(
         "adr_events",
         "adr_id",
@@ -195,9 +196,24 @@ class AdrEventService(database: R2dbcDatabase) {
 
     private val log = EventLog(database, AdrEvents)
 
-    /** Appends one event inside the caller's transaction, stamped [at] (the write's own instant); a null [byUserId] is the system. */
+    /**
+     * Appends one event inside the caller's transaction, stamped [at] (the write's own instant); a null [byUserId] is the system. The
+     * event is then offered to the notices ([AdrNotices]) in the same transaction.
+     */
     suspend fun record(adrId: UInt, byUserId: UInt?, event: AdrEventDescriptor, at: Long = nowMillis()): UInt =
-        log.createInTransaction(adrId, byUserId, event.type.name, event.params, at)
+        recordAll(adrId, byUserId, listOf(event), at).single()
+
+    /**
+     * Appends the [events] of ONE write on ONE ADR in order, inside the caller's transaction, then offers them to the notices TOGETHER,
+     * so a participants PUT that moves many people makes its notices with one statement (the creation holds the numbering advisory lock,
+     * and a statement per participant would hold it longer). Answers the event ids in order.
+     */
+    suspend fun recordAll(adrId: UInt, byUserId: UInt?, events: List<AdrEventDescriptor>, at: Long = nowMillis()): List<UInt> {
+        if (events.isEmpty()) return emptyList()
+        val ids = events.map { log.createInTransaction(adrId, byUserId, it.type.name, it.params, at) }
+        notices.onEvents(adrId, byUserId, events, at)
+        return ids
+    }
 
     /** The ADR's history, newest first by default (the id descending as the same-instant tiebreaker). */
     suspend fun list(adrId: UInt, paging: PageRequest): AdrEventListResult {

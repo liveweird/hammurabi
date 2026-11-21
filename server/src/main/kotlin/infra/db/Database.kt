@@ -19,6 +19,8 @@ import ch.nokillswit.infra.config.requireConfigInt
 import ch.nokillswit.infra.config.requireConfigLong
 import ch.nokillswit.lenses.LensService
 import ch.nokillswit.lenses.LensServiceKey
+import ch.nokillswit.notifications.NotificationService
+import ch.nokillswit.notifications.NotificationServiceKey
 import ch.nokillswit.tags.TagCategoryService
 import ch.nokillswit.tags.TagCategoryServiceKey
 import ch.nokillswit.teams.TeamService
@@ -267,7 +269,10 @@ suspend fun Application.configureDatabase() {
     attributes.put(TeamServiceKey, teamService)
     // The ADR aggregate (V10-V14): the history service is shared by the writes and the expiry sweep (`adrs/AdrExpirySweep.kt`); the
     // discussion service (V12) writes its entries and serves the counts the ADR rows carry.
-    val adrEvents = AdrEventService(database)
+    // The notices (V17, `notifications/`) are offered every event the history records, in the write's own transaction (`AdrNotices`).
+    val notifications = NotificationService(database)
+    attributes.put(NotificationServiceKey, notifications)
+    val adrEvents = AdrEventService(database, notifications)
     attributes.put(AdrEventServiceKey, adrEvents)
     val adrParticipants = AdrParticipantService(adrEvents)
     val adrDiscussion = AdrDiscussionService(database, adrParticipants, adrEvents)

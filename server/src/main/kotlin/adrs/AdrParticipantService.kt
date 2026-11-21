@@ -120,10 +120,13 @@ class AdrParticipantService(private val events: AdrEventService) {
         stamp: Long,
     ) {
         insertRow(adrId, driverId, AdrRole.DRIVER, stamp, driverId)
-        initial.sortedBy { it.userId }.forEach {
-            insertRow(adrId, it.userId, it.role, stamp, driverId)
-            events.record(adrId, driverId, adrParticipantAddedEvent(AdrParticipant(it.userId, names.getValue(it.userId), it.role)), stamp)
-        }
+        val ordered = initial.sortedBy { it.userId }
+        ordered.forEach { insertRow(adrId, it.userId, it.role, stamp, driverId) }
+        events.recordAll(
+            adrId, driverId,
+            ordered.map { adrParticipantAddedEvent(AdrParticipant(it.userId, names.getValue(it.userId), it.role)) },
+            stamp,
+        )
     }
 
     /**
@@ -158,9 +161,14 @@ class AdrParticipantService(private val events: AdrEventService) {
             insertRow(adrId, id, wanted.getValue(id), row.addedAt, row.addedBy)
         }
         diff.added.forEach { insertRow(adrId, it.userId, it.role, stamp, byUserId) }
-        diff.removed.forEach { events.record(adrId, byUserId, adrParticipantRemovedEvent(it), stamp) }
-        diff.changed.forEach { events.record(adrId, byUserId, adrParticipantChangedEvent(it.userId, it.name, it.from, it.to), stamp) }
-        diff.added.forEach { events.record(adrId, byUserId, adrParticipantAddedEvent(it), stamp) }
+        // One batch: the event rows in this order, and the notices of the whole diff in one statement.
+        events.recordAll(
+            adrId, byUserId,
+            diff.removed.map { adrParticipantRemovedEvent(it) } +
+                diff.changed.map { adrParticipantChangedEvent(it.userId, it.name, it.from, it.to) } +
+                diff.added.map { adrParticipantAddedEvent(it) },
+            stamp,
+        )
         return diff
     }
 

@@ -1,7 +1,7 @@
 # The ADR domain model
 
 Owns: the ADR record, its lifecycle map, the DACI roles and their permission verdicts, history, discussion (comments and issues), tags,
-successors, search, saved filters (lenses) and expiry — the sketch, refined per version as each part is built. Not here: the user's decisions and the roadmap
+successors, search, saved filters (lenses), expiry and notifications — the sketch, refined per version as each part is built. Not here: the user's decisions and the roadmap
 (`product.md`), list conventions (`list-endpoints.md`), migration and locking rules (`persistence.md`), guard ordering (`authorization.md`).
 
 Read before touching `adrs/` (server) or any ADR page (web).
@@ -117,7 +117,7 @@ predicate). "Today" is an injected `Clock`, so tests expire deterministically (`
 
 `GET /adrs` (paged; filters `status` any-of, `tag` any-of, `q` name-or-key, `text` full-text, `participant` + `role`, the created/updated day ranges, `expiresBefore`, `hasOpenIssues`, `supersedes`, `supersededBy` ("Search"); sort `id`, `number` (default, newest first), `name`, `updatedAt`,
 `status` in lifecycle order, `relevance` with `text`), `POST /adrs`, `GET /adrs/{id}`, `PUT /adrs/{id}` (document, `X-Expected-Revision`), `POST /adrs/{id}/transitions`
-(`{to}`, `X-Expected-Revision`, answers the ADR), `PUT /adrs/{id}/participants`, `PUT /adrs/{id}/tags` and `PUT /adrs/{id}/supersedes` (both under `X-Expected-Revision`, 0.4.0), `DELETE /adrs/{id}/successor` (0.4.0), `GET /adrs/{id}/events`, `DELETE /adrs/{id}` (ADMIN), `/lenses` (0.5.0, "Lenses"), the discussion routes below and the registry `GET|POST /tag-categories`, `PUT|DELETE /tag-categories/{id}` (both under `X-Expected-Revision`). The contract is
+(`{to}`, `X-Expected-Revision`, answers the ADR), `PUT /adrs/{id}/participants`, `PUT /adrs/{id}/tags` and `PUT /adrs/{id}/supersedes` (both under `X-Expected-Revision`, 0.4.0), `DELETE /adrs/{id}/successor` (0.4.0), `GET /adrs/{id}/events`, `DELETE /adrs/{id}` (ADMIN), `/lenses` (0.5.0, "Lenses"), `/notifications` and `/users/{id}/notification-preferences` (0.6.0, "Notifications"), the discussion routes below and the registry `GET|POST /tag-categories`, `PUT|DELETE /tag-categories/{id}` (both under `X-Expected-Revision`). The contract is
 `openapi/documentation.yaml`; the permission order `authorization.md`; the audit events `observability.md`.
 
 ## Discussion (`adr_discussion`, 0.3.0 — built)
@@ -189,3 +189,35 @@ editor's picker, the list filter), every write is ADMIN-only with the guard befo
 ## Lenses (0.5.0 - built)
 
 Saved filters, Toadie's lenses (`lenses/`, V16) ported: a named, per-user snapshot of the list's filters. The payload is the list's OWN filter document (`AdrFilterDocument`: the query parameter names, `status` and `tag` as arrays, the dates as `YYYY-MM-DD`), validated by the SAME rules as the query string (`normalized()`) and stored canonical; it carries no sort and no page (a lens is a filter, not a view). A user keeps at most 50; the name is unique per owner (case-insensitively, `409`). **PRIVATE** = visible to the creator only; **PUBLIC** = visible to every signed-in user (the creator's name beside it), changed by its creator only; an ADMIN may delete a PUBLIC lens (moderation) and sees no PRIVATE one. Existence disclosure and ordering follow Toadie's `mutationVerdict` (`authorization.md`): foreign PRIVATE or unknown = `404`, foreign PUBLIC = `403`, both before the body's `400`. Routes: `GET|POST /lenses`, `GET|PUT|DELETE /lenses/{id}` (PUT is the whole replace: rename, the visibility flip and overwriting the filters; no revision header, last write wins like Toadie's). A lens holding a participant or a tag that no longer exists is not an error: it matches nothing until edited. A `status` or `role` value this release no longer knows (a later release removed it) is dropped when the lens is read, an unknown key is ignored, and the lens is listable all the same (it matches on its remaining keys until it is saved again; `persistence.md` "Persisted enums"). The 50-lens cap is counted under a per-user advisory lock, so racing creates cannot overshoot it. Applying a lens is the ordinary list request with its filters; the SPA's picker copies them into the URL (`web/CLAUDE.md`).
+
+## Notifications (0.6.0 - built)
+
+Adder's `notifications/` ported and reshaped from chat to ADRs (V17, V18; `persistence.md` "Notifications", `security.md` "Notices"). The bell, a per-user set of switches and an email digest tell a DACI participant what happened to an ADR they take part in.
+
+**Every notice derives from a history event.** `AdrEventService.record` offers each event to `AdrNotices` (an `adrs/` interface the `notifications/` package implements; the composition root wires it) right after the event row, in the write's own transaction: a notice commits or rolls back with its change, and a refused or no-op write (which records no event) makes none. The pure `noticeFor` (`NotificationPlan.kt`) maps event to notice (the events of one write on one ADR are offered together and made by one insert, `persistence.md` "Notifications"); **the actor is always taken out of the audience** (nobody is told of their own write; a system event has no actor).
+
+| Type | Made by | Reaches | `detail` / second ADR |
+|---|---|---|---|
+| `ROLE_ASSIGNED` | `PARTICIPANT_ADDED` (creation included), `PARTICIPANT_CHANGED` | the person given the role (a Driver handover tells everyone whose role changed, the actor excepted) | the new role |
+| `ROLE_REMOVED` | `PARTICIPANT_REMOVED` | the person removed | the role they held |
+| `STATUS_CHANGED` | `TRANSITIONED` | every participant, Informed included | the new status |
+| `DISCUSSION_POSTED` | `COMMENTED`, `QUESTION_ASKED` / `ISSUE_RAISED`, `ESCALATED` | Driver, Approver and Contributors / Driver and Approver | the entry kind |
+| `DISCUSSION_SETTLED` | `QUESTION_ANSWERED`, `ISSUE_RESOLVED` (an escalation too) | the entry's author | the kind (a question was answered, an issue or escalation resolved) |
+| `ADR_EXPIRED` | `EXPIRED` (the sweep, no actor) | every participant | the expiry date |
+| `ADR_SUPERSEDED` | `SUPERSEDED` (the successor's activation) | every participant of the predecessor, the activator excepted | second ADR = the successor |
+| `SUCCESSOR_LINKED`, `SUCCESSOR_UNLINKED` | the successor-side `SUCCESSOR_LINKED` / `SUCCESSOR_UNLINKED` (a link, a re-link, a drop, a detach) | the PREDECESSOR's Driver and Approver; the notice is about the predecessor | second ADR = the successor |
+| `EXPIRY_REMINDER` | the reminder pass (no event) | Driver and Approver | the expiry date |
+
+A reopen, an edit and a delete of an entry notify nobody (as they record no ordinary event). The detach's mirror event on the predecessor (`SUCCESSOR_UNLINKED {successorId}`) makes no second notice. A deleted account is never notified; a switched-off kind is not made for the person (below).
+
+**The row is a pointer** (`notifications`): recipient, type, actor (null = the system), the ADR, an optional second ADR and one short `detail`; the actor's name and the ADR's key and name are read when a page is read, so a rename shows at once. Hard-deleted with the ADR or user and by retention (`notifications.retentionDays`, 90).
+
+**Routes** (all on the per-user `read-state` bucket, 240/min): `GET /notifications` (the caller's own, newest first, `seen` filter, sort `id` / `createdAt`, `total` capped at 1000, a soft-deleted ADR's notices hidden), `POST /notifications/{id}/seen` (`204`; another person's, an unknown or a hidden one (of a soft-deleted ADR or a kind this build does not know) is the same `404`), `POST /notifications/seen-all` (`204`), `GET` / `PUT /users/{id}/notification-preferences` (self or ADMIN). No audit line for the seen writes (view state); the PUT audits `user.notification_preferences_changed` on a real change.
+
+**Preferences** (Adder's V5-style disabled set, wholesale replace): per kind, two channels. `IN_APP` off = no notice is made for the person from then on (existing ones stay); `EMAIL` off = the digest never mails the kind (the bell is unchanged). Everything is on for a new user and a new kind. `emailAvailable` is false without a mailer (then the email switches do nothing).
+
+**The email digest** (`NotificationDigest.kt`, `NotificationEmail.kt`; `security.md` "Notices"): a notice still unseen after `notifications.email.delaySeconds` (300) is mailed in ONE plain-text email per person per `notifications.email.minIntervalSeconds` (900), in the recipient's stored language (EN/PL), naming who, what and the ADR KEY with a `/adrs/{id}` link built from `mail.appUrl`; never an ADR name or text (a notice whose second ADR was since soft-deleted is not mailed, like one whose own ADR was; the bell shows its key as a dash). It uses the existing mailer (`MAIL_TRANSPORT`); with none the digest idles and the bell keeps working. `notifications.sweepEnabled` (the suite sets it false), `sweepIntervalSeconds` (60).
+
+**The expiry reminder** (`ExpiryReminders.kt`; Covenant's `ReleaseLineReminders` shape): `adrs.expiry.reminderDays` (default 14, `0` disables, 0..365). Each hourly housekeeping of the notification sweep (and its first tick) finds `ACTIVE` ADRs whose expiry date is today up to N days ahead and, per ADR in its own transaction under the row lock, stamps `adr_expiry_reminders` (one row per ADR holding the date reminded for; the upsert only fires when it differs) and makes the `EXPIRY_REMINDER` notices for the Driver and the Approver. So it is sent **once per ADR per expiry date, and a changed date re-arms it**; audit `adr.expiry_reminded`. An ADR whose date is set inside the window is reminded at the next pass. Decision: the pass lives in the notification sweep, not the expiry sweep's loop, because it makes notices and shares that sweep's mail cadence; `AdrExpirySweepTest`'s config stays untouched.
+
+**Decisions and assumptions (change on request):** (1) the digest cadence is the deployment's (`delaySeconds` / `minIntervalSeconds`), not a per-user frequency; "email off" is every EMAIL switch off. (2) A comment reaches the Driver, Approver and Contributors but an issue or escalation only the Driver and Approver. (3) STATUS_CHANGED is for user-made transitions; an expiry and a supersede have their own types instead of a second STATUS_CHANGED. (4) Adder's per-actor digest budget was not ported (`security.md` "Notices" says why). (5) The detach tells the predecessor's other lead only; the successor's Driver is not told that a link was detached (the spec names the predecessor's Driver and Approver). (6) The web polls the unseen count once a minute (Hammurabi has no live channel).

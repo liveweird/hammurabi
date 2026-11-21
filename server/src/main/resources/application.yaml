@@ -51,6 +51,11 @@ ktor:
       - ch.nokillswit.adrs.AdrExpirySweepKt.configureAdrExpirySweep
       # The saved ADR-list filters (0.5.0, `.claude/docs/adr-model.md` "Lenses"): /api/v1/lenses.
       - ch.nokillswit.lenses.LensRoutesKt.configureLensRoutes
+      # The notifications (0.6.0, `.claude/docs/adr-model.md` "Notifications"): the bell's routes, the per-user switches, then the sweep
+      # (the email digest, the expiry reminders and the retention, `notifications.*` and `adrs.expiry.reminderDays` below).
+      - ch.nokillswit.notifications.NotificationRoutesKt.configureNotificationRoutes
+      - ch.nokillswit.notifications.NotificationPreferenceRoutesKt.configureNotificationPreferenceRoutes
+      - ch.nokillswit.notifications.NotificationSweepKt.configureNotificationSweep
       - ch.nokillswit.auth.AuthRoutesKt.configureAuthRoutes
       - ch.nokillswit.auth.PasswordResetRoutesKt.configurePasswordResetRoutes
       # The telemetry read API (ADMIN, `.claude/docs/observability.md` "Telemetry"): reads what the sampler wrote.
@@ -207,6 +212,31 @@ adrs:
   expiry:
     enabled: "$ADRS_EXPIRY_ENABLED:true"
     intervalSeconds: "$ADRS_EXPIRY_INTERVAL_SECONDS:3600"
+    # The expiry reminder (`notifications/ExpiryReminders.kt`, run by the notification sweep's hourly housekeeping): an ACTIVE ADR whose
+    # expiry date is this many days away or fewer notifies its Driver and Approver once per expiry date. 0 = off. 0..365. The pass lives
+    # in the notification sweep, so it runs only when `notifications.sweepEnabled` is true (it does NOT depend on `adrs.expiry.enabled`).
+    reminderDays: "$ADRS_EXPIRY_REMINDER_DAYS:14"
+
+notifications:
+  # How long a notice is kept (`notifications/NotificationSweep.kt`): older rows are deleted, at most once an hour, in the sweep's own scope
+  # (never inside an ADR write). 1..3650 days.
+  retentionDays: "$NOTIFICATIONS_RETENTION_DAYS:90"
+  # How often the sweep wakes (it reminds and purges when the last housekeeping is an hour old). 10..3600 seconds.
+  sweepIntervalSeconds: "$NOTIFICATIONS_SWEEP_INTERVAL_SECONDS:60"
+  # Off keeps the sweep from starting (the test harness: no booted app purges or mails from the shared database); the keys are validated either way.
+  sweepEnabled: "$NOTIFICATIONS_SWEEP_ENABLED:true"
+  email:
+    # The email digest of unseen notices (`notifications/NotificationDigest.kt`, run by the sweep's tick when a mailer exists; with
+    # `mail.transport=disabled` it does nothing and the bell is unaffected). A notice still unseen after this many seconds is mailed:
+    # 0..86400 (0 = at the next tick).
+    delaySeconds: "$NOTIFICATIONS_EMAIL_DELAY_SECONDS:300"
+    # At most one email per person per this many seconds, per process (kept in memory, so a restart forgets it); a person inside it waits
+    # and gets everything in ONE later email. 0..86400 (0 = no spacing). Nothing older than a day is ever mailed.
+    minIntervalSeconds: "$NOTIFICATIONS_EMAIL_MIN_INTERVAL_SECONDS:900"
+    # The most digest emails ONE run (one sweep tick) sends; the people beyond it keep their notices for the next tick (the claims are
+    # released). The digest shares the mailer with MFA codes and password resets, and this budget is what keeps a flood of notices from
+    # exhausting the provider's quota for them. 1..1000.
+    maxPerRun: "$NOTIFICATIONS_EMAIL_MAX_PER_RUN:100"
 
 search:
   # The budget of a full-text search REQUEST (`infra/db/SearchBudget.kt`, one deadline for all its statements: each statement's

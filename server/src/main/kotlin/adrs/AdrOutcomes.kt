@@ -17,6 +17,8 @@ data class AdrTransitionOutcome(
     val from: AdrStatus,
     val to: AdrStatus,
     val superseded: AdrSuperseded? = null,
+    /** Whether the move carried a reason (the audit line says so, never what it was). */
+    val reasoned: Boolean = false,
 )
 
 /** What a participants PUT did (null from [AdrService.replaceParticipants] = nothing). */

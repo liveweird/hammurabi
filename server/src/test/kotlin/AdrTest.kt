@@ -256,7 +256,7 @@ class AdrTest {
         val undated = cast.approver.client.saveAdr(adr.id, extended.revision, extended.asUpdate().copy(expiresOn = null))
         assertEquals(HttpStatusCode.NoContent, undated.status)
         val alone = listOf(AdrParticipantRequest(cast.driver.id, AdrRole.DRIVER))
-        assertEquals(HttpStatusCode.NoContent, cast.driver.client.setParticipants(adr.id, alone).status)
+        assertEquals(HttpStatusCode.NoContent, cast.approver.client.setParticipants(adr.id, alone).status)
         // A date in the past is a 400 even when the actor may change it.
         val now = cast.driver.client.getAdr(adr.id)
         val past = cast.driver.client.saveAdr(adr.id, now.revision, now.asUpdate().copy(expiresOn = "2000-01-01"))

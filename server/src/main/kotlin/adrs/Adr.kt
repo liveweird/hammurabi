@@ -67,8 +67,9 @@ data class AdrUpdateRequest(
     val expiresOn: String? = null,
 )
 
+/** A lifecycle move: the target and an optional [reason] (at most 1000 code points; kept in the history event, never in a notice). */
 @Serializable
-data class AdrTransitionRequest(val to: AdrStatus)
+data class AdrTransitionRequest(val to: AdrStatus, val reason: String? = null)
 
 /** The whole participant set (a wholesale replace): exactly one Driver, at most one Approver. */
 @Serializable
@@ -127,6 +128,12 @@ data class AdrResponse(
     val canEdit: Boolean,
     /** This caller may replace the participants now (the Driver, the Approver or an ADMIN, on a non-terminal ADR). */
     val canManageParticipants: Boolean,
+    /**
+     * This caller may change who the Approver is (add, remove, replace the seat): ADMIN, the Driver or the Approver until the ADR has
+     * first been in review, only the Approver from then on (a send back
+     * included). Nobody but ADMIN may name themselves, which the SPA's picker also leaves out.
+     */
+    val canChangeApprover: Boolean,
     /** This caller may replace the tags now (the Driver, the Approver or an ADMIN, on a non-terminal ADR; editable once `ACTIVE`). */
     val canEditTags: Boolean,
     /** This caller may link or unlink the predecessor now (the Driver, the Approver or an ADMIN, while the ADR is pre-active). */
@@ -196,6 +203,8 @@ data class AdrView(
     val tags: List<AdrTag>,
     val supersedes: AdrRef?,
     val supersededBy: AdrRef?,
+    /** The ADR has been `IN_REVIEW` at some point (it guards the Approver seat, `AdrAccess.kt`). */
+    val everInReview: Boolean,
 )
 
 /**
@@ -226,6 +235,7 @@ fun AdrView.toResponse(standing: AdrStanding, counts: DiscussionCounts): AdrResp
     allowedTransitions = allowedTransitions(standing, record.status),
     canEdit = canEdit(standing, record.status),
     canManageParticipants = canManageParticipants(standing, record.status),
+    canChangeApprover = canChangeApprover(standing, record.status, everInReview),
     canEditTags = canEditTags(standing, record.status),
     canEditSuccessor = canEditSuccessor(standing, record.status),
     canDetachSuccessor = canDetachSuccessor(standing, record.status, supersededBy),

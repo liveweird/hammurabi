@@ -590,7 +590,7 @@ export interface paths {
          *       - `expiresBefore` - a day (`YYYY-MM-DD`): the ADRs with an expiry date strictly before it (any status; an ADR with no expiry date never matches).
          *       - `hasOpenIssues` - `true` keeps the ADRs with an open issue or escalation (`openIssueCount > 0`), `false` the others.
          *       - `supersedes` - `true` keeps the ADRs that replace another (a live predecessor), `false` the others.
-         *       - `supersededBy` - `true` keeps the ADRs that have a successor (pending, or the one that replaced them; never a cancelled or withdrawn one), `false` the others.
+         *       - `supersededBy` - `true` keeps the ADRs that have a successor (pending, or the one that replaced them; never one cancelled or withdrawn before it activated), `false` the others.
          *       A saved combination of these is a lens (`/lenses`): the lens's `filters` use exactly these names.
          */
         get: operations["listAdrs"];
@@ -623,7 +623,7 @@ export interface paths {
          * Get an ADR
          * @description Any authenticated user. Besides the record and its participants the answer carries what THIS caller may do now, so the client
          *     renders buttons without re-deriving the DACI rules: `allowedTransitions` (the lifecycle map minus the moves only the system
-         *     makes, filtered by the caller's role), `canEdit`, `canManageParticipants`, `canEditTags`, `canEditSuccessor` and `canDetachSuccessor`. It also carries the tags and
+         *     makes, filtered by the caller's role), `canEdit`, `canManageParticipants`, `canChangeApprover`, `canEditTags`, `canEditSuccessor` and `canDetachSuccessor`. It also carries the tags and
          *     both ends of the successor link (`supersedes`, `supersededBy`).
          */
         get: operations["getAdr"];
@@ -667,14 +667,22 @@ export interface paths {
         /**
          * Move an ADR through its lifecycle
          * @description The lifecycle map: `PROBLEM_RAISED` to `SOLUTION_DRAFT`, `IN_REVIEW` or `CANCELLED`; `SOLUTION_DRAFT` to `IN_REVIEW` or `CANCELLED`;
-         *     `IN_REVIEW` to `ACTIVE`, `CANCELLED` or `WITHDRAWN`; `ACTIVE` to `EXPIRED` or `SUPERSEDED`, which only the system requests (the
-         *     expiry sweep, a successor's activation) - a user asking for them gets the same `409`. Who: the Driver (or `ADMIN`) moves to
-         *     `SOLUTION_DRAFT`, `IN_REVIEW` and `CANCELLED`; the Approver (or `ADMIN`) to `ACTIVE` and `WITHDRAWN`.
+         *     `IN_REVIEW` to `SOLUTION_DRAFT` (send back), `ACTIVE`, `CANCELLED` or `WITHDRAWN`; `ACTIVE` to `WITHDRAWN` (the decision is revoked),
+         *     `EXPIRED` or `SUPERSEDED`, the last two of which only the system requests (the expiry sweep, a successor's activation) - a user
+         *     asking for them gets the same `409`. Who: the Driver (or `ADMIN`) moves to `SOLUTION_DRAFT` (from `PROBLEM_RAISED`), `IN_REVIEW` and
+         *     `CANCELLED`; the Approver (or `ADMIN`) to `ACTIVE` and `WITHDRAWN` (from `IN_REVIEW` or `ACTIVE`); the SEND BACK (`IN_REVIEW` to
+         *     `SOLUTION_DRAFT`) is the Approver's or the Driver's (or `ADMIN`'s). A sent-back ADR goes back to drafting: it keeps its content, participants and tags, the Approver
+         *     must review it again, and the next move to `IN_REVIEW` re-checks the required fields. A withdrawn ADR is terminal; a successor linked to a
+         *     withdrawn predecessor cannot be activated until the link is removed.
+         *
+         *     The optional `reason` (free text, at most 1000 code points) is kept in the `TRANSITIONED` event and shown in the history; it is
+         *     accepted on every move, asked for by the send back and the withdrawal, and never reaches a notice or an email.
          *
          *     Guard order: the ADR must exist (`404`); the caller must be the Driver, the Approver or `ADMIN`, else `403`, before the header and
          *     body are read; then the header (`400`) and the body (`400`, `to` is a status name). Under the lock: the caller's role for the
-         *     TARGET (`403`), the lifecycle map (`409` `urn:hammurabi:problem:illegal-transition`), the stale revision (`409`
-         *     `urn:hammurabi:problem:revision-conflict`), then the target's requirements (`400` naming the missing fields): entering `IN_REVIEW` or
+         *     MOVE (`403`), the lifecycle map (`409` `urn:hammurabi:problem:illegal-transition`), the stale revision (`409`
+         *     `urn:hammurabi:problem:revision-conflict`), then the `reason` (`400`: control characters, over 1000 code points) and the target's
+         *     requirements (`400` naming the missing fields): entering `IN_REVIEW` or
          *     `ACTIVE` needs `context`, `decision`, `consequences` and an Approver, and entering `ACTIVE` an expiry date not in the past and - when the
          *     ADR replaces another one (`supersedes`) - that predecessor being `ACTIVE` (else `400` naming it: unlink it first). Bumps the revision and
          *     records a `TRANSITIONED` event. Activating a successor ALSO moves the `ACTIVE` ADR it replaces to `SUPERSEDED` in the same
@@ -703,7 +711,12 @@ export interface paths {
          * @description A wholesale replace of the participant set: exactly ONE Driver (the role can be handed over, never left empty), at most one
          *     Approver, any number of Contributors and Informed, each user once, at most 100 in all (`400` otherwise). A user new to the set (or
          *     taking a new role) must be an active user (`400`). Who: the Driver, the Approver or `ADMIN`, else `403` before the header and the
-         *     body are read. The write is guarded by `X-Expected-Revision` exactly like the document PUT (REQUIRED: missing or malformed is
+         *     body are read. The Approver seat has two further `403` rules, judged under the row lock: nobody but `ADMIN` can name THEMSELVES the
+         *     Approver (unless they already are), at any status, before the terminal `409`, the revision and the `400`s of the body; and once the
+         *     ADR has EVER been in review (`IN_REVIEW`, `ACTIVE`, or a draft again after a send back) only the current Approver or `ADMIN` can add,
+         *     remove or replace the Approver (a PUT that leaves the seat as it is, such as a Driver handover, is not judged), judged against the
+         *     stored set after the terminal `409` and the stale revision, so a stale editor that did not touch the seat is a `409`, never a
+         *     false `403`. `canChangeApprover` on the ADR serves the second rule. The write is guarded by `X-Expected-Revision` exactly like the document PUT (REQUIRED: missing or malformed is
          *     `400`, a stale one `409` `urn:hammurabi:problem:revision-conflict`), so a stale editor cannot silently drop people another
          *     editor added. A terminal ADR is `409` `urn:hammurabi:problem:adr-frozen` (checked before the revision). The change is applied as
          *     a diff and records one `PARTICIPANT_ADDED`, `PARTICIPANT_REMOVED` or `PARTICIPANT_CHANGED` event per participant; a real change
@@ -1430,6 +1443,8 @@ export interface components {
         };
         AdrTransitionRequest: {
             to: components["schemas"]["AdrStatus"];
+            /** @description Why (optional, 0.7.0): free text of at most 1000 code points, after trimming; control characters and hidden direction characters are `400`, blank is none. Kept in the `TRANSITIONED` event, shown in the history; never in a notice or an email. */
+            reason?: string | null;
         };
         AdrTag: {
             /** @description The normalised tag name. */
@@ -1519,7 +1534,7 @@ export interface components {
             tags: components["schemas"]["AdrTag"][];
             /** @description The ADR this one replaces (set while pre-active; it takes effect when this one becomes `ACTIVE`); null for none. A soft-deleted predecessor reads as null. */
             supersedes: components["schemas"]["AdrRef"] | null;
-            /** @description The ADR replacing this one - its pending successor, or once this one is `SUPERSEDED` the one that replaced it; never a cancelled or withdrawn one. Null for none. */
+            /** @description The ADR replacing this one - its pending successor, or once this one is `SUPERSEDED` the one that replaced it, even if that one was withdrawn after it took effect; never one cancelled or withdrawn before it activated. Null for none. */
             supersededBy: components["schemas"]["AdrRef"] | null;
             /** @description The moves THIS caller may request now (the buttons); never `EXPIRED` or `SUPERSEDED`. */
             allowedTransitions: components["schemas"]["AdrStatus"][];
@@ -1527,6 +1542,8 @@ export interface components {
             canEdit: boolean;
             /** @description This caller may replace the participants now. */
             canManageParticipants: boolean;
+            /** @description This caller may add, remove or replace the Approver now: ADMIN; the Driver or the Approver until the ADR has first been in review; only the Approver from then on (in review, in force, or a draft again after a send back); nobody on a terminal ADR. Nobody but ADMIN can name themselves the Approver, whatever this says. */
+            canChangeApprover: boolean;
             /** @description This caller may replace the tags now (the Driver, the Approver or ADMIN, on a non-terminal ADR - tags stay editable once ACTIVE). */
             canEditTags: boolean;
             /** @description This caller may link or unlink the predecessor now (the Driver, the Approver or ADMIN, while the ADR is pre-active). */
@@ -1591,7 +1608,7 @@ export interface components {
             total: number;
         };
         /**
-         * @description The kinds of history, with their `params` (all strings): `CREATED` {key, name}; `UPDATED` {changed: comma-joined field names, `name.from`/`name.to`/`expiresOn.from`/`expiresOn.to` where short}; `TRANSITIONED` {from, to}; `PARTICIPANT_ADDED` and `PARTICIPANT_REMOVED` {userId, name, role}; `PARTICIPANT_CHANGED` {userId, name, from, to}; `EXPIRED` {expiresOn}, a system event; `SUPERSEDED` {successorId, key, name}, on the predecessor, when its successor became `ACTIVE` (the actor is the user who activated it); `SUCCESSOR_ACTIVATED` {predecessorId, key, name}, on the successor, in the same transaction; `TAGS_CHANGED` {added, removed}, comma-joined tag names, each key only when non-empty; `SUCCESSOR_LINKED` / `SUCCESSOR_UNLINKED` {predecessorId, key, name}, on the successor (a `SUCCESSOR_UNLINKED` is also written on the predecessor when its owner detaches the pending successor, then {successorId, key, name}). The discussion events (`COMMENTED`, `QUESTION_ASKED`, `QUESTION_ANSWERED`, `QUESTION_REOPENED`, `ISSUE_RAISED`, `ESCALATED`, `ISSUE_RESOLVED`, `ISSUE_REOPENED`) carry {entryId, kind} - never the text; an edit or a delete of an entry is not an event.
+         * @description The kinds of history, with their `params` (all strings): `CREATED` {key, name}; `UPDATED` {changed: comma-joined field names, `name.from`/`name.to`/`expiresOn.from`/`expiresOn.to` where short}; `TRANSITIONED` {from, to, reason?} (the optional free-text reason of the move, 0.7.0); `PARTICIPANT_ADDED` and `PARTICIPANT_REMOVED` {userId, name, role}; `PARTICIPANT_CHANGED` {userId, name, from, to}; `EXPIRED` {expiresOn}, a system event; `SUPERSEDED` {successorId, key, name}, on the predecessor, when its successor became `ACTIVE` (the actor is the user who activated it); `SUCCESSOR_ACTIVATED` {predecessorId, key, name}, on the successor, in the same transaction; `TAGS_CHANGED` {added, removed}, comma-joined tag names, each key only when non-empty; `SUCCESSOR_LINKED` / `SUCCESSOR_UNLINKED` {predecessorId, key, name}, on the successor (a `SUCCESSOR_UNLINKED` is also written on the predecessor when its owner detaches the pending successor, then {successorId, key, name}). The discussion events (`COMMENTED`, `QUESTION_ASKED`, `QUESTION_ANSWERED`, `QUESTION_REOPENED`, `ISSUE_RAISED`, `ESCALATED`, `ISSUE_RESOLVED`, `ISSUE_REOPENED`) carry {entryId, kind} - never the text; an edit or a delete of an entry is not an event.
          * @enum {string}
          */
         AdrEventType: "CREATED" | "UPDATED" | "TRANSITIONED" | "PARTICIPANT_ADDED" | "PARTICIPANT_REMOVED" | "PARTICIPANT_CHANGED" | "EXPIRED" | "SUPERSEDED" | "TAGS_CHANGED" | "SUCCESSOR_LINKED" | "SUCCESSOR_UNLINKED" | "SUCCESSOR_ACTIVATED" | "COMMENTED" | "QUESTION_ASKED" | "QUESTION_ANSWERED" | "QUESTION_REOPENED" | "ISSUE_RAISED" | "ESCALATED" | "ISSUE_RESOLVED" | "ISSUE_REOPENED";
@@ -1696,7 +1713,7 @@ export interface components {
             canDelete: boolean;
         };
         /**
-         * @description What happened. `ROLE_ASSIGNED` / `ROLE_REMOVED` (`detail` = the DACI role), `STATUS_CHANGED` (`detail` = the new status; every participant, Informed included), `DISCUSSION_POSTED` (`detail` = the entry kind; the Driver and the Approver, Contributors too for a comment or a question), `DISCUSSION_SETTLED` (`detail` = the kind; the author of the answered question or resolved issue), `ADR_EXPIRED` (`detail` = the expiry date) and `ADR_SUPERSEDED` (`otherAdr` = the successor) for every participant, `SUCCESSOR_LINKED` / `SUCCESSOR_UNLINKED` (the predecessor's Driver and Approver; `adr` is the predecessor, `otherAdr` the successor) and `EXPIRY_REMINDER` (`detail` = the expiry date; the Driver and the Approver; a system notice). A client treats an unknown value as plain text.
+         * @description What happened. `ROLE_ASSIGNED` / `ROLE_REMOVED` (`detail` = the DACI role), `STATUS_CHANGED` (`detail` = the new status, or `SENT_BACK` for an in-review ADR returned to draft; every participant, Informed included, never the reason), `DISCUSSION_POSTED` (`detail` = the entry kind; the Driver and the Approver, Contributors too for a comment or a question), `DISCUSSION_SETTLED` (`detail` = the kind; the author of the answered question or resolved issue), `ADR_EXPIRED` (`detail` = the expiry date) and `ADR_SUPERSEDED` (`otherAdr` = the successor) for every participant, `SUCCESSOR_LINKED` / `SUCCESSOR_UNLINKED` (the predecessor's Driver and Approver; `adr` is the predecessor, `otherAdr` the successor) and `EXPIRY_REMINDER` (`detail` = the expiry date; the Driver and the Approver; a system notice). A client treats an unknown value as plain text.
          * @enum {string}
          */
         NotificationType: "ROLE_ASSIGNED" | "ROLE_REMOVED" | "STATUS_CHANGED" | "DISCUSSION_POSTED" | "DISCUSSION_SETTLED" | "ADR_EXPIRED" | "ADR_SUPERSEDED" | "SUCCESSOR_LINKED" | "SUCCESSOR_UNLINKED" | "EXPIRY_REMINDER";

@@ -72,6 +72,7 @@ private fun kindWord(detail: String?, language: String): String = KINDS[detail].
 private val ROLE_ASSIGNED = LocalizedText("%s made you %s of %s", "%s przypisuje Ci rol\u0119 \u201e%s\u201d w %s")
 private val ROLE_REMOVED = LocalizedText("%s removed you as %s of %s", "%s odbiera Ci rol\u0119 \u201e%s\u201d w %s")
 private val STATUS_CHANGED = LocalizedText("%s moved %s to \"%s\"", "%s zmienia status %s na \u201e%s\u201d")
+private val SENT_BACK = LocalizedText("%s sent %s back to draft", "%s odsy\u0142a %s do szkicu")
 private val POSTED = LocalizedText("%s added a %s on %s", "%s dodaje wpis typu \u201e%s\u201d w %s")
 private val ANSWERED = LocalizedText("%s answered your question on %s", "%s odpowiada na Twoje pytanie w %s")
 private val RESOLVED = LocalizedText("%s resolved your %s on %s", "%s rozwi\u0105zuje Tw\u00f3j wpis typu \u201e%s\u201d w %s")
@@ -97,7 +98,9 @@ private fun entryText(entry: DigestEntry, language: String): String {
     return when (entry.type) {
         NotificationType.ROLE_ASSIGNED -> fmt(ROLE_ASSIGNED.of(language), actor, roleWord(detail, language), adr)
         NotificationType.ROLE_REMOVED -> fmt(ROLE_REMOVED.of(language), actor, roleWord(detail, language), adr)
-        NotificationType.STATUS_CHANGED -> fmt(STATUS_CHANGED.of(language), actor, adr, statusWord(detail, language))
+        NotificationType.STATUS_CHANGED ->
+            if (detail == SENT_BACK_DETAIL) fmt(SENT_BACK.of(language), actor, adr)
+            else fmt(STATUS_CHANGED.of(language), actor, adr, statusWord(detail, language))
         NotificationType.DISCUSSION_POSTED -> fmt(POSTED.of(language), actor, kindWord(detail, language), adr)
         NotificationType.DISCUSSION_SETTLED ->
             if (detail == "QUESTION") fmt(ANSWERED.of(language), actor, adr) else fmt(RESOLVED.of(language), actor, kindWord(detail,

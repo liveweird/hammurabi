@@ -6,6 +6,7 @@ import ch.nokillswit.adrs.AdrStanding
 import ch.nokillswit.adrs.AdrStatus
 import ch.nokillswit.adrs.AdrUpdateRequest
 import ch.nokillswit.adrs.allowedTransitions
+import ch.nokillswit.adrs.canChangeApprover
 import ch.nokillswit.adrs.canEdit
 import ch.nokillswit.adrs.canEditContent
 import ch.nokillswit.adrs.canEditExpiry
@@ -51,6 +52,13 @@ class AdrAccessTest {
                     assertEquals(lead && !terminal, canEditExpiry(s, status), "expiry $status admin=$admin role=$role")
                     assertEquals(lead && !terminal, canManageParticipants(s, status), "manage $status admin=$admin role=$role")
                     assertEquals(canEditContent(s, status) || canEditExpiry(s, status), canEdit(s, status))
+                    // The Approver seat: the leads until the ADR has been in review, only the Approver (and ADMIN) from then on
+                    // (in review, in force, or a draft again after a send back), nobody once terminal.
+                    for (reviewed in listOf(true, false)) {
+                        val guarded = reviewed || status == AdrStatus.IN_REVIEW || status == AdrStatus.ACTIVE
+                        val seat = lead && !terminal && (admin || !guarded || role == AdrRole.APPROVER)
+                        assertEquals(seat, canChangeApprover(s, status, reviewed), "seat $status reviewed=$reviewed admin=$admin $role")
+                    }
                 }
             }
         }
@@ -64,15 +72,26 @@ class AdrAccessTest {
             offered(AdrRole.DRIVER, AdrStatus.PROBLEM_RAISED),
         )
         assertEquals(emptyList(), offered(AdrRole.APPROVER, AdrStatus.PROBLEM_RAISED))
-        assertEquals(listOf(AdrStatus.CANCELLED), offered(AdrRole.DRIVER, AdrStatus.IN_REVIEW))
-        assertEquals(listOf(AdrStatus.ACTIVE, AdrStatus.WITHDRAWN), offered(AdrRole.APPROVER, AdrStatus.IN_REVIEW))
-        assertEquals(listOf(AdrStatus.ACTIVE, AdrStatus.CANCELLED, AdrStatus.WITHDRAWN), offered(null, AdrStatus.IN_REVIEW, admin = true))
+        // The send back (IN_REVIEW to SOLUTION_DRAFT) is the Driver's AND the Approver's; from PROBLEM_RAISED it is the Driver's alone.
+        assertEquals(listOf(AdrStatus.SOLUTION_DRAFT, AdrStatus.CANCELLED), offered(AdrRole.DRIVER, AdrStatus.IN_REVIEW))
+        assertEquals(
+            listOf(AdrStatus.SOLUTION_DRAFT, AdrStatus.ACTIVE, AdrStatus.WITHDRAWN),
+            offered(AdrRole.APPROVER, AdrStatus.IN_REVIEW),
+        )
+        assertEquals(
+            listOf(AdrStatus.SOLUTION_DRAFT, AdrStatus.ACTIVE, AdrStatus.CANCELLED, AdrStatus.WITHDRAWN),
+            offered(null, AdrStatus.IN_REVIEW, admin = true),
+        )
+        assertEquals(emptyList(), offered(AdrRole.CONTRIBUTOR, AdrStatus.SOLUTION_DRAFT))
+        // Withdrawing an ACTIVE decision is the Approver's (or ADMIN's) alone; the Driver is offered nothing once it is in force.
+        assertEquals(listOf(AdrStatus.WITHDRAWN), offered(AdrRole.APPROVER, AdrStatus.ACTIVE))
+        assertEquals(listOf(AdrStatus.WITHDRAWN), offered(null, AdrStatus.ACTIVE, admin = true))
+        assertEquals(emptyList(), offered(AdrRole.INFORMED, AdrStatus.ACTIVE))
         assertEquals(emptyList(), offered(AdrRole.CONTRIBUTOR, AdrStatus.IN_REVIEW))
         assertEquals(emptyList(), offered(AdrRole.INFORMED, AdrStatus.SOLUTION_DRAFT))
         assertEquals(emptyList(), offered(null, AdrStatus.PROBLEM_RAISED))
         // Nobody is offered the system's moves, ADMIN included.
         assertEquals(emptyList(), offered(AdrRole.DRIVER, AdrStatus.ACTIVE))
-        assertEquals(emptyList(), offered(null, AdrStatus.ACTIVE, admin = true))
     }
 
     private val moves: List<Triple<AdrStatus, AdrStatus, Set<String>>> = listOf(
@@ -81,6 +100,8 @@ class AdrAccessTest {
         Triple(AdrStatus.PROBLEM_RAISED, AdrStatus.CANCELLED, setOf("admin", "driver")),
         Triple(AdrStatus.IN_REVIEW, AdrStatus.ACTIVE, setOf("admin", "approver")),
         Triple(AdrStatus.IN_REVIEW, AdrStatus.WITHDRAWN, setOf("admin", "approver")),
+        Triple(AdrStatus.IN_REVIEW, AdrStatus.SOLUTION_DRAFT, setOf("admin", "driver", "approver")),
+        Triple(AdrStatus.ACTIVE, AdrStatus.WITHDRAWN, setOf("admin", "approver")),
     )
 
     @Test

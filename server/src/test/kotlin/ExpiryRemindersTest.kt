@@ -87,10 +87,13 @@ class ExpiryRemindersTest {
         forceAdrExpiry(draft.id, today.plusDays(2).toString())
         val cancelled = cast.activeAdr(today.plusDays(2).toString())
         forceAdrStatus(cancelled.id, AdrStatus.CANCELLED)
+        // A decision revoked (0.7.0) leaves its reminder marker behind harmlessly: it is not ACTIVE any more, so it is never reminded.
+        val withdrawn = cast.activeAdr(today.plusDays(2).toString())
+        cast.approver.client.moveAdrNow(withdrawn.id, AdrStatus.WITHDRAWN)
         remindersAt(today).run()
         val driverNotices = rawNotices(cast.driver.id).filter { it.type == "EXPIRY_REMINDER" }.map { it.adrId }
         assertTrue(edge.id in driverNotices && first.id in driverNotices, "both ends are in")
-        assertTrue(listOf(far, past, undated, draft, cancelled).none { it.id in driverNotices })
+        assertTrue(listOf(far, past, undated, draft, cancelled, withdrawn).none { it.id in driverNotices })
         remindersAt(today.plusDays(1)).run()
         assertTrue(far.id in rawNotices(cast.driver.id).filter { it.type == "EXPIRY_REMINDER" }.map { it.adrId },
             "the next day it is within 14")

@@ -2,6 +2,7 @@ package ch.nokillswit.adrs
 
 import ch.nokillswit.authz.ConflictException
 import ch.nokillswit.infra.ProblemTypes
+import ch.nokillswit.infra.validation.sanitizeMultiLine
 import io.ktor.server.plugins.BadRequestException
 import java.time.LocalDate
 
@@ -13,14 +14,15 @@ import java.time.LocalDate
  * ```
  * PROBLEM_RAISED -> SOLUTION_DRAFT -> IN_REVIEW -> ACTIVE -> EXPIRED (sweep) | SUPERSEDED (its successor became ACTIVE)
  *   PROBLEM_RAISED -> IN_REVIEW (a problem that arrives with its solution skips the draft)
- *   CANCELLED from the first three; WITHDRAWN from IN_REVIEW
+ *   IN_REVIEW -> SOLUTION_DRAFT (0.7.0, "send back": the ADR goes back to drafting, nothing is cleared)
+ *   CANCELLED from the first three; WITHDRAWN from IN_REVIEW and (0.7.0) from ACTIVE (the decision is revoked)
  * ```
  */
 val ALLOWED_TRANSITIONS: Map<AdrStatus, Set<AdrStatus>> = mapOf(
     AdrStatus.PROBLEM_RAISED to setOf(AdrStatus.SOLUTION_DRAFT, AdrStatus.IN_REVIEW, AdrStatus.CANCELLED),
     AdrStatus.SOLUTION_DRAFT to setOf(AdrStatus.IN_REVIEW, AdrStatus.CANCELLED),
-    AdrStatus.IN_REVIEW to setOf(AdrStatus.ACTIVE, AdrStatus.CANCELLED, AdrStatus.WITHDRAWN),
-    AdrStatus.ACTIVE to setOf(AdrStatus.EXPIRED, AdrStatus.SUPERSEDED),
+    AdrStatus.IN_REVIEW to setOf(AdrStatus.SOLUTION_DRAFT, AdrStatus.ACTIVE, AdrStatus.CANCELLED, AdrStatus.WITHDRAWN),
+    AdrStatus.ACTIVE to setOf(AdrStatus.EXPIRED, AdrStatus.SUPERSEDED, AdrStatus.WITHDRAWN),
     AdrStatus.CANCELLED to emptySet(),
     AdrStatus.WITHDRAWN to emptySet(),
     AdrStatus.EXPIRED to emptySet(),
@@ -105,4 +107,21 @@ fun requireTransitionRequirements(
 ) {
     val missing = missingForTransition(target, record, hasApprover, today, predecessor)
     if (missing.isNotEmpty()) throw BadRequestException("An ADR cannot move to $target: missing ${missing.joinToString(", ")}")
+}
+
+/** The longest reason a transition may carry, in code points (the history shows it as a dimmed line, a notice never carries it). */
+const val MAX_TRANSITION_REASON_CODE_POINTS = 1000
+
+/**
+ * The optional reason of a transition (0.7.0; asked for by "send back" and "withdraw", accepted on every move): the free-text sanitiser
+ * (CRLF to LF, control and hidden direction characters `400`, both ends trimmed), blank = no reason (null), more than
+ * [MAX_TRANSITION_REASON_CODE_POINTS] code points `400`. Judged after the stale revision, with the move's other requirements.
+ */
+fun sanitizedTransitionReason(raw: String?): String? {
+    // A reason is a sentence, not a code block: the first line's indentation goes too (the multi-line sanitiser keeps it).
+    val reason = sanitizeMultiLine(raw ?: return null, "reason").trim().takeIf { it.isNotEmpty() } ?: return null
+    if (reason.codePointCount(0, reason.length) > MAX_TRANSITION_REASON_CODE_POINTS) {
+        throw BadRequestException("reason must be at most $MAX_TRANSITION_REASON_CODE_POINTS characters")
+    }
+    return reason
 }

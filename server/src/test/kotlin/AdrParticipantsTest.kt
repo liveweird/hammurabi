@@ -145,7 +145,9 @@ class AdrParticipantsTest {
             req(cast.driver, AdrRole.INFORMED),
             req(cast.informed, AdrRole.INFORMED),
         )
-        assertEquals(HttpStatusCode.NoContent, cast.contributor.client.setParticipants(adr.id, swap).status)
+        // The new Driver may not make themselves the Approver (that is the swap's other half), so the Approver does the swap.
+        assertEquals(HttpStatusCode.Forbidden, cast.contributor.client.setParticipants(adr.id, swap).status)
+        assertEquals(HttpStatusCode.NoContent, cast.approver.client.setParticipants(adr.id, swap).status)
         val swapped = cast.admin.client.getAdr(adr.id).participants
         assertEquals(AdrParticipant(cast.approver.id, "Apr", AdrRole.DRIVER), swapped[0])
         assertEquals(AdrParticipant(cast.contributor.id, "Con", AdrRole.APPROVER), swapped[1])

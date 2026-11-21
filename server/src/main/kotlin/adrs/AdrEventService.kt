@@ -6,12 +6,17 @@ import ch.nokillswit.infra.db.EventLogTable
 import ch.nokillswit.infra.db.FieldChange
 import ch.nokillswit.infra.db.encodeChanges
 import ch.nokillswit.infra.db.nowMillis
+import ch.nokillswit.infra.json.decodeParams
 import ch.nokillswit.infra.paging.PageRequest
 import ch.nokillswit.infra.paging.PageResponse
 import ch.nokillswit.users.UserService
 import io.ktor.util.AttributeKey
 import kotlinx.serialization.Serializable
+import kotlinx.coroutines.flow.toList
+import org.jetbrains.exposed.v1.core.and
+import org.jetbrains.exposed.v1.core.eq
 import org.jetbrains.exposed.v1.r2dbc.R2dbcDatabase
+import org.jetbrains.exposed.v1.r2dbc.select
 
 val AdrEventServiceKey = AttributeKey<AdrEventService>("AdrEventService")
 
@@ -28,7 +33,7 @@ enum class AdrEventType {
     /** `{changed: "name,context", <field>.from?, <field>.to?}`: Markdown by NAME only, `name` and `expiresOn` with their sides. */
     UPDATED,
 
-    /** `{from, to}` */
+    /** `{from, to, reason?}`: the optional reason of the move (0.7.0), free text up to 1000 code points. */
     TRANSITIONED,
 
     /** `{userId, name, role}` */
@@ -87,8 +92,15 @@ fun adrCreatedEvent(number: Int, name: String) = AdrEventDescriptor(AdrEventType
 /** An empty [changes] is no event at all: the caller records nothing for a no-op save. */
 fun adrUpdatedEvent(changes: List<FieldChange>) = AdrEventDescriptor(AdrEventType.UPDATED, encodeChanges(changes))
 
-fun adrTransitionedEvent(from: AdrStatus, to: AdrStatus) =
-    AdrEventDescriptor(AdrEventType.TRANSITIONED, mapOf("from" to from.name, "to" to to.name))
+/** `{from, to}` and, when the move carried one, the sanitised `reason` (free text: the history shows it, a notice never does). */
+fun adrTransitionedEvent(from: AdrStatus, to: AdrStatus, reason: String? = null) = AdrEventDescriptor(
+    AdrEventType.TRANSITIONED,
+    buildMap {
+        put("from", from.name)
+        put("to", to.name)
+        if (reason != null) put("reason", reason)
+    },
+)
 
 fun adrParticipantAddedEvent(participant: AdrParticipant) = AdrEventDescriptor(
     AdrEventType.PARTICIPANT_ADDED,
@@ -214,6 +226,16 @@ class AdrEventService(database: R2dbcDatabase, private val notices: AdrNotices =
         notices.onEvents(adrId, byUserId, events, at)
         return ids
     }
+
+    /**
+     * Whether the ADR has ever been moved into `IN_REVIEW` (a `TRANSITIONED` event with `to` = `IN_REVIEW`), read in the caller's
+     * transaction. An ADR has a handful of moves, so the few `TRANSITIONED` rows are decoded rather than pattern-matched in SQL.
+     */
+    suspend fun hasEnteredReview(adrId: UInt): Boolean =
+        AdrEvents.select(AdrEvents.params)
+            .where { (AdrEvents.ownerId eq adrId) and (AdrEvents.eventType eq AdrEventType.TRANSITIONED.name) }
+            .toList()
+            .any { decodeParams(it[AdrEvents.params])["to"] == AdrStatus.IN_REVIEW.name }
 
     /** The ADR's history, newest first by default (the id descending as the same-instant tiebreaker). */
     suspend fun list(adrId: UInt, paging: PageRequest): AdrEventListResult {

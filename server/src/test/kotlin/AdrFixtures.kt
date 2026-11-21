@@ -138,16 +138,16 @@ suspend fun HttpClient.saveAdr(id: UInt, revision: Long, request: AdrUpdateReque
         setBody(request)
     }
 
-suspend fun HttpClient.moveAdr(id: UInt, revision: Long, to: AdrStatus): HttpResponse =
+suspend fun HttpClient.moveAdr(id: UInt, revision: Long, to: AdrStatus, reason: String? = null): HttpResponse =
     post("/api/v1/adrs/$id/transitions") {
         header(EXPECTED_REVISION_HEADER, revision.toString())
         contentType(ContentType.Application.Json)
-        setBody(AdrTransitionRequest(to))
+        setBody(AdrTransitionRequest(to, reason))
     }
 
-/** Moves the ADR to [to] with its CURRENT revision, asserting 200. */
-suspend fun HttpClient.moveAdrNow(id: UInt, to: AdrStatus): AdrResponse {
-    val response = moveAdr(id, getAdr(id).revision, to)
+/** Moves the ADR to [to] (with the optional [reason]) with its CURRENT revision, asserting 200. */
+suspend fun HttpClient.moveAdrNow(id: UInt, to: AdrStatus, reason: String? = null): AdrResponse {
+    val response = moveAdr(id, getAdr(id).revision, to, reason)
     assertEquals(HttpStatusCode.OK, response.status, "move to $to: ${response.status}")
     return response.body()
 }

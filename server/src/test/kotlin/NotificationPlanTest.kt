@@ -33,6 +33,12 @@ class NotificationPlanTest {
         val all = AdrRole.entries.toSet()
         assertEquals(Audience.Roles(7u, all), plan(AdrEventType.TRANSITIONED, "from" to "SOLUTION_DRAFT", "to" to "IN_REVIEW")!!.audience)
         assertEquals("IN_REVIEW", plan(AdrEventType.TRANSITIONED, "to" to "IN_REVIEW")!!.detail)
+        // 0.7.0: a move back from review is "sent back"; the same target from the first status is a plain move; a reason never travels.
+        val back = plan(AdrEventType.TRANSITIONED, "from" to "IN_REVIEW", "to" to "SOLUTION_DRAFT", "reason" to "free text")!!
+        assertEquals("SENT_BACK", back.detail)
+        assertEquals(Audience.Roles(7u, all), back.audience, "Informed included")
+        assertEquals("SOLUTION_DRAFT", plan(AdrEventType.TRANSITIONED, "from" to "PROBLEM_RAISED", "to" to "SOLUTION_DRAFT")!!.detail)
+        assertEquals("WITHDRAWN", plan(AdrEventType.TRANSITIONED, "from" to "ACTIVE", "to" to "WITHDRAWN", "reason" to "x")!!.detail)
         val expired = plan(AdrEventType.EXPIRED, "expiresOn" to "2026-01-01")!!
         assertEquals(NotificationType.ADR_EXPIRED, expired.type)
         assertEquals("2026-01-01", expired.detail)

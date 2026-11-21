@@ -31,12 +31,13 @@ The text fields are stored as sanitised (`sanitizeSingleLine` for the name, `san
 
 ```
 PROBLEM_RAISED ──► SOLUTION_DRAFT ──► IN_REVIEW ──► ACTIVE ──► EXPIRED     (sweep, expiresOn passed)
-      │                  │               │            └──────► SUPERSEDED  (automatic, successor activated)
-      └──────────────────┴───────────────┼─► CANCELLED
-                                         └─► WITHDRAWN
+      │                  │ ▲             │ │            ├──────► SUPERSEDED  (automatic, successor activated)
+      │                  │ └─────────────┘ │ send back  └──────► WITHDRAWN   (the decision is revoked, 0.7.0)
+      └──────────────────┴───────────────┼─┴─► CANCELLED
+                                         └───► WITHDRAWN
 ```
 
-`PROBLEM_RAISED → IN_REVIEW` is allowed too (a problem that arrives with its solution skips the draft). An illegal move is `409` of the
+`PROBLEM_RAISED → IN_REVIEW` is allowed too (a problem that arrives with its solution skips the draft). **Send back and withdraw (0.7.0):** `IN_REVIEW → SOLUTION_DRAFT` returns an ADR to drafting (content, participants and tags are kept and nothing is cleared; the Approver has to review it again once the next `→ IN_REVIEW`, which re-validates the required fields, sends it back to review) and `ACTIVE → WITHDRAWN` revokes a decision in force (terminal like every ending: read-only, its open issues and escalations stay resolvable as on an `EXPIRED` one, its expiry-reminder marker is never read again because the pass looks at `ACTIVE` ADRs only). **A reason** rides any transition (`{to, reason?}`): free text of at most 1000 code points (`sanitizedTransitionReason`: CRLF to LF, control and hidden direction characters `400`, both ends trimmed, blank = none, judged after the stale revision), stored as `TRANSITIONED` `reason`, shown by the history, and never in a notice, an email or an audit line (the audit says `reasoned`). **Consequences:** a successor that is still pre-active when its predecessor is withdrawn keeps its link but cannot be activated (`400`, "unlink it first", as for an expired predecessor; the predecessor is terminal so its owners cannot detach, the successor's Driver removes the link); a SUPERSEDED predecessor whose successor is later withdrawn stays `SUPERSEDED` (nothing is resurrected) and still points at it (`successorInPlayOrInEffect`: a withdrawn successor counts as the replacement when it carries `SUCCESSOR_ACTIVATED`, one withdrawn before it activated never does). An illegal move is `409` of the
 typed problem `urn:hammurabi:problem:illegal-transition`; a move whose target requirements fail is `400` naming the missing fields.
 `EXPIRED` and `SUPERSEDED` are never requested by a user: the system moves into them, and a user asking for either gets the same `409`
 (ADMIN included). Terminal: `CANCELLED`, `WITHDRAWN`, `EXPIRED`, `SUPERSEDED` — a terminal ADR is read-only (every write is the typed `409`
@@ -47,13 +48,13 @@ problem exist from creation, alternatives stay optional); entering `ACTIVE` re-c
 an Approver may have left) plus a date already set not in the past. The `400` names every missing field in its detail.
 
 **Content freeze** (`requireContentEditable`): name and the five Markdown fields change only in `PROBLEM_RAISED`, `SOLUTION_DRAFT` and
-`IN_REVIEW`; once `ACTIVE` a content change is `409 adr-frozen`, while the expiry date, the participants and the tags stay editable. The successor link is the
+`IN_REVIEW`; once `ACTIVE` a content change is `409 adr-frozen`, while the expiry date, the participants and the tags stay editable. A sent-back ADR is back in drafting, as pre-active as it was in review. The successor link is the
 opposite: it is set only while the ADR is pre-active (a link on an `ACTIVE` ADR is `409 adr-frozen`), because it takes effect at activation.
 
 **Order inside a write** (`authorization.md`), under the row lock:
 - document PUT: the coarse role (403), a terminal ADR (409 `adr-frozen`), the **stale revision (409 `revision-conflict`)**, then per field the content freeze (409 `adr-frozen`) or the role (403) and a past expiry date (400) — the revision comes before the per-field judgements, so a stale save is never a false 403 (and never writes a false `authz.denied`) or 400;
-- transition: the coarse role (403), the per-target role (403), the lifecycle map (409 `illegal-transition` — also a move out of a terminal status, and a request for `EXPIRED`/`SUPERSEDED`), the stale revision (409), then the target's requirements (400);
-- participants: the coarse role (403), a terminal ADR (409 `adr-frozen`), the stale revision (409), then the users (400);
+- transition: the coarse role (403), the per-move role (403), the lifecycle map (409 `illegal-transition` — also a move out of a terminal status, and a request for `EXPIRED`/`SUPERSEDED`), the stale revision (409), then the `reason` (400) and the target's requirements (400);
+- participants: the coarse role (403), **no self-approval (403)**, a terminal ADR (409 `adr-frozen`), the stale revision (409), **then who holds the Approver seat (403: once the ADR has been in review only the current Approver or ADMIN changes it), judged against the locked participants**, then the users (400) (the self-approval ban needs only the body, so the route also judges it before the set's shape: a malformed set from a caller naming themselves Approver is still `403`; the seat comparison waits for the revision so a stale editor that did not touch the seat gets the `409`, never a false `403`);
 - tags (0.4.0): the coarse role (403), a terminal ADR (409 `adr-frozen`), the stale revision (409), then the names (400: unknown or retired, duplicate, over 20);
 - supersedes (0.4.0): the coarse role (403), a terminal ADR (409 `adr-frozen`), the stale revision (409), an `ACTIVE` ADR (409 `adr-frozen`), then the predecessor (400: itself, unknown or deleted, terminal; 409: closes a cycle, already has a successor in play);
 - detach successor (0.4.0, `DELETE /adrs/{id}/successor`, no header or body): judged on the PREDECESSOR - the coarse role (403), a terminal predecessor (409 `adr-frozen`), then no pending successor (404);
@@ -71,9 +72,12 @@ most one `APPROVER` (required to enter `IN_REVIEW`); any number of `CONTRIBUTOR`
 | read, list, history, discussion; comment or ask (pre-active), raise an issue or an escalation (active) | any authenticated user |
 | create | any authenticated user (becomes the Driver) |
 | edit content (pre-active states) | Driver, Contributors, ADMIN |
-| `→ SOLUTION_DRAFT`, `→ IN_REVIEW`, `→ CANCELLED` | Driver, ADMIN |
-| `→ ACTIVE`, `→ WITHDRAWN` | Approver, ADMIN |
+| `PROBLEM_RAISED → SOLUTION_DRAFT`, `→ IN_REVIEW`, `→ CANCELLED` | Driver, ADMIN |
+| `→ ACTIVE`, `→ WITHDRAWN` (from `IN_REVIEW` or `ACTIVE`, 0.7.0) | Approver, ADMIN |
+| send back (`IN_REVIEW → SOLUTION_DRAFT`, 0.7.0) | Approver (returns it for rework), Driver (pulls it back), ADMIN |
 | change participants, expiry date, tags, successor | Driver, Approver, ADMIN (the Driver role can be handed over, never left empty); the successor link is the SUCCESSOR's (the predecessor's roles do not matter) and only while it is pre-active |
+| make oneself the Approver | ADMIN only (0.7.0: nobody else, at any status; a participants PUT that names the caller Approver is `403` unless they already are) |
+| add, remove or replace the Approver | until the ADR has first been in review the Driver, the Approver, ADMIN; **from then on (`IN_REVIEW`, `ACTIVE`, and a draft again after a send back) only the CURRENT Approver or ADMIN** (0.7.0) |
 | detach a pending successor | Driver, Approver, ADMIN of the PREDECESSOR, while it is non-terminal and the successor is still pre-active (the answer to a link parked by a stranger; below) |
 | curate the tag registry (categories and their tags) | ADMIN only; any authenticated user reads it |
 | resolve or reopen an issue / escalation | Driver, Approver, ADMIN |
@@ -84,7 +88,7 @@ most one `APPROVER` (required to enter `IN_REVIEW`); any number of `CONTRIBUTOR`
 
 Guards run before validation: a forbidden write is `403` even when its body is also invalid (`authorization.md`). A missing ADR is `404`.
 The verdict is also computed FOR THE CALLER and served on the ADR: `allowedTransitions` (the map minus the system's moves, filtered by the table
-above), `canEdit` (content in a pre-active status, or the expiry date in a non-terminal one), `canManageParticipants`, `canEditTags` (a non-terminal ADR), `canEditSuccessor` (a pre-active one) and `canDetachSuccessor` (this ADR is the PREDECESSOR of a pending successor and the caller holds one of the three roles on it), so the SPA never re-derives it.
+above), `canEdit` (content in a pre-active status, or the expiry date in a non-terminal one), `canManageParticipants`, `canChangeApprover` (0.7.0: the Approver seat is the caller's to change), `canEditTags` (a non-terminal ADR), `canEditSuccessor` (a pre-active one) and `canDetachSuccessor` (this ADR is the PREDECESSOR of a pending successor and the caller holds one of the three roles on it), so the SPA never re-derives it.
 The coarse guard before the body is "may touch this ADR at all" (edit: Driver, Contributor, Approver, ADMIN; transition, participants, tags and supersedes: Driver,
 Approver, ADMIN); the per-target and per-field rows above are re-judged under the row lock (`403`).
 
@@ -93,13 +97,15 @@ at most one Approver, each user once, at most 100, every user NEW to the set (or
 and changed participant; a set that changes nothing is `204` and records nothing. Creation takes optional extra participants (never a Driver, never
 the caller; one `PARTICIPANT_ADDED` each).
 
+**Who holds the Approver seat (0.7.0, the review of the withdraw).** The Approver decides (activates, withdraws), so the seat is protected from the people it decides over: (a) a non-ADMIN caller can **never assign the Approver role to themselves**, at any status (no self-approval; `403` unless they already hold it, so an Approver's own PUT that keeps them is fine); (b) once the ADR has **ever been in review** (it is `IN_REVIEW` or `ACTIVE`, or a draft again after a send back, or terminal) only the **current Approver or ADMIN** may change who holds it (add, remove or replace that row; the Approver may hand it on or leave it empty; if their account was deleted, ADMIN fixes it). "Ever" closes the send-back bypass (the Driver sends an ADR in review back, swaps the Approver in the draft, resubmits and the accomplice activates it): the Driver keeps the send back to fix the text, not the seat. It is read from the history (a `TRANSITIONED` event into `IN_REVIEW`, `AdrEventService.hasEnteredReview`, no flag or migration; a `PROBLEM_RAISED` ADR cannot have been, `IN_REVIEW` and `ACTIVE` always have, so only a draft or a terminal ADR queries). A participants PUT that leaves the Approver row as it is stays open to the Driver, a Driver handover included, and until the first review the Driver may still name, replace or drop someone else as Approver. Without it the Driver could, in two requests, put themselves in the seat (handing the Driver seat to a friend) and then approve or withdraw their own ADR. Both rules are judged under the row lock against the locked set (`requireNotSelfApproval`, then after the terminal and revision checks `requireMayChangeApproverSeat`); the SPA's picker is disabled when `canChangeApprover` is false and never offers the caller (an ADMIN excepted). Audit: the generic `authz.denied`.
+
 ## History (`adr_events`, 0.2.0)
 
 Lettuce's/Adder's `EventLog` machinery: one immutable structural event per mutation, committed in the same transaction as the write.
 Types and their string `params` (the SPA renders them in the viewer's language; no rendered text is stored): `CREATED` `{key, name}` (the actor is the
 Driver), `UPDATED` `{changed: "name,context,…", <field>.from?, <field>.to?}` (field-level: the Markdown fields — problem, context, decision,
 alternatives, consequences — by NAME only, the short ones `name` and `expiresOn` with their sides, an absent side meaning unset; Toadie's
-`FieldChange` vocabulary, one event per save), `TRANSITIONED` `{from, to}`, `PARTICIPANT_ADDED` / `PARTICIPANT_REMOVED` `{userId, name, role}`,
+`FieldChange` vocabulary, one event per save), `TRANSITIONED` `{from, to, reason?}` (0.7.0: the optional free-text reason), `PARTICIPANT_ADDED` / `PARTICIPANT_REMOVED` `{userId, name, role}`,
 `PARTICIPANT_CHANGED` `{userId, name, from, to}`, `EXPIRED` `{expiresOn}` (system actor), and from 0.4.0 `TAGS_CHANGED` `{added?, removed?}` (comma-joined tag names, each key only when non-empty), `SUCCESSOR_LINKED` / `SUCCESSOR_UNLINKED` `{predecessorId, key, name}` (on the successor; a detach also writes `SUCCESSOR_UNLINKED` `{successorId, key, name}` on the PREDECESSOR), `SUPERSEDED` `{successorId, key, name}` (on the superseded predecessor, actor = the user who activated the successor) and `SUCCESSOR_ACTIVATED` `{predecessorId, key, name}` (on the successor, same transaction),
 the discussion's eight (0.3.0, below: `COMMENTED`, `QUESTION_ASKED`, `QUESTION_ANSWERED`, `QUESTION_REOPENED`, `ISSUE_RAISED`, `ESCALATED`, `ISSUE_RESOLVED`, `ISSUE_REOPENED`). A no-op save records nothing, and so does a refused write. The
 actor is the acting user (`userId`, `userName`, `userDeleted`), or NULL for a system event. Read through `GET /api/v1/adrs/{id}/events` (paged,
@@ -117,7 +123,7 @@ predicate). "Today" is an injected `Clock`, so tests expire deterministically (`
 
 `GET /adrs` (paged; filters `status` any-of, `tag` any-of, `q` name-or-key, `text` full-text, `participant` + `role`, the created/updated day ranges, `expiresBefore`, `hasOpenIssues`, `supersedes`, `supersededBy` ("Search"); sort `id`, `number` (default, newest first), `name`, `updatedAt`,
 `status` in lifecycle order, `relevance` with `text`), `POST /adrs`, `GET /adrs/{id}`, `PUT /adrs/{id}` (document, `X-Expected-Revision`), `POST /adrs/{id}/transitions`
-(`{to}`, `X-Expected-Revision`, answers the ADR), `PUT /adrs/{id}/participants`, `PUT /adrs/{id}/tags` and `PUT /adrs/{id}/supersedes` (both under `X-Expected-Revision`, 0.4.0), `DELETE /adrs/{id}/successor` (0.4.0), `GET /adrs/{id}/events`, `DELETE /adrs/{id}` (ADMIN), `/lenses` (0.5.0, "Lenses"), `/notifications` and `/users/{id}/notification-preferences` (0.6.0, "Notifications"), the discussion routes below and the registry `GET|POST /tag-categories`, `PUT|DELETE /tag-categories/{id}` (both under `X-Expected-Revision`). The contract is
+(`{to, reason?}`, `X-Expected-Revision`, answers the ADR), `PUT /adrs/{id}/participants`, `PUT /adrs/{id}/tags` and `PUT /adrs/{id}/supersedes` (both under `X-Expected-Revision`, 0.4.0), `DELETE /adrs/{id}/successor` (0.4.0), `GET /adrs/{id}/events`, `DELETE /adrs/{id}` (ADMIN), `/lenses` (0.5.0, "Lenses"), `/notifications` and `/users/{id}/notification-preferences` (0.6.0, "Notifications"), the discussion routes below and the registry `GET|POST /tag-categories`, `PUT|DELETE /tag-categories/{id}` (both under `X-Expected-Revision`). The contract is
 `openapi/documentation.yaml`; the permission order `authorization.md`; the audit events `observability.md`.
 
 ## Discussion (`adr_discussion`, 0.3.0 — built)
@@ -172,8 +178,8 @@ editor's picker, the list filter), every write is ADMIN-only with the guard befo
 
 - **The predecessor** must be another live ADR (`400`), `ACTIVE` or pre-active (`400` for a terminal one: nothing left to replace), must not close a cycle (`409`, `SuccessorGraph.cycleClosedBy`, Astrolabe's kernel reduced to a walk UP the stored `supersedes_id` chain from the requested predecessor: O(depth) one-row lookups, never the whole table, and a link whose successor is `CANCELLED`/`WITHDRAWN`/deleted no longer counts; the walk runs under the `ADRLINKS` advisory lock, taken before the row lock, because a cycle spans rows) and must have no other successor in play (`409`; `uq_adrs_supersedes_open` is the partial-unique backstop over non-terminal, non-deleted successors, so a cancelled or withdrawn attempt frees the predecessor for another).
 - **Activation.** When the successor becomes `ACTIVE`, the predecessor moves `ACTIVE -> SUPERSEDED` in the SAME transaction: both rows are locked together in id order (the predecessor id is peeked first; every link change bumps the successor's revision, so a link that moved in between is a stale-revision `409` before anything else), the predecessor's revision bumps, and it gets `SUPERSEDED` (actor = the activator) while the successor gets `TRANSITIONED` and `SUCCESSOR_ACTIVATED`. Audit: `adr.transitioned` then `adr.superseded`.
-- **The predecessor is not `ACTIVE` at that moment** (it was only a draft when linked, or it expired or was cancelled since): the activation is refused with `400` naming it (a requirement of the move, like the date), and the successor's Driver, Approver or ADMIN removes the link or waits for it to be activated. A predecessor soft-deleted meanwhile reads as no link and the activation goes through, leaving it alone. A pre-active predecessor may be linked precisely so the two can be prepared together; only an `ACTIVE` one is ever superseded.
-- **Both ends on the wire.** `supersedes` (the ADR this one replaces) and `supersededBy` (its pending successor, or once `SUPERSEDED` the one that replaced it; never a cancelled or withdrawn one), each `{id, key, name, status}`. History: `SUCCESSOR_LINKED` / `SUCCESSOR_UNLINKED` on the successor (a re-link is both; the old end is resolved even when that ADR was soft-deleted meanwhile, so the unlink is always recorded), and on the predecessor a detach's `SUCCESSOR_UNLINKED`, `SUPERSEDED` and `SUCCESSOR_ACTIVATED` at activation. The detail page shows both links and the "Superseded by ADR-00xx" banner (`web/CLAUDE.md`).
+- **The predecessor is not `ACTIVE` at that moment** (it was only a draft when linked, or it expired, was cancelled or was withdrawn since): the activation is refused with `400` naming it (a requirement of the move, like the date), and the successor's Driver, Approver or ADMIN removes the link or waits for it to be activated. A predecessor soft-deleted meanwhile reads as no link and the activation goes through, leaving it alone. A pre-active predecessor may be linked precisely so the two can be prepared together; only an `ACTIVE` one is ever superseded.
+- **Both ends on the wire.** `supersedes` (the ADR this one replaces) and `supersededBy` (its pending successor, or once `SUPERSEDED` the one that replaced it, even if that one was withdrawn after it took effect; never one cancelled or withdrawn before it activated), each `{id, key, name, status}`. History: `SUCCESSOR_LINKED` / `SUCCESSOR_UNLINKED` on the successor (a re-link is both; the old end is resolved even when that ADR was soft-deleted meanwhile, so the unlink is always recorded), and on the predecessor a detach's `SUCCESSOR_UNLINKED`, `SUPERSEDED` and `SUCCESSOR_ACTIVATED` at activation. The detail page shows both links and the "Superseded by ADR-00xx" banner (`web/CLAUDE.md`).
 
 ## Search (0.5.0 - built)
 
@@ -200,7 +206,7 @@ Adder's `notifications/` ported and reshaped from chat to ADRs (V17, V18; `persi
 |---|---|---|---|
 | `ROLE_ASSIGNED` | `PARTICIPANT_ADDED` (creation included), `PARTICIPANT_CHANGED` | the person given the role (a Driver handover tells everyone whose role changed, the actor excepted) | the new role |
 | `ROLE_REMOVED` | `PARTICIPANT_REMOVED` | the person removed | the role they held |
-| `STATUS_CHANGED` | `TRANSITIONED` | every participant, Informed included | the new status |
+| `STATUS_CHANGED` | `TRANSITIONED` | every participant, Informed included | the new status, or `SENT_BACK` for an in-review ADR returned to draft (the same target is also a forward step from `PROBLEM_RAISED`, so the pair decides; the web and the mail say "sent back to draft"); a withdrawal is the plain word `WITHDRAWN`; **never the reason** (free text, history only) |
 | `DISCUSSION_POSTED` | `COMMENTED`, `QUESTION_ASKED` / `ISSUE_RAISED`, `ESCALATED` | Driver, Approver and Contributors / Driver and Approver | the entry kind |
 | `DISCUSSION_SETTLED` | `QUESTION_ANSWERED`, `ISSUE_RESOLVED` (an escalation too) | the entry's author | the kind (a question was answered, an issue or escalation resolved) |
 | `ADR_EXPIRED` | `EXPIRED` (the sweep, no actor) | every participant | the expiry date |

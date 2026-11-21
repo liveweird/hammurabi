@@ -46,7 +46,8 @@ class AdrAuditTest {
                 AdrParticipantRequest(cast.driver.id, AdrRole.APPROVER),
                 AdrParticipantRequest(adrActor("late").id, AdrRole.INFORMED),
             )
-            assertEquals(HttpStatusCode.NoContent, cast.driver.client.setParticipants(adr.id, handover).status)
+            // In review the Approver's to change the seat, so the Approver is the one swapping places with the Driver.
+            assertEquals(HttpStatusCode.NoContent, cast.approver.client.setParticipants(adr.id, handover).status)
             val people = capture.awaitEvent { it.message == "adr.participants_changed" && it.hasKeyValue("adrId", id) }
             assertNotNull(people, "a participants change audits")
             assertTrue(people.hasKeyValue("changed", "${cast.driver.id}:DRIVER>APPROVER,${cast.approver.id}:APPROVER>DRIVER"))

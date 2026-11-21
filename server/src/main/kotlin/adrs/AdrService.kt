@@ -133,12 +133,23 @@ class AdrService(
 
     suspend fun exists(id: UInt): Boolean = suspendTransaction(database) { activeRow(id) != null }
 
+    /**
+     * Whether the ADR has ever been `IN_REVIEW` (judged in the caller's transaction): a draft sent back from review is guarded like
+     * the review itself. No query for the statuses that answer by themselves (`PROBLEM_RAISED` cannot have been, `IN_REVIEW` and
+     * `ACTIVE` have been); a `SOLUTION_DRAFT` or a terminal ADR reads its `TRANSITIONED` events.
+     */
+    private suspend fun everInReview(id: UInt, status: AdrStatus): Boolean = when (status) {
+        AdrStatus.PROBLEM_RAISED -> false
+        AdrStatus.IN_REVIEW, AdrStatus.ACTIVE -> true
+        else -> events.hasEnteredReview(id)
+    }
+
     /** The ADR as [caller] sees it, or null when missing/deleted. */
     suspend fun read(id: UInt, caller: CallerPrincipal): AdrResponse? = suspendTransaction(database) {
         val record = activeRow(id)?.toRecord() ?: return@suspendTransaction null
         val view = AdrView(
             record, participants.forAdr(id), tags.forAdrs(listOf(id))[id].orEmpty(),
-            successors.refOf(record.supersedesId), successors.successorOf(id),
+            successors.refOf(record.supersedesId), successors.successorOf(id), everInReview(id, record.status),
         )
         val counts = discussion.countsOf(listOf(id))[id] ?: DiscussionCounts()
         view.toResponse(AdrStanding(caller, view.participants.firstOrNull { it.userId == caller.userId }?.role), counts)
@@ -245,27 +256,35 @@ class AdrService(
 
     /**
      * A lifecycle move under `X-Expected-Revision`. Under the lock, in order: the coarse guard (403), the per-target verdict (403: the
-     * Driver moves forward and cancels, the Approver activates or withdraws, ADMIN either), the lifecycle map (409
-     * `illegal-transition`, including a target only the system moves into), the stale revision (409), the target's requirements (400
-     * naming the missing fields); then the status, its stamp and the revision are written and one `TRANSITIONED` event recorded.
+     * Driver moves forward and cancels, the Approver activates or withdraws, either sends back, ADMIN any), the lifecycle map (409
+     * `illegal-transition`, including a target only the system moves into), the stale revision (409), the optional [reason] (400:
+     * control characters, over 1000 code points) and the target's requirements (400 naming the missing fields); then the status, its
+     * stamp and the revision are written and one `TRANSITIONED` event recorded (carrying the reason).
      */
-    suspend fun transition(id: UInt, caller: CallerPrincipal, expectedRevision: Long, to: AdrStatus): AdrTransitionOutcome =
+    suspend fun transition(
+        id: UInt,
+        caller: CallerPrincipal,
+        expectedRevision: Long,
+        to: AdrStatus,
+        reason: String? = null,
+    ): AdrTransitionOutcome =
         suspendTransaction(database) {
             // An activation also moves the ADR it replaces, so both rows are locked together (the peek is a plain read: the revision
             // check below catches a link changed in between, since every link change bumps the revision).
             val peeked = if (to == AdrStatus.ACTIVE) successors.predecessorIdOf(id) else null
             val (before, standing) = lockedActive(id, caller, alsoLock = peeked)
             requireMayTransition(standing)
-            requireMayRequest(standing, to)
+            requireMayRequest(standing, before.status, to)
             before.status.requireTransitionTo(to)
             requireRevision(expectedRevision, before.revision)
+            val note = sanitizedTransitionReason(reason)
             val predecessor = if (to == AdrStatus.ACTIVE) successors.refOf(before.supersedesId) else null
             requireTransitionRequirements(to, before, participants.hasApprover(id), today(), predecessor)
             val stamp = nowMillis()
             val revision = bumpRevision(id, before.revision, stamp, moveTo = to)
-            events.record(id, caller.userId, adrTransitionedEvent(before.status, to), stamp)
+            events.record(id, caller.userId, adrTransitionedEvent(before.status, to, note), stamp)
             val superseded = predecessor?.let { supersede(it, AdrRef(id, adrKey(before.number), before.name, to), caller.userId, stamp) }
-            AdrTransitionOutcome(id, before.number, revision, before.status, to, superseded)
+            AdrTransitionOutcome(id, before.number, revision, before.status, to, superseded, note != null)
         }
 
     /** Moves the ACTIVE [predecessor] (locked by the caller) to `SUPERSEDED` with its event; a [successor] activation's other half. */
@@ -292,9 +311,10 @@ class AdrService(
 
     /**
      * Replaces the participants (a diff, [AdrParticipantService.replace]) under `X-Expected-Revision` and the lock: the guard again
-     * (403), a terminal ADR (409 `adr-frozen`), the stale revision (409), the users (400). A real change bumps the revision and
-     * `updated_at`, so a stale reader's next write conflicts instead of silently dropping people; a no-op bumps nothing. Null = the
-     * set did not change.
+     * (403), no self-approval (403), a terminal ADR (409 `adr-frozen`), the stale revision (409), then who holds the Approver seat
+     * against the locked set ([requireMayChangeApproverSeat], 403), the users (400). A real change bumps the revision and `updated_at`,
+     * so a stale reader's next write conflicts instead of silently dropping people; a no-op bumps nothing. Null = the set did not
+     * change.
      */
     suspend fun replaceParticipants(
         id: UInt,
@@ -306,8 +326,12 @@ class AdrService(
         return suspendTransaction(database) {
             val (before, standing) = lockedActive(id, caller)
             requireMayManage(standing)
+            requireNotSelfApproval(standing, request.participants)
             before.status.requireWritable()
             requireRevision(expectedRevision, before.revision)
+            requireMayChangeApproverSeat(
+                standing, before.status, everInReview(id, before.status), participants.forAdr(id), request.participants,
+            )
             val stamp = nowMillis()
             val diff = participants.replace(id, caller.userId, request.participants, stamp)
             if (diff.isEmpty) return@suspendTransaction null

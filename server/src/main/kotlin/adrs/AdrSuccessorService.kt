@@ -4,12 +4,15 @@ import ch.nokillswit.authz.ConflictException
 import ch.nokillswit.infra.db.active
 import io.ktor.server.plugins.BadRequestException
 import kotlinx.coroutines.flow.toList
+import org.jetbrains.exposed.v1.core.Op
 import org.jetbrains.exposed.v1.core.ResultRow
 import org.jetbrains.exposed.v1.core.and
 import org.jetbrains.exposed.v1.core.eq
+import org.jetbrains.exposed.v1.core.exists
 import org.jetbrains.exposed.v1.core.inList
 import org.jetbrains.exposed.v1.core.neq
 import org.jetbrains.exposed.v1.core.notInList
+import org.jetbrains.exposed.v1.core.or
 import org.jetbrains.exposed.v1.core.statements.StatementType
 import org.jetbrains.exposed.v1.r2dbc.R2dbcTransaction
 import org.jetbrains.exposed.v1.r2dbc.select
@@ -29,8 +32,23 @@ data class SuccessorChange(val from: AdrRef?, val to: AdrRef?)
 /** The statuses a predecessor may be in when a link is made: in force, or still on its way (a terminal one has nothing left to replace). */
 private val LINKABLE_PREDECESSORS: Set<AdrStatus> = AdrStatus.entries.filter { !it.terminal }.toSet()
 
-/** The statuses of a successor that never superseded anything: it ended before it became `ACTIVE`. */
+/** The statuses a successor may end in WITHOUT having superseded anything: it was cancelled or withdrawn before it became `ACTIVE`. */
 private val NEVER_ACTIVE: List<String> = listOf(AdrStatus.CANCELLED.name, AdrStatus.WITHDRAWN.name)
+
+/**
+ * A successor "in play or in effect": any status but cancelled or withdrawn, OR a withdrawn one that DID activate first (0.7.0: an
+ * `ACTIVE` decision can be withdrawn, after which its predecessor stays `SUPERSEDED` and must keep pointing at it). The activation
+ * is told apart by its `SUCCESSOR_ACTIVATED` event on the successor, written in the same transaction as the supersede; a withdrawn
+ * successor without it never superseded anything. Correlated to the `adrs` row of the query it is added to.
+ */
+internal fun successorInPlayOrInEffect(): Op<Boolean> {
+    val adrs = AdrService.Adrs
+    val events = AdrEventService.AdrEvents
+    val activated = exists(
+        events.select(events.id).where { (events.ownerId eq adrs.id) and (events.eventType eq AdrEventType.SUCCESSOR_ACTIVATED.name) },
+    )
+    return (adrs.status notInList NEVER_ACTIVE) or ((adrs.status eq AdrStatus.WITHDRAWN.name) and activated)
+}
 
 /** The statuses in which a successor link is pending: not in effect yet (it takes effect at activation) and still removable. */
 private val PRE_ACTIVE: List<String> = AdrStatus.entries.filter { it.contentEditable }.map { it.name }
@@ -63,7 +81,7 @@ class AdrSuccessorService(private val events: AdrEventService) {
      * cancelled or withdrawn before it activated. At most one exists (the unique index, and a superseded ADR takes no new link).
      */
     suspend fun successorOf(id: UInt): AdrRef? = adrs.selectAll()
-        .where { (adrs.supersedesId eq id) and adrs.active() and (adrs.status notInList NEVER_ACTIVE) }
+        .where { (adrs.supersedesId eq id) and adrs.active() and successorInPlayOrInEffect() }
         .orderBy(adrs.id).limit(1).toList().singleOrNull()?.toRef()
 
     /** The id of [id]'s successor that is still pre-active (a pending link, not yet in effect), or null: a plain read, no lock. */

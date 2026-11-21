@@ -26,7 +26,6 @@ import org.jetbrains.exposed.v1.core.intLiteral
 import org.jetbrains.exposed.v1.core.isNotNull
 import org.jetbrains.exposed.v1.core.isNull
 import org.jetbrains.exposed.v1.core.less
-import org.jetbrains.exposed.v1.core.notInList
 import org.jetbrains.exposed.v1.core.notInSubQuery
 import org.jetbrains.exposed.v1.core.or
 import org.jetbrains.exposed.v1.core.stringLiteral
@@ -83,10 +82,9 @@ private fun keyExpression(): Expression<String> {
 /** The live ADRs (`NOT marked_as_deleted`) as a sub-select of ids, for the link presence filters. */
 private fun liveAdrIds() = AdrService.Adrs.select(AdrService.Adrs.id).where { AdrService.Adrs.active() }
 
-/** The ids that have a successor in play or in effect: the wire's `supersededBy` (never a cancelled or withdrawn one). */
+/** The ids that have a successor in play or in effect: the wire's `supersededBy` (never one cancelled or withdrawn before it activated). */
 private fun predecessorIds() = AdrService.Adrs.select(AdrService.Adrs.supersedesId).where {
-    AdrService.Adrs.supersedesId.isNotNull() and AdrService.Adrs.active() and
-        (AdrService.Adrs.status notInList listOf(AdrStatus.CANCELLED.name, AdrStatus.WITHDRAWN.name))
+    AdrService.Adrs.supersedesId.isNotNull() and AdrService.Adrs.active() and successorInPlayOrInEffect()
 }
 
 /** The ids with an OPEN issue or escalation (`openIssueCount > 0`); the literals match the partial index `idx_adr_discussion_open`. */

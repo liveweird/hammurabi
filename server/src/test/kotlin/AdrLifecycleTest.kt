@@ -36,8 +36,8 @@ class AdrLifecycleTest {
     private val expected: Map<AdrStatus, Set<AdrStatus>> = mapOf(
         AdrStatus.PROBLEM_RAISED to setOf(AdrStatus.SOLUTION_DRAFT, AdrStatus.IN_REVIEW, AdrStatus.CANCELLED),
         AdrStatus.SOLUTION_DRAFT to setOf(AdrStatus.IN_REVIEW, AdrStatus.CANCELLED),
-        AdrStatus.IN_REVIEW to setOf(AdrStatus.ACTIVE, AdrStatus.CANCELLED, AdrStatus.WITHDRAWN),
-        AdrStatus.ACTIVE to setOf(AdrStatus.EXPIRED, AdrStatus.SUPERSEDED),
+        AdrStatus.IN_REVIEW to setOf(AdrStatus.SOLUTION_DRAFT, AdrStatus.ACTIVE, AdrStatus.CANCELLED, AdrStatus.WITHDRAWN),
+        AdrStatus.ACTIVE to setOf(AdrStatus.EXPIRED, AdrStatus.SUPERSEDED, AdrStatus.WITHDRAWN),
     )
 
     @Test
@@ -201,7 +201,8 @@ class AdrLifecycleTest {
         val adr = cast.raise(complete = true)
         cast.driver.client.moveAdrNow(adr.id, AdrStatus.IN_REVIEW)
         val driverOnly = listOf(AdrParticipantRequest(cast.driver.id, AdrRole.DRIVER))
-        assertEquals(HttpStatusCode.NoContent, cast.driver.client.setParticipants(adr.id, driverOnly).status)
+        // In review only the Approver (or ADMIN) may leave the seat empty.
+        assertEquals(HttpStatusCode.NoContent, cast.approver.client.setParticipants(adr.id, driverOnly).status)
         val activate = cast.admin.client.moveAdr(adr.id, cast.admin.client.getAdr(adr.id).revision, AdrStatus.ACTIVE)
         assertEquals(HttpStatusCode.BadRequest, activate.status)
         assertTrue("approver" in activate.body<ProblemDetail>().detail.orEmpty())

@@ -207,7 +207,7 @@ private fun Route.adrLifecycle(adrService: AdrService) {
         requireMayTransition(adrService.standing(id, caller).orNotFound("ADR"))
         val expected = call.expectedRevision()
         val request = call.receive<AdrTransitionRequest>()
-        val outcome = adrService.transition(id, caller, expected, request.to)
+        val outcome = adrService.transition(id, caller, expected, request.to, request.reason)
         audit(
             "adr.transitioned",
             "byUserId" to caller.userId.toLong(),
@@ -216,6 +216,7 @@ private fun Route.adrLifecycle(adrService: AdrService) {
             "revision" to outcome.revision,
             "from" to outcome.from.name,
             "to" to outcome.to.name,
+            "reasoned" to outcome.reasoned,
         )
         // The activation's other half: the predecessor it replaced moved to SUPERSEDED in the same transaction.
         outcome.superseded?.let {
@@ -238,9 +239,12 @@ private fun Route.adrParticipants(adrService: AdrService) {
     put<AdrsRoute.Id.Participants> { route ->
         val id = route.parent.id
         val caller = call.caller()
-        requireMayManage(adrService.standing(id, caller).orNotFound("ADR"))
+        val standing = adrService.standing(id, caller).orNotFound("ADR")
+        requireMayManage(standing)
         val expected = call.expectedRevision()
         val request = call.receive<AdrParticipantsRequest>()
+        // The self-approval ban needs only the body, so it beats the set's shape (403 before 400); the rest is judged under the lock.
+        requireNotSelfApproval(standing, request.participants)
         validateParticipantSet(request.participants)
         val change = adrService.replaceParticipants(id, caller, expected, request)
         if (change != null) auditParticipants(caller, change)

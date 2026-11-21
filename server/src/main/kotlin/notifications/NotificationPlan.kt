@@ -3,6 +3,7 @@ package ch.nokillswit.notifications
 import ch.nokillswit.adrs.AdrEventDescriptor
 import ch.nokillswit.adrs.AdrEventType
 import ch.nokillswit.adrs.AdrRole
+import ch.nokillswit.adrs.AdrStatus
 
 /** Who a notice reaches, resolved INSIDE the write's transaction ([NotificationService.audienceOf]). */
 internal sealed interface Audience {
@@ -48,7 +49,7 @@ internal fun noticeFor(adrId: UInt, event: AdrEventDescriptor): NoticePlan? {
         AdrEventType.PARTICIPANT_CHANGED -> person(NotificationType.ROLE_ASSIGNED, params["to"])
         AdrEventType.PARTICIPANT_REMOVED -> person(NotificationType.ROLE_REMOVED, params["role"])
         AdrEventType.TRANSITIONED ->
-            NoticePlan(NotificationType.STATUS_CHANGED, adrId, Audience.Roles(adrId, EVERY_ROLE), detail = params["to"])
+            NoticePlan(NotificationType.STATUS_CHANGED, adrId, Audience.Roles(adrId, EVERY_ROLE), detail = statusDetail(params))
         AdrEventType.EXPIRED ->
             NoticePlan(NotificationType.ADR_EXPIRED, adrId, Audience.Roles(adrId, EVERY_ROLE), detail = params["expiresOn"])
         AdrEventType.SUPERSEDED -> id("successorId")?.let {
@@ -72,3 +73,13 @@ internal fun noticeFor(adrId: UInt, event: AdrEventDescriptor): NoticePlan? {
 
 private fun successorNotice(type: NotificationType, successorId: UInt, predecessorId: UInt?): NoticePlan? =
     predecessorId?.let { NoticePlan(type, it, Audience.Roles(it, LEADS), otherAdrId = successorId) }
+
+/** The `detail` of a [NotificationType.STATUS_CHANGED] notice: the new status, except the send back, which is its own word. */
+internal const val SENT_BACK_DETAIL = "SENT_BACK"
+
+/**
+ * A move back from review is "sent back", not a plain move to the draft status (the same target is also the Driver's forward step from a
+ * raised problem). The reason of a move is free text and never reaches a notice: `detail` stays one short word.
+ */
+private fun statusDetail(params: Map<String, String>): String? =
+    if (params["from"] == AdrStatus.IN_REVIEW.name && params["to"] == AdrStatus.SOLUTION_DRAFT.name) SENT_BACK_DETAIL else params["to"]

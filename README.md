@@ -78,6 +78,12 @@ set `ADMIN_INITIAL_PASSWORD` to rotate it at first boot instead (see "Configurat
 `.claude/docs/security.md`). Swagger UI: <http://localhost:8090/openapi>. Mailpit (reset and MFA
 email): <http://localhost:8031>.
 
+**Sample data.** `node scripts/sample-data.mjs` fills a fresh local stack with a year of demo content to assess the app with: 10 users
+(`alice` and `oliver` are ADMINs; the shared password is `SAMPLE_PASSWORD` at the top of the script), 7 teams, tags, 16 ADRs in every
+status with their discussion and history, and saved lenses. It goes through the API as each user (so every rule, event and notice is
+real), restarts the app container once so the expiry sweep expires one ADR, and finally spreads the run's timestamps over the past year
+in the database. It refuses anything but `localhost` and a stack that already has ADRs; start over with `docker compose down -v`.
+
 Ports are chosen to coexist with the sibling stacks on the same machine (the full table is in
 `.claude/docs/ci.md`): the app is on **8090**, Postgres is host-mapped to **5440**, the Vite dev server uses **5181**,
 Mailpit **8031**. All host ports bind to 127.0.0.1.

@@ -1,0 +1,100 @@
+/* The visual Markdown editor (MarkdownRichEditor.tsx). MDXEditor ships its own light/dark palettes (the `dark-theme` class) and a blue
+   accent; the box, the surface and the accent are Hammurabi's: the Mantine tokens, and the lapis tuple for the one interactive accent. */
+.root {
+  --markdown-min-rows: 4;
+}
+
+.editor {
+  display: flex;
+  flex-direction: column;
+  border: 1px solid var(--mantine-color-default-border);
+  border-radius: var(--mantine-radius-default);
+  /* The box is ours (MDXEditor's dark-theme class themes only its own toolbar and content), so the surface follows the scheme. */
+  background-color: var(--mantine-color-body);
+  color: var(--mantine-color-text);
+
+  /* MDXEditor's palette sets this to plain white (a dark editor must override it): the surface its select triggers and dialogs sit on. */
+  --basePageBg: var(--mantine-color-body);
+
+  /* The accent MDXEditor paints active toggles and links in: the brand's lapis, not Radix blue. */
+  --accentBase: light-dark(var(--mantine-color-hammurabi-0), var(--mantine-color-dark-6));
+  --accentBgSubtle: light-dark(var(--mantine-color-hammurabi-0), var(--mantine-color-dark-6));
+  --accentBg: light-dark(var(--mantine-color-hammurabi-1), var(--mantine-color-dark-5));
+  --accentBgHover: light-dark(var(--mantine-color-hammurabi-1), var(--mantine-color-dark-4));
+  --accentBgActive: light-dark(var(--mantine-color-hammurabi-2), var(--mantine-color-dark-4));
+  --accentLine: light-dark(var(--mantine-color-hammurabi-3), var(--mantine-color-dark-3));
+  --accentBorder: light-dark(var(--mantine-color-hammurabi-4), var(--mantine-color-hammurabi-3));
+  --accentBorderHover: light-dark(var(--mantine-color-hammurabi-5), var(--mantine-color-hammurabi-3));
+  --accentSolid: var(--hammurabi-accent-ink, var(--mantine-primary-color-filled));
+  --accentSolidHover: var(--hammurabi-accent-ink, var(--mantine-primary-color-filled-hover));
+  --accentText: var(--hammurabi-accent-ink, var(--mantine-primary-color-filled));
+  --accentTextContrast: var(--mantine-color-text);
+}
+
+.root[data-invalid] .editor {
+  border-color: var(--mantine-color-error);
+}
+
+.root:focus-within .editor {
+  border-color: var(--hammurabi-accent-ink, var(--mantine-primary-color-filled));
+}
+
+/* The content sizes to its text: `minRows` lines for an empty field, then it grows with the page. */
+.content {
+  min-height: calc(var(--markdown-min-rows) * 1.5rem);
+  max-height: 32rem;
+  overflow-y: auto;
+}
+
+/* MDXEditor's layer between our box and the contenteditable doesn't stretch on its own. */
+.editor :global([class*="_rootContentEditableWrapper_"]) {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+}
+
+/* The toolbar is a normal bar above the text (MDXEditor pins it sticky), and wraps on a narrow form. */
+.editor :global([class*="_toolbarRoot_"]) {
+  position: static;
+  flex-wrap: wrap;
+  height: auto;
+  min-height: 2.5rem;
+}
+
+/* MDXEditor copies our `className` onto the popup host it appends to <body> (the link dialog); without this the bordered box would
+   render that empty div as a stray line across the page. The host carries the stable literal class `mdxeditor-popup-container` and
+   lives outside our subtree, so it is matched globally; !important beats the leaked `.editor` rules whatever the source order. */
+:global(.mdxeditor-popup-container) {
+  border: 0 !important;
+  min-height: 0 !important;
+  background: transparent !important;
+}
+
+/* MDXEditor's own placeholder and block-type trigger inks fall short of 4.5:1: pull them onto the theme's AA tokens. */
+.editor :global([class*="_placeholder_"]) {
+  color: var(--mantine-color-dimmed);
+}
+
+.editor :global([class*="_selectTrigger_"]) {
+  color: var(--mantine-color-text);
+}
+
+.editor :global([class*="_selectTrigger_"]) > span {
+  color: var(--mantine-color-dimmed) !important;
+}
+
+/* The fenced code block's plain editor. */
+.codeBlock {
+  display: block;
+  width: 100%;
+  box-sizing: border-box;
+  padding: 0.5rem 0.75rem;
+  font-family: var(--mantine-font-family-monospace);
+  font-size: var(--mantine-font-size-sm);
+  line-height: 1.5;
+  color: var(--mantine-color-text);
+  background-color: light-dark(var(--mantine-color-gray-0), var(--mantine-color-dark-6));
+  border: 1px solid var(--mantine-color-default-border);
+  border-radius: var(--mantine-radius-sm);
+  resize: vertical;
+}

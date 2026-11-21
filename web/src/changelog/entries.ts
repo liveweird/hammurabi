@@ -17,6 +17,20 @@ interface ChangelogEntry {
 
 export const CHANGELOG: readonly ChangelogEntry[] = [
   {
+    version: "1.1.0",
+    date: "2026-11-21",
+    en: `**Hammurabi 1.1.0: write and see.**
+
+- The long text fields (the problem, context, decision, alternatives and consequences, and the discussion) are now visual editors: bold, lists, headings, links, tables and code blocks look like they will on the page while you type. The Markdown view is one click away, and the app remembers which one you prefer.
+- Text the visual editor cannot show (for example raw HTML or images) opens in the Markdown view, so nothing is lost. Opening an ADR and saving it without typing changes nothing in its history.
+- The new Lifecycle tab on every ADR draws the whole workflow: every status, every move between them and who may make it. It marks where the ADR is now and highlights the moves you can make yourself; the same information is listed under the picture.`,
+    pl: `**Hammurabi 1.1.0: pisz i patrz.**
+
+- Długie pola tekstowe (problem, kontekst, decyzja, alternatywy i konsekwencje, a także dyskusja) są teraz edytorami wizualnymi: pogrubienia, listy, nagłówki, odnośniki, tabele i bloki kodu wyglądają podczas pisania tak jak na stronie. Widok Markdown jest o jedno kliknięcie, a aplikacja zapamiętuje, który wolisz.
+- Tekst, którego edytor wizualny nie potrafi pokazać (na przykład surowy HTML albo obrazy), otwiera się w widoku Markdown, więc nic nie ginie. Otwarcie ADR-u i zapisanie go bez pisania nie zmienia niczego w jego historii.
+- Nowa karta Cykl życia w każdym ADR-ze rysuje cały przebieg: każdy status, każde przejście między nimi i to, kto może je wykonać. Zaznacza, gdzie ADR jest teraz, i wyróżnia przejścia, które możesz wykonać sam/a; te same informacje są wypisane pod rysunkiem.`,
+  },
+  {
     version: "1.0.0",
     date: "2026-11-21",
     en: `**Hammurabi 1.0.0: the checkup.**

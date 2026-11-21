@@ -87,7 +87,7 @@ stele of the Code of Hammurabi on a lapis disc — the sun disc of Shamash crown
 
 ## Roadmap
 
-Each increment is built and gated on its own. **Current version: 1.0.0** (the checkup release; the release commit bumps `APP_VERSION`).
+Each increment is built and gated on its own. **Current version: 1.1.0** (write and see; the release commit bumps `APP_VERSION`).
 
 | Ver | Scope |
 |---|---|
@@ -101,6 +101,7 @@ Each increment is built and gated on its own. **Current version: 1.0.0** (the ch
 | **0.8.0 Markdown export** (extra, approved by the user 2026-11-21) | `GET /adrs/{id}/export` (one adr-tools Markdown file) and `GET /adrs/export` (a ZIP over the list's filters, at most 500, with an `index.md`), the buttons on the ADR page and the list, released |
 | **0.9.0 Decision log** (extra, approved by the user 2026-11-21) | `GET /adrs/overview` and the read-only Decision log page: status counts, what waits for a decision (the Approver's own highlighted), what expires soon, what was decided recently, what is in force by tag category and tag, every section capped with a "+N more" link, released |
 | **1.0.0 Checkup** | The family's technical checkup (docs, DRY/SRP, tests, UI consistency, security, guardrails, infra): fixes in `audit-status.md` "Fixed so far", the follow-ups in `BACKLOG.md`, released |
+| **1.1.0 Write and see** (requested by the user 2026-11-21) | The visual Markdown editor for every long text field (Lettuce's `MarkdownEditor`, MDXEditor, with a Markdown source view; a save without typing changes nothing) and the Lifecycle tab on the ADR page (Lettuce's `LifecycleDiagram`: every status and move, who may make it, where the ADR is and the caller's own moves highlighted), released |
 
 ## Donors
 
@@ -118,13 +119,17 @@ port its implementation.
   verdicts) and `ReleaseLineReminders.kt` (the periodic date sweep) are ported (0.2.0, `adrs/`; its reminder-once-per-date shape again in 0.6.0, `notifications/ExpiryReminders.kt`, with the sent marker `adr_expiry_reminders`); `VersionReview*` (the entry table, its routes and `VersionReviews.tsx`) is ported
   and reshaped as the ADR discussion (0.3.0): Covenant's open/outdated/closed review and its approvals are gone, a kind (comment/question/issue/escalation) and a state (open/answered/resolved) take their place.
 - **Toadie** (`~/Sources/toadie`): `tags/` tag categories and `infra/db/Locking.kt` (`lockingTransaction`) are ported (0.4.0, without the Backstage entity kinds; the tags became rows instead of a JSON array); `lenses/` saved filters are ported (0.5.0, V16: the typed filter document replaces Toadie's catalog slots, and an ADMIN may delete a PUBLIC lens).
-- **Lettuce** (`~/Sources/lettuce`): `infra/mail`, `infra/crypto`, `infra/paging` (through Flow); not ported: `MarkdownEditor` (the detail page's `MarkdownField` is a Textarea with a Write/Preview toggle) and the sharing pickers.
+- **Lettuce** (`~/Sources/lettuce`): `infra/mail`, `infra/crypto`, `infra/paging` (through Flow); `MarkdownEditor` (ported as `MarkdownField` + `MarkdownRichEditor`: the visual Markdown editor over `@mdxeditor/editor`, with a Markdown source view and no emoji picker; 1.1.0) and `LifecycleDiagram` (1.1.0, grown for an eight-status graph: path edges, two-line captions, the caller's moves emphasised, a text list of the moves; `AdrLifecycleDiagram`); not ported: the sharing pickers.
 - **Astrolabe** (`~/Sources/astrolabe`): `planning/DependencyGraph.kt` (`cycleClosedBy`) is ported for the successor chain (0.4.0, `adrs/SuccessorGraph.kt`, reduced to one kind of node).
 
 Left in Flow on purpose: `ingest/`, `fetch/`, `jira/`, `gitlab/`, `norm/`, `identities/`, `metrics/`, `reports/`, `integration/` (service tokens),
 `infra/outbound/` (the SSRF guard — port it with the first server-initiated call other than SMTP), `plugins/Role.kt`, `EncryptedAtRest`/`Reencrypt`.
 
 ## Release history
+
+### v1.1.0 — write and see (2026-11-21)
+
+The user's two requests after 1.0.0. The visual Markdown editor (`MarkdownField` + the lazy `MarkdownRichEditor` over `@mdxeditor/editor`, ported from Lettuce): a Visual/Markdown toggle remembered per browser, an emitted change only after a real user edit (so an untouched save records no `UPDATED` field change), hard breaks kept as breaks, constructs it cannot show (raw HTML, images, reference links) opened in the Markdown view; its own `lexical` chunk. The Lifecycle tab (`LifecycleDiagram` ported from Lettuce and grown, `AdrLifecycleDiagram`, the move map `utils/adrLifecycle.ts` pinned to `AdrLifecycle.kt` by a server test), highlighting the moves from the ADR's `allowedTransitions`. No API or migration change.
 
 ### v1.0.0 — the checkup (2026-11-21)
 

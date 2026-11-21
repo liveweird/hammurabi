@@ -16,6 +16,7 @@ import enDecisionLog from "./locales/en/decisionLog.json";
 import enUsers from "./locales/en/users.json";
 import enHome from "./locales/en/home.json";
 import enLenses from "./locales/en/lenses.json";
+import enMarkdownEditor from "./locales/en/markdownEditor.json";
 import enNotifications from "./locales/en/notifications.json";
 import enTags from "./locales/en/tags.json";
 import enTeams from "./locales/en/teams.json";
@@ -65,6 +66,7 @@ export const en = {
   users: enUsers,
   home: enHome,
   lenses: enLenses,
+  markdownEditor: enMarkdownEditor,
   notifications: enNotifications,
   tags: enTags,
   teams: enTeams,

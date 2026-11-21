@@ -8,6 +8,9 @@ import { headingOutline } from "../test/headings";
 import { renderWithProviders, screen, waitFor } from "../test/render";
 import CreateAdr from "./CreateAdr";
 
+// The visual editor (Lexical) is not what these tests are about: a plain textarea stands in (MarkdownRichEditor.test.tsx runs the real one).
+vi.mock("../components/MarkdownRichEditor", () => import("../test/markdownRichEditorStub"));
+
 const DIRECTORY = {
   items: [
     { id: 5, name: "Dana Driver", email: "dana@example.test" },
@@ -60,11 +63,11 @@ describe("CreateAdr page", () => {
       [2, "Raise an ADR"],
       [3, "DACI"],
     ]);
-    expect(screen.getByRole("textbox", { name: /^Problem/ })).toBeInTheDocument();
+    expect(await screen.findByRole("textbox", { name: /^Problem/ })).toBeInTheDocument();
     expect(screen.queryByRole("textbox", { name: /^Context/ })).not.toBeInTheDocument();
     await user.click(screen.getByRole("button", { name: "Context, decision, alternatives and consequences" }));
     for (const field of [/^Context/, /^Decision/, /^Alternatives considered/, /^Consequences/]) {
-      expect(screen.getByRole("textbox", { name: field })).toBeInTheDocument();
+      expect(await screen.findByRole("textbox", { name: field })).toBeInTheDocument();
     }
     expect(screen.getByRole("link", { name: "Back to the ADRs" })).toHaveAttribute("href", "/adrs");
   });
@@ -73,7 +76,7 @@ describe("CreateAdr page", () => {
     const stub = serve();
     const user = userEvent.setup();
     renderCreate();
-    await user.type(screen.getByRole("textbox", { name: /^Problem/ }), "Which queue do we use?");
+    await user.type(await screen.findByRole("textbox", { name: /^Problem/ }), "Which queue do we use?");
     await user.click(screen.getByRole("button", { name: "Create" }));
     expect(await screen.findByText("at /adrs/12")).toBeInTheDocument();
     expect(stub.find("POST", "/api/v1/adrs")?.body).toEqual({
@@ -91,7 +94,7 @@ describe("CreateAdr page", () => {
     const user = userEvent.setup();
     renderCreate();
     await user.type(screen.getByRole("textbox", { name: /^Name/ }), " Pick a queue ");
-    await user.type(screen.getByRole("textbox", { name: /^Problem/ }), "Which queue?");
+    await user.type(await screen.findByRole("textbox", { name: /^Problem/ }), "Which queue?");
     await user.type(screen.getByRole("combobox", { name: "Approver" }), "al");
     // The signed-in user (id 5, Dana) is the Driver already: not offered.
     expect(await screen.findByRole("option", { name: "Alex Approver (alex@example.test)" })).toBeInTheDocument();
@@ -116,10 +119,10 @@ describe("CreateAdr page", () => {
     const user = userEvent.setup();
     renderCreate();
     await user.type(screen.getByRole("textbox", { name: /^Name/ }), "Pick a queue");
-    await user.type(screen.getByRole("textbox", { name: /^Problem/ }), "Which queue?");
+    await user.type(await screen.findByRole("textbox", { name: /^Problem/ }), "Which queue?");
     await user.click(screen.getByRole("button", { name: "Create" }));
     expect(await screen.findByText("An ADR with this name already exists.")).toBeInTheDocument();
-    expect(screen.getByRole("textbox", { name: /^Problem/ })).toHaveValue("Which queue?");
+    expect(await screen.findByRole("textbox", { name: /^Problem/ })).toHaveValue("Which queue?");
     expect(screen.getByRole("button", { name: "Create" })).toBeEnabled();
   });
 
@@ -127,7 +130,7 @@ describe("CreateAdr page", () => {
     serve(() => problem(400));
     const user = userEvent.setup();
     renderCreate();
-    await user.type(screen.getByRole("textbox", { name: /^Problem/ }), "Which queue?");
+    await user.type(await screen.findByRole("textbox", { name: /^Problem/ }), "Which queue?");
     await user.click(screen.getByRole("button", { name: "Create" }));
     expect(await screen.findByRole("alert")).toHaveTextContent("Check the fields: the problem is required");
   });

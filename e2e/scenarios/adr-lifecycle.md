@@ -1,4 +1,4 @@
-# ADR lifecycle (raise, draft, review, activate; cancel; withdraw)
+# ADR lifecycle (raise, draft, review, activate; cancel; withdraw; the Lifecycle tab)
 
 - **Spec**: [tests/adr-lifecycle.spec.ts](../tests/adr-lifecycle.spec.ts)
 - **Actors**: the seed administrator, only through the API to create and delete the cast; two throwaway regular users — a Driver and an
@@ -40,6 +40,14 @@
 1. A complete ADR with the Approver named is raised and sent to review through the API as the Driver.
 2. The Approver signs in, opens it and clicks **Withdraw**, then confirms in the dialog.
    - *Expected*: the status reads **Withdrawn** and the ADR is shown as closed and read-only.
+
+## Scenario: the Lifecycle tab shows the workflow with where the ADR is and the moves the Approver can make now
+
+1. A complete ADR with the Approver named is raised and sent to review through the API as the Driver.
+2. The Approver signs in, opens it and opens the **Lifecycle** tab.
+   - *Expected*: the diagram (alt text ending "This ADR is: In review.") shows, with **In review** as the current node.
+3. They read the arrows out of **In review**.
+   - *Expected*: the Approver's moves (**Activate**, **Withdraw**, and the send back to **Solution draft**) are highlighted; **Cancel ADR** (the Driver's) is not; the text list "Moves from In review" says "You can do this now" beside **Activate** and not beside **Cancel ADR**.
 
 ## Not covered here (and why)
 

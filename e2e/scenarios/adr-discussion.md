@@ -10,7 +10,7 @@
 
 1. The Driver raises a complete ADR with the Approver through the API. The Asker signs in, opens it and opens the **Discussion** tab.
    - *Expected*: "Nothing has been said yet." and a composer ("Your comment or question") with the kind set to Comment.
-2. They write a comment with some Markdown and press **Post comment**.
+2. They type a comment with some Markdown key by key (the composer is the visual editor: `**…**` becomes bold as it is typed and is stored as Markdown) and press **Post comment**.
    - *Expected*: a "Comment by <Asker>" entry renders the Markdown (the bold run is bold), the composer is empty again.
 3. They switch the kind to **Question**, write a question and press **Ask question**.
    - *Expected*: a "Question by <Asker>" entry with the **Open** badge; the tab is named "Discussion unanswered: 1"; an axe scan of the

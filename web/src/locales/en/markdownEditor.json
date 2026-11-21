@@ -1,0 +1,71 @@
+{
+  "contentArea": {
+    "editableMarkdown": "Editable text"
+  },
+  "createLink": {
+    "cancelTooltip": "Cancel change",
+    "saveTooltip": "Set URL",
+    "text": "Link text",
+    "textTooltip": "The text shown for the link",
+    "title": "Link title",
+    "titleTooltip": "The link's title, shown on hover",
+    "url": "URL",
+    "urlPlaceholder": "Paste a URL"
+  },
+  "dialog": {
+    "close": "Close dialog"
+  },
+  "dialogControls": {
+    "cancel": "Cancel",
+    "save": "Save"
+  },
+  "linkPreview": {
+    "copied": "Copied",
+    "copyToClipboard": "Copy to clipboard",
+    "edit": "Edit link URL",
+    "remove": "Remove link"
+  },
+  "table": {
+    "alignCenter": "Align center",
+    "alignLeft": "Align left",
+    "alignRight": "Align right",
+    "columnMenu": "Column menu",
+    "deleteColumn": "Delete this column",
+    "deleteRow": "Delete this row",
+    "deleteTable": "Delete table",
+    "insertColumnLeft": "Insert a column to the left of this one",
+    "insertColumnRight": "Insert a column to the right of this one",
+    "insertRowAbove": "Insert a row above this one",
+    "insertRowBelow": "Insert a row below this one",
+    "rowMenu": "Row menu",
+    "textAlignment": "Text alignment"
+  },
+  "toolbar": {
+    "blockTypes": {
+      "heading": "Heading {{level}}",
+      "paragraph": "Paragraph",
+      "quote": "Quote"
+    },
+    "blockTypeSelect": {
+      "placeholder": "Block type",
+      "selectBlockTypeTooltip": "Select block type"
+    },
+    "bold": "Bold",
+    "bulletedList": "Bulleted list",
+    "checkList": "Task list",
+    "codeBlock": "Insert code block",
+    "inlineCode": "Inline code",
+    "italic": "Italic",
+    "link": "Insert link",
+    "numberedList": "Numbered list",
+    "redo": "Redo {{shortcut}}",
+    "removeBold": "Remove bold",
+    "removeInlineCode": "Remove inline code",
+    "removeItalic": "Remove italic",
+    "removeStrikethrough": "Remove strikethrough",
+    "strikethrough": "Strikethrough",
+    "table": "Insert table",
+    "toggleGroup": "Formatting",
+    "undo": "Undo {{shortcut}}"
+  }
+}

@@ -31,6 +31,17 @@ describe("MarkdownView (document, the default)", () => {
     expect(screen.getByText("🎉")).toBeInTheDocument();
   });
 
+  // What the visual Markdown editor writes (MarkdownRichEditor.tsx) must read back the way it was typed; these pin the mdast packages that
+  // read it (a bump of mdast-util-gfm-strikethrough / micromark must not change them).
+  test("renders strikethrough, task lists and both hard-break spellings as the editor writes them", () => {
+    const { container } = renderView("~~gone~~ and **kept**\n\n- [x] done\n- [ ] todo\n\nfirst\\\nsecond  \nthird\nfourth");
+    expect(screen.getByText("gone").tagName).toBe("DEL");
+    expect(screen.getAllByRole("checkbox").map((box) => (box as HTMLInputElement).checked)).toEqual([true, false]);
+    // Two hard breaks (a backslash and two spaces); the plain newline before "fourth" stays soft.
+    expect(container.querySelectorAll("br")).toHaveLength(2);
+    expect(container.textContent).toContain("third\nfourth");
+  });
+
   test("keeps real headings and plain links, and carries no message class", () => {
     renderView("# Title\n\n[docs](https://example.com/docs)");
     expect(screen.getByRole("heading", { level: 1, name: "Title" })).toBeInTheDocument();

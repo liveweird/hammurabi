@@ -140,10 +140,11 @@
     "empty": "Nothing written yet."
   },
   "markdown": {
-    "write": "Write",
-    "preview": "Preview",
-    "modeAria": "{{field}}: write or preview",
-    "nothingToPreview": "Nothing to preview."
+    "visual": "Visual",
+    "source": "Markdown",
+    "modeAria": "{{field}}: visual editor or Markdown source",
+    "unsupported": "This text uses formatting the visual editor cannot show, so it is open as Markdown. Nothing was changed.",
+    "codeBlockAria": "Code block"
   },
   "side": {
     "status": "Status",
@@ -274,7 +275,27 @@
     "discussion": "Discussion",
     "issues": "Issues",
     "unansweredAria": "unanswered: {{count}}",
-    "openIssuesAria": "open: {{count}}"
+    "openIssuesAria": "open: {{count}}",
+    "lifecycle": "Lifecycle"
+  },
+  "lifecycle": {
+    "title": "Lifecycle",
+    "regionAria": "Lifecycle diagram (scrolls sideways on a narrow screen)",
+    "alt": "Diagram of the ADR lifecycle: the statuses and the moves between them. This ADR is: {{status}}.",
+    "hint": "The heavy outline is where this ADR is now. Highlighted arrows are the moves you can make now. An Admin can make any move a person can; expiring and being superseded happen automatically.",
+    "movesTitle": "Moves from {{status}}",
+    "leadsTo": "→ {{to}}: {{who}}",
+    "canNow": "You can do this now",
+    "noMoves": "No move leaves {{status}}: this ADR is closed.",
+    "noneForYou": "None of these moves is yours to make right now.",
+    "actor": {
+      "APPROVER_OR_DRIVER": "Approver or Driver",
+      "AUTOMATIC": "Automatic"
+    },
+    "auto": {
+      "EXPIRED": "automatic, when the expiry date passes",
+      "SUPERSEDED": "automatic, when its successor is activated"
+    }
   },
   "discussion": {
     "discussion": {

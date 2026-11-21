@@ -46,6 +46,8 @@ function registerAuthedPageScans(scheme: Scheme): void {
       await page.goto(path);
       // The page title is the first heading.
       await expect(page.getByRole("heading", { name: heading }).first()).toBeVisible();
+      // The Markdown field is a lazy chunk: scan the page WITH the visual editor (its toolbar and editable region), not its loading state.
+      if (path === "/adrs/new") await expect(page.getByRole("textbox", { name: /^Problem/ })).toBeVisible();
       await expectScheme(page, scheme);
       await scan(page);
     });

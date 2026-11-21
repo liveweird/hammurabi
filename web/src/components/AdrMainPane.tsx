@@ -1,11 +1,12 @@
 import { useState, type ReactNode } from "react";
 import { useTranslation } from "react-i18next";
-import { Badge, Tabs, VisuallyHidden } from "@mantine/core";
+import { Badge, Stack, Tabs, Title, VisuallyHidden } from "@mantine/core";
 import type { AdrResponse } from "../api/adrs";
 import { DISCUSSION_KIND_COLOR } from "../utils/adrDiscussion";
 import AdrDiscussion from "./AdrDiscussion";
+import AdrLifecycleDiagram from "./AdrLifecycleDiagram";
 
-export type AdrTab = "document" | "discussion" | "issues";
+export type AdrTab = "document" | "discussion" | "issues" | "lifecycle";
 
 /** A count badge: the number is what sighted users read, the visually hidden words are what the tab's accessible name adds. */
 function CountBadge({ count, color, label }: { count: number; color: string; label: string }) {
@@ -18,8 +19,9 @@ function CountBadge({ count, color, label }: { count: number; color: string; lab
 }
 
 /**
- * The ADR page's main pane: three tabs - the document (its five Markdown sections, or their editor: the caller passes it), the discussion
- * (comments and questions) and the issues (issues and escalations). The active tab belongs to the PAGE (`tab`/`onTabChange`: Edit has to
+ * The ADR page's main pane: four tabs - the document (its five Markdown sections, or their editor: the caller passes it), the discussion
+ * (comments and questions), the issues (issues and escalations) and the lifecycle (the workflow as a picture: where this ADR is, which moves
+ * the caller may make). The active tab belongs to the PAGE (`tab`/`onTabChange`: Edit has to
  * bring the document forward). The discussion and issue tabs carry the counts the ADR serves (unanswered questions, open issues) and stay
  * readable in every status. A tab's panel is first rendered when the tab is first opened (no fetch before) and then STAYS mounted, hidden
  * while another tab is up, so an unsaved document edit, a composer draft and an inline entry editor survive a tab switch.
@@ -63,6 +65,7 @@ export default function AdrMainPane({
         >
           {t("adrs.tab.issues")}
         </Tabs.Tab>
+        <Tabs.Tab value="lifecycle">{t("adrs.tab.lifecycle")}</Tabs.Tab>
       </Tabs.List>
       <Tabs.Panel value="document" pt="md">
         {children}
@@ -72,6 +75,16 @@ export default function AdrMainPane({
       </Tabs.Panel>
       <Tabs.Panel value="issues" pt="md">
         {visited.has("issues") && <AdrDiscussion adr={adr} variant="issues" />}
+      </Tabs.Panel>
+      <Tabs.Panel value="lifecycle" pt="md">
+        {visited.has("lifecycle") && (
+          <Stack gap="md">
+            <Title order={3} size="h4">
+              {t("adrs.lifecycle.title")}
+            </Title>
+            <AdrLifecycleDiagram currentStatus={adr.status} allowedTransitions={adr.allowedTransitions} />
+          </Stack>
+        )}
       </Tabs.Panel>
     </Tabs>
   );

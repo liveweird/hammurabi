@@ -7,6 +7,9 @@ import { renderWithProviders, screen, waitFor, within } from "../test/render";
 import { usePinnedBrowserTimeZone } from "../test/timeZone";
 import DiscussionEntryCard from "./DiscussionEntryCard";
 
+// The visual editor (Lexical) is not what these tests are about: a plain textarea stands in (MarkdownRichEditor.test.tsx runs the real one).
+vi.mock("./MarkdownRichEditor", () => import("../test/markdownRichEditorStub"));
+
 const ALL = { canEdit: true, canDelete: true, canChangeState: true };
 
 describe("DiscussionEntryCard", () => {
@@ -54,7 +57,7 @@ describe("DiscussionEntryCard", () => {
     const user = userEvent.setup();
     renderWithProviders(<DiscussionEntryCard entry={entryFixture(ALL)} />);
     await user.click(screen.getByRole("button", { name: "Edit the entry by Cora Contributor" }));
-    const field = screen.getByRole("textbox", { name: /Edit the text/ });
+    const field = await screen.findByRole("textbox", { name: /Edit the text/ });
     expect(field).toHaveValue("Why not MySQL?");
     await user.clear(field);
     await user.type(field, "Why not Oracle?");

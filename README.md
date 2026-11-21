@@ -7,9 +7,9 @@ the decision, the alternatives considered and the accepted consequences; every c
 they are active (comments and questions) and challenged after (issues and escalations). The name is Hammurabi of Babylon, whose stele carried one of the oldest written codes:
 decisions written down so that they bind and can be looked up.
 
-## What's here today (1.0.0 — the checkup)
+## What's here today (1.1.0 — write and see)
 
-Hammurabi's repository started as an exact copy of [Flow](https://github.com/liveweird/flow) (1.57.1, `4e43e480`), trimmed to its generic foundation (0.1.0); 0.2.0 built the ADR core on it, 0.3.0 added the discussion, 0.4.0 the tags and successors, 0.5.0 the search, 0.6.0 the notifications, 0.7.0 the send back and the withdrawal of a decision, 0.8.0 the Markdown export, 0.9.0 the decision log page and 1.0.0 the checkup (the hardening, the frozen API names, a decision in force ends only by its Approver):
+Hammurabi's repository started as an exact copy of [Flow](https://github.com/liveweird/flow) (1.57.1, `4e43e480`), trimmed to its generic foundation (0.1.0); 0.2.0 built the ADR core on it, 0.3.0 added the discussion, 0.4.0 the tags and successors, 0.5.0 the search, 0.6.0 the notifications, 0.7.0 the send back and the withdrawal of a decision, 0.8.0 the Markdown export, 0.9.0 the decision log page, 1.0.0 the checkup (the hardening, the frozen API names, a decision in force ends only by its Approver) and 1.1.0 the visual Markdown editor and the Lifecycle diagram:
 
 - **ADRs** (`/api/v1/adrs`; the list, create and detail pages): a gapless `ADR-0001` key, a name, the problem, context, decision, alternatives and consequences in Markdown, an expiry date, and the
   lifecycle `PROBLEM_RAISED` → `SOLUTION_DRAFT` → `IN_REVIEW` → `ACTIVE` (or `CANCELLED`, `WITHDRAWN`, and `EXPIRED` by a daily sweep). **DACI** decides who may do what — one Driver, one
@@ -45,7 +45,7 @@ Hammurabi's repository started as an exact copy of [Flow](https://github.com/liv
 
 ## Roadmap
 
-0.2.0 ADR core (ids, lifecycle, DACI, history, expiry) · 0.3.0 discussion (comments, questions, issues, escalations) · 0.4.0 tags and successors · 0.5.0 find (full-text search, the remaining filters, URL-synced filters, saved lenses) · 0.6.0 notify (the bell, email digest, preferences, expiry reminders) · 0.7.0 send back and withdraw · 0.8.0 Markdown export · 0.9.0 the decision log page · 1.0.0 checkup.
+0.2.0 ADR core (ids, lifecycle, DACI, history, expiry) · 0.3.0 discussion (comments, questions, issues, escalations) · 0.4.0 tags and successors · 0.5.0 find (full-text search, the remaining filters, URL-synced filters, saved lenses) · 0.6.0 notify (the bell, email digest, preferences, expiry reminders) · 0.7.0 send back and withdraw · 0.8.0 Markdown export · 0.9.0 the decision log page · 1.0.0 checkup · 1.1.0 write and see (the visual editor, the Lifecycle tab).
 The scope of each version and the decisions behind it: `.claude/docs/product.md`; the domain model: `.claude/docs/adr-model.md`; open items: `BACKLOG.md`. `CLAUDE.md`'s "Product" and
 "Donors" sections say which sibling project each capability ports from.
 

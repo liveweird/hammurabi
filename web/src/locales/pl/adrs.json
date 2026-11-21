@@ -140,10 +140,11 @@
     "empty": "Nic jeszcze nie napisano."
   },
   "markdown": {
-    "write": "Pisz",
-    "preview": "Podgląd",
-    "modeAria": "{{field}}: pisanie lub podgląd",
-    "nothingToPreview": "Brak treści do podglądu."
+    "visual": "Wizualny",
+    "source": "Markdown",
+    "modeAria": "{{field}}: edytor wizualny lub źródło Markdown",
+    "unsupported": "Ten tekst zawiera formatowanie, którego edytor wizualny nie pokaże, więc otwieramy go jako Markdown. Nic nie zostało zmienione.",
+    "codeBlockAria": "Blok kodu"
   },
   "side": {
     "status": "Status",
@@ -274,7 +275,27 @@
     "discussion": "Dyskusja",
     "issues": "Zgłoszenia",
     "unansweredAria": "bez odpowiedzi: {{count}}",
-    "openIssuesAria": "otwarte: {{count}}"
+    "openIssuesAria": "otwarte: {{count}}",
+    "lifecycle": "Cykl życia"
+  },
+  "lifecycle": {
+    "title": "Cykl życia",
+    "regionAria": "Diagram cyklu życia (na wąskim ekranie przewija się w poziomie)",
+    "alt": "Diagram cyklu życia ADR-a: statusy i przejścia między nimi. Ten ADR ma status: {{status}}.",
+    "hint": "Gruby obrys pokazuje, gdzie ten ADR jest teraz. Wyróżnione strzałki to ruchy, które możesz teraz wykonać. Administrator/ka może wykonać każdy ruch, który mogą wykonać osoby; wygaśnięcie i zastąpienie następują automatycznie.",
+    "movesTitle": "Ruchy ze statusu: {{status}}",
+    "leadsTo": "→ {{to}}: {{who}}",
+    "canNow": "Możesz to zrobić teraz",
+    "noMoves": "Ze statusu {{status}} nie ma już ruchów: ten ADR jest zamknięty.",
+    "noneForYou": "Żadnego z tych ruchów nie możesz teraz wykonać.",
+    "actor": {
+      "APPROVER_OR_DRIVER": "Zatwierdzający/a lub prowadzący/a",
+      "AUTOMATIC": "Automatycznie"
+    },
+    "auto": {
+      "EXPIRED": "automatycznie, gdy minie data wygaśnięcia",
+      "SUPERSEDED": "automatycznie, gdy aktywowany zostanie jego następca"
+    }
   },
   "discussion": {
     "discussion": {

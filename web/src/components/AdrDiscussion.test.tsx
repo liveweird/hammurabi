@@ -6,6 +6,9 @@ import { jsonResponse } from "../test/http";
 import { renderWithProviders, screen, waitFor, within } from "../test/render";
 import AdrDiscussion from "./AdrDiscussion";
 
+// The visual editor (Lexical) is not what these tests are about: a plain textarea stands in (MarkdownRichEditor.test.tsx runs the real one).
+vi.mock("./MarkdownRichEditor", () => import("../test/markdownRichEditorStub"));
+
 const THREAD = [
   entryFixture({ id: 11, kind: "QUESTION", body: "Why not MySQL?" }),
   entryFixture({ id: 12, kind: "COMMENT", state: undefined, body: "Fine by me", authorId: 8, authorName: "Ivan Informed", authorDeleted: false }),
@@ -57,13 +60,14 @@ describe("AdrDiscussion", () => {
     await waitFor(() => expect(stub.requests.filter((r) => r.method === "POST").map((r) => r.body)).toContainEqual({ kind: "QUESTION", body: "Why?" }));
   });
 
-  test("the composer previews the Markdown it will post", async () => {
+  test("the composer can show the Markdown it will post, and the draft survives the switch", async () => {
     stubFetch(() => jsonResponse(200, discussionPageFixture([])));
     const user = userEvent.setup();
     renderWithProviders(<AdrDiscussion adr={adrFixture()} variant="discussion" />);
     await user.type(await screen.findByRole("textbox", { name: /Your comment or question/ }), "Some **bold** text");
-    await user.click(screen.getByRole("radio", { name: "Preview" }));
-    expect(screen.getByText("bold", { selector: "strong" })).toBeInTheDocument();
+    await user.click(screen.getByRole("radio", { name: "Markdown" }));
+    expect(await screen.findByRole("textbox", { name: /Your comment or question/ })).toHaveValue("Some **bold** text");
+    expect(screen.getByRole("radio", { name: "Markdown" })).toBeChecked();
   });
 
   test("a rejected post is the typed notice or a red alert, and keeps the draft", async () => {
@@ -93,7 +97,7 @@ describe("AdrDiscussion", () => {
     expect(listUrls(stub)).toEqual(["/api/v1/adrs/1/discussion?page=1&pageSize=20&kind=ISSUE&kind=ESCALATION"]);
     expect(screen.getByRole("heading", { level: 3, name: "Issues and escalations" })).toBeInTheDocument();
     await user.click(screen.getByRole("radio", { name: "Escalation" }));
-    await user.type(screen.getByRole("textbox", { name: /Describe the issue/ }), "Production is down");
+    await user.type(await screen.findByRole("textbox", { name: /Describe the issue/ }), "Production is down");
     await user.click(screen.getByRole("button", { name: "Escalate" }));
     await waitFor(() => expect(stub.find("POST", "/api/v1/adrs/1/discussion")?.body).toEqual({ kind: "ESCALATION", body: "Production is down" }));
   });

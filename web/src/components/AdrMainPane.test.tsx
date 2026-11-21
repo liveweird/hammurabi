@@ -9,6 +9,9 @@ import { jsonResponse } from "../test/http";
 import { renderWithProviders, screen } from "../test/render";
 import AdrMainPane, { type AdrTab } from "./AdrMainPane";
 
+// The visual editor (Lexical) is not what these tests are about: a plain textarea stands in (MarkdownRichEditor.test.tsx runs the real one).
+vi.mock("./MarkdownRichEditor", () => import("../test/markdownRichEditorStub"));
+
 /** The page's side of the contract: it owns the active tab. */
 function Harness({ adr, initial = "document" }: { adr: AdrResponse; initial?: AdrTab }) {
   const [tab, setTab] = useState<AdrTab>(initial);
@@ -62,9 +65,26 @@ describe("AdrMainPane", () => {
     await user.click(screen.getByRole("tab", { name: "Document" }));
     expect(screen.getByRole("textbox", { name: "document draft" })).toHaveValue("half-written context");
     await user.click(screen.getByRole("tab", { name: "Discussion" }));
-    expect(screen.getByRole("textbox", { name: /Your comment or question/ })).toHaveValue("a question I have not sent");
+    expect(await screen.findByRole("textbox", { name: /Your comment or question/ })).toHaveValue("a question I have not sent");
     // Coming back does not refetch the section either: it was never unmounted.
     expect(stub.count("GET", "/api/v1/adrs/1/discussion")).toBe(1);
+  });
+
+  test("the Lifecycle tab draws the workflow for this ADR, only once opened, and costs the document tab nothing", async () => {
+    stubFetch(() => null);
+    const user = userEvent.setup();
+    renderWithProviders(<Harness adr={adrFixture({ status: "IN_REVIEW", allowedTransitions: ["ACTIVE", "SOLUTION_DRAFT"] })} />);
+    expect(screen.queryByRole("img", { name: /lifecycle/i })).toBeNull();
+    await user.type(screen.getByRole("textbox", { name: "document draft" }), "unsaved");
+    await user.click(screen.getByRole("tab", { name: "Lifecycle" }));
+    expect(screen.getByRole("img", { name: /This ADR is: In review\./ })).toBeInTheDocument();
+    expect(headingOutline()).toEqual([
+      [3, "Lifecycle"],
+      [4, "Moves from In review"],
+    ]);
+    expect(document.querySelectorAll("g[data-emphasised]")).toHaveLength(2);
+    await user.click(screen.getByRole("tab", { name: "Document" }));
+    expect(screen.getByRole("textbox", { name: "document draft" })).toHaveValue("unsaved");
   });
 
   test("with nothing unanswered or open the tabs are bare", () => {

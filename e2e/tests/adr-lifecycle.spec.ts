@@ -131,4 +131,34 @@ test.describe("the ADR lifecycle", () => {
     await expect(status.getByText("Withdrawn")).toBeVisible();
     await expect(status.getByText("This ADR is closed: it is read-only.")).toBeVisible();
   });
+
+  test("the Lifecycle tab shows the workflow with where the ADR is and the moves the Approver can make now", async ({ page }) => {
+    const { api } = await apiAs(driver.email, driver.password);
+    const adr = await createAdrViaApi(api, {
+      name: uniqueText("e2e-adr"),
+      problem: "Should we adopt Y?",
+      context: "Context.",
+      decision: "Adopt Y.",
+      consequences: "Some.",
+      participants: [{ userId: approver.id, role: "APPROVER" }],
+    });
+    cleanup.unshift(`/api/v1/adrs/${adr.id}`);
+    await transitionViaApi(api, adr.id, "IN_REVIEW");
+    await api.dispose();
+
+    await login(page, approver.email, approver.password);
+    await page.goto(`/adrs/${adr.id}`);
+    await page.getByRole("tab", { name: "Lifecycle" }).click();
+    await expect(page.getByRole("img", { name: /This ADR is: In review\./ })).toBeVisible();
+    // The ADR's own status is the current node; the Approver's moves out of it (activate, withdraw, send back) are the highlighted arrows; a Driver-only move is not.
+    await expect(page.locator('g[data-node="IN_REVIEW"][data-current="true"]')).toHaveCount(1);
+    await expect(page.locator('g[data-edge="IN_REVIEW>ACTIVE"][data-emphasised="true"]')).toHaveCount(1);
+    await expect(page.locator('g[data-edge="IN_REVIEW>WITHDRAWN"][data-emphasised="true"]')).toHaveCount(1);
+    await expect(page.locator('g[data-edge="IN_REVIEW>SOLUTION_DRAFT"][data-emphasised="true"]')).toHaveCount(1);
+    await expect(page.locator('g[data-edge="IN_REVIEW>CANCELLED"][data-emphasised="true"]')).toHaveCount(0);
+    // The same facts as text, for anyone who cannot read the picture.
+    const moves = page.getByRole("region", { name: "Moves from In review" });
+    await expect(moves.getByRole("listitem").filter({ hasText: "Activate" })).toContainText("You can do this now");
+    await expect(moves.getByRole("listitem").filter({ hasText: "Cancel ADR" })).not.toContainText("You can do this now");
+  });
 });

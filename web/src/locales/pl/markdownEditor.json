@@ -1,0 +1,71 @@
+{
+  "contentArea": {
+    "editableMarkdown": "Edytowalny tekst"
+  },
+  "createLink": {
+    "cancelTooltip": "Anuluj zmianę",
+    "saveTooltip": "Ustaw adres URL",
+    "text": "Tekst odnośnika",
+    "textTooltip": "Tekst wyświetlany jako odnośnik",
+    "title": "Tytuł odnośnika",
+    "titleTooltip": "Tytuł odnośnika, widoczny po najechaniu",
+    "url": "Adres URL",
+    "urlPlaceholder": "Wklej adres URL"
+  },
+  "dialog": {
+    "close": "Zamknij okno"
+  },
+  "dialogControls": {
+    "cancel": "Anuluj",
+    "save": "Zapisz"
+  },
+  "linkPreview": {
+    "copied": "Skopiowano",
+    "copyToClipboard": "Kopiuj do schowka",
+    "edit": "Edytuj adres odnośnika",
+    "remove": "Usuń odnośnik"
+  },
+  "table": {
+    "alignCenter": "Wyrównaj do środka",
+    "alignLeft": "Wyrównaj do lewej",
+    "alignRight": "Wyrównaj do prawej",
+    "columnMenu": "Menu kolumny",
+    "deleteColumn": "Usuń tę kolumnę",
+    "deleteRow": "Usuń ten wiersz",
+    "deleteTable": "Usuń tabelę",
+    "insertColumnLeft": "Wstaw kolumnę po lewej",
+    "insertColumnRight": "Wstaw kolumnę po prawej",
+    "insertRowAbove": "Wstaw wiersz powyżej",
+    "insertRowBelow": "Wstaw wiersz poniżej",
+    "rowMenu": "Menu wiersza",
+    "textAlignment": "Wyrównanie tekstu"
+  },
+  "toolbar": {
+    "blockTypes": {
+      "heading": "Nagłówek {{level}}",
+      "paragraph": "Akapit",
+      "quote": "Cytat"
+    },
+    "blockTypeSelect": {
+      "placeholder": "Typ bloku",
+      "selectBlockTypeTooltip": "Wybierz typ bloku"
+    },
+    "bold": "Pogrubienie",
+    "bulletedList": "Lista punktowana",
+    "checkList": "Lista zadań",
+    "codeBlock": "Wstaw blok kodu",
+    "inlineCode": "Kod w tekście",
+    "italic": "Kursywa",
+    "link": "Wstaw odnośnik",
+    "numberedList": "Lista numerowana",
+    "redo": "Ponów {{shortcut}}",
+    "removeBold": "Usuń pogrubienie",
+    "removeInlineCode": "Usuń kod w tekście",
+    "removeItalic": "Usuń kursywę",
+    "removeStrikethrough": "Usuń przekreślenie",
+    "strikethrough": "Przekreślenie",
+    "table": "Wstaw tabelę",
+    "toggleGroup": "Formatowanie",
+    "undo": "Cofnij {{shortcut}}"
+  }
+}

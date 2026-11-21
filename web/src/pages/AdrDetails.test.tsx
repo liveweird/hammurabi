@@ -9,6 +9,9 @@ import { headingOutline } from "../test/headings";
 import { renderWithProviders, screen, waitFor, within } from "../test/render";
 import AdrDetails from "./AdrDetails";
 
+// The visual editor (Lexical) is not what these tests are about: a plain textarea stands in (MarkdownRichEditor.test.tsx runs the real one).
+vi.mock("../components/MarkdownRichEditor", () => import("../test/markdownRichEditorStub"));
+
 const saveFile = vi.fn();
 vi.mock("../utils/saveFile", () => ({ saveFile: (download: unknown) => saveFile(download) }));
 
@@ -132,7 +135,7 @@ describe("AdrDetails page", () => {
     expect(within(successor).getByText("Replaced by")).toBeInTheDocument();
   });
 
-  test("the main pane is three tabs; the discussion opens on demand and shows the counts the ADR carries", async () => {
+  test("the main pane is four tabs; the discussion opens on demand and shows the counts the ADR carries", async () => {
     const stub = serve(
       { adr: adrFixture({ participants: PEOPLE, status: "ACTIVE", allowedTransitions: [], canComment: false, canRaiseIssue: true, openIssueCount: 2, unansweredQuestionCount: 1 }) },
       (method, url) => (method === "GET" && url.startsWith("/api/v1/adrs/1/discussion") ? jsonResponse(200, discussionPageFixture([entryFixture({ kind: "ISSUE", body: "It leaks" })])) : null),
@@ -149,6 +152,22 @@ describe("AdrDetails page", () => {
     expect(screen.queryByRole("heading", { level: 3, name: "Problem / question" })).not.toBeInTheDocument();
   });
 
+  test("the Lifecycle tab shows the state diagram with where this ADR is and the moves the caller may make now", async () => {
+    serve({ adr: adrFixture({ participants: PEOPLE, status: "SOLUTION_DRAFT", allowedTransitions: ["IN_REVIEW", "CANCELLED"] }) });
+    const user = userEvent.setup();
+    renderDetails();
+    await screen.findByRole("heading", { level: 2, name: "Use PostgreSQL" });
+    expect(screen.queryByRole("img", { name: /Diagram of the ADR lifecycle/ })).not.toBeInTheDocument();
+    await user.click(screen.getByRole("tab", { name: "Lifecycle" }));
+    expect(screen.getByRole("img", { name: /This ADR is: Solution draft\./ })).toBeInTheDocument();
+    expect(document.querySelector('g[data-node="SOLUTION_DRAFT"]')).toHaveAttribute("data-current", "true");
+    expect(Array.from(document.querySelectorAll("g[data-emphasised]")).map((g) => g.getAttribute("data-edge")).sort()).toEqual([
+      "SOLUTION_DRAFT>CANCELLED",
+      "SOLUTION_DRAFT>IN_REVIEW",
+    ]);
+    expect(screen.getByRole("region", { name: "Moves from Solution draft" })).toBeInTheDocument();
+  });
+
   test("a tab switch keeps an unsaved edit, and Edit from another tab brings the document forward", async () => {
     serve({ adr: adrFixture({ participants: PEOPLE }) }, (method, url) =>
       method === "GET" && url.startsWith("/api/v1/adrs/1/discussion") ? jsonResponse(200, discussionPageFixture([])) : null,
@@ -156,12 +175,12 @@ describe("AdrDetails page", () => {
     const user = userEvent.setup();
     renderDetails();
     await user.click(await screen.findByRole("button", { name: "Edit" }));
-    await user.type(screen.getByRole("textbox", { name: /^Context/ }), "Unsaved context");
+    await user.type(await screen.findByRole("textbox", { name: /^Context/ }), "Unsaved context");
     await user.click(screen.getByRole("tab", { name: "Discussion" }));
     expect(await screen.findByRole("textbox", { name: /Your comment or question/ })).toBeInTheDocument();
     // The editor is hidden, not gone, and Edit is still offered: clicking it brings the document tab forward.
     await user.click(screen.getByRole("tab", { name: "Document" }));
-    expect(screen.getByRole("textbox", { name: /^Context/ })).toHaveValue("Unsaved context");
+    expect(await screen.findByRole("textbox", { name: /^Context/ })).toHaveValue("Unsaved context");
     await user.click(screen.getByRole("button", { name: "Cancel" }));
     await user.click(screen.getByRole("tab", { name: "Issues" }));
     await user.click(screen.getByRole("button", { name: "Edit" }));
@@ -214,7 +233,7 @@ describe("AdrDetails page", () => {
     await user.click(await screen.findByRole("button", { name: "Edit" }));
     expect(screen.getByRole("heading", { level: 3, name: "Edit the ADR" })).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Edit" })).not.toBeInTheDocument();
-    await user.type(screen.getByRole("textbox", { name: /^Context/ }), "Fresh context");
+    await user.type(await screen.findByRole("textbox", { name: /^Context/ }), "Fresh context");
     await user.click(screen.getByRole("button", { name: "Save" }));
     expect(await screen.findByText("Fresh context")).toBeInTheDocument();
     expect(screen.queryByRole("heading", { level: 3, name: "Edit the ADR" })).not.toBeInTheDocument();

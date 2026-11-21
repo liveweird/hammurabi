@@ -6,6 +6,9 @@ import { jsonResponse } from "../test/http";
 import { renderWithProviders, screen, waitFor } from "../test/render";
 import AdrEditForm from "./AdrEditForm";
 
+// The visual editor (Lexical) is not what these tests are about: a plain textarea stands in (MarkdownRichEditor.test.tsx runs the real one).
+vi.mock("./MarkdownRichEditor", () => import("../test/markdownRichEditorStub"));
+
 describe("AdrEditForm", () => {
   beforeEach(() => localStorage.setItem("hammurabi.auth.token", "fake-token"));
   afterEach(() => {
@@ -18,7 +21,7 @@ describe("AdrEditForm", () => {
     const onClose = vi.fn();
     const user = userEvent.setup();
     renderWithProviders(<AdrEditForm adr={adrFixture({ revision: 7, expiresOn: "2027-05-01" })} onClose={onClose} />);
-    await user.type(screen.getByRole("textbox", { name: /^Context/ }), "Why it matters");
+    await user.type(await screen.findByRole("textbox", { name: /^Context/ }), "Why it matters");
     await user.click(screen.getByRole("button", { name: "Save" }));
     await waitFor(() => expect(onClose).toHaveBeenCalled());
     const put = stub.find("PUT", "/api/v1/adrs/1");
@@ -39,7 +42,7 @@ describe("AdrEditForm", () => {
     const onClose = vi.fn();
     const user = userEvent.setup();
     const { rerender } = renderWithProviders(<AdrEditForm adr={adrFixture({ revision: 7 })} onClose={onClose} />);
-    await user.type(screen.getByRole("textbox", { name: /^Context/ }), "Why it matters");
+    await user.type(await screen.findByRole("textbox", { name: /^Context/ }), "Why it matters");
     rerender(<AdrEditForm adr={adrFixture({ revision: 11, context: "Someone else's text" })} onClose={onClose} />);
     await user.click(screen.getByRole("button", { name: "Save" }));
     await waitFor(() => expect(onClose).toHaveBeenCalled());
@@ -51,7 +54,7 @@ describe("AdrEditForm", () => {
     const user = userEvent.setup();
     renderWithProviders(<AdrEditForm adr={adrFixture()} onClose={vi.fn()} />);
     await user.clear(screen.getByRole("textbox", { name: /^Name/ }));
-    await user.clear(screen.getByRole("textbox", { name: /^Problem/ }));
+    await user.clear(await screen.findByRole("textbox", { name: /^Problem/ }));
     await user.click(screen.getByRole("button", { name: "Save" }));
     expect(await screen.findByText("The name must be 1–120 characters")).toBeInTheDocument();
     expect(screen.getByText("Describe the problem or question")).toBeInTheDocument();

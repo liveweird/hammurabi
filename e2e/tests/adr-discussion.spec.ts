@@ -63,12 +63,16 @@ test.describe("the ADR discussion", () => {
 
     // Anyone signed in may post: a comment first, then a question (the same composer, the kind switched).
     const composer = discussion.getByRole("textbox", { name: /Your comment or question/ });
-    await composer.fill("Fine by me, **as long as** it stays boring.");
+    // The composer is the visual editor (a contenteditable): `fill` inserts text verbatim, but a person's keystrokes trigger the Markdown
+    // shortcuts, so `**as long as**` typed key by key becomes bold and is stored as Markdown.
+    await composer.click();
+    await composer.pressSequentially("Fine by me, **as long as** it stays boring.");
     await discussion.getByRole("button", { name: "Post comment" }).click();
     const comment = discussion.getByRole("article", { name: `Comment by ${asker.name}` });
     await expect(comment).toBeVisible();
     await expect(comment.getByText("as long as", { exact: true })).toBeVisible();
-    await expect(composer).toHaveValue("");
+    // The composer is a contenteditable (no value): a posted comment leaves it empty.
+    await expect(composer).toHaveText("");
     // The kind switch is a Mantine SegmentedControl: its radio inputs are visually hidden, the label is what a person clicks.
     await discussion.getByRole("radiogroup", { name: "Kind of entry" }).getByText("Question", { exact: true }).click();
     await composer.fill("Why not a dedicated broker?");

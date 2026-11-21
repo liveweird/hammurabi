@@ -46,6 +46,10 @@ export default defineConfig({
               test: /node_modules[\\/](?:react|react-dom|scheduler)[\\/]/,
               priority: 10,
             },
+            // MDXEditor's Lexical engine (components/MarkdownRichEditor.tsx, lazy): roughly half of the editor's payload. Splitting it
+            // keeps every chunk under Vite's 500 kB warning; both halves load in parallel behind the same dynamic import. Below
+            // `react`, so React (a dependency of @lexical/react) is not pulled into this chunk and imported eagerly by every other.
+            { name: 'lexical', test: /node_modules[\\/](?:@lexical|lexical)[\\/]/, priority: 5 },
           ],
         },
       },

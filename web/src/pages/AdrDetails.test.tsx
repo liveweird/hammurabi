@@ -9,6 +9,9 @@ import { headingOutline } from "../test/headings";
 import { renderWithProviders, screen, waitFor, within } from "../test/render";
 import AdrDetails from "./AdrDetails";
 
+const saveFile = vi.fn();
+vi.mock("../utils/saveFile", () => ({ saveFile: (download: unknown) => saveFile(download) }));
+
 const PEOPLE = [
   { userId: 5, name: "Dana Driver", role: "DRIVER" as const },
   { userId: 6, name: "Alex Approver", role: "APPROVER" as const },
@@ -49,6 +52,7 @@ describe("AdrDetails page", () => {
     localStorage.setItem("hammurabi.auth.userId", "5");
   });
   afterEach(() => {
+    saveFile.mockReset();
     vi.unstubAllGlobals();
     localStorage.clear();
   });
@@ -76,6 +80,34 @@ describe("AdrDetails page", () => {
     expect(screen.getByText("We need a database.")).toBeInTheDocument();
     expect(screen.getByText("Because.")).toBeInTheDocument();
     expect(screen.getByRole("link", { name: "Back to the ADRs" })).toHaveAttribute("href", "/adrs");
+  });
+
+  test("Export Markdown downloads this ADR's file - for a reader with no role on it too - under the server's name", async () => {
+    // A stranger: no edit verdicts, no role - exporting is open to every signed-in user.
+    const stub = serve(
+      { adr: adrFixture({ participants: PEOPLE, allowedTransitions: [], canEdit: false, canEditTags: false, canEditSuccessor: false }) },
+      (method, url) =>
+        method === "GET" && url === "/api/v1/adrs/1/export"
+          ? new Response("# 1. Use PostgreSQL\n", { headers: { "Content-Disposition": 'attachment; filename="ADR-0001-use-postgresql.md"' } })
+          : null,
+    );
+    renderDetails();
+    await screen.findByRole("heading", { level: 2, name: "Use PostgreSQL" });
+    await userEvent.click(screen.getByRole("button", { name: "Export Markdown" }));
+    await waitFor(() => expect(saveFile).toHaveBeenCalledTimes(1));
+    expect(stub.count("GET", "/api/v1/adrs/1/export")).toBe(1);
+    const saved = saveFile.mock.calls[0]?.[0] as { blob: Blob; fileName: string };
+    expect(saved.fileName).toBe("ADR-0001-use-postgresql.md");
+    expect(await saved.blob.text()).toBe("# 1. Use PostgreSQL\n");
+  });
+
+  test("a failed export is said inline and saves nothing", async () => {
+    serve({ adr: adrFixture({ participants: PEOPLE }) }, (method, url) => (method === "GET" && url === "/api/v1/adrs/1/export" ? problem(404) : null));
+    renderDetails();
+    await screen.findByRole("heading", { level: 2, name: "Use PostgreSQL" });
+    await userEvent.click(screen.getByRole("button", { name: "Export Markdown" }));
+    expect(await screen.findByText("This ADR no longer exists.")).toBeInTheDocument();
+    expect(saveFile).not.toHaveBeenCalled();
   });
 
   test("a superseded ADR carries the banner naming its successor, and the side panel shows both ends of the link", async () => {

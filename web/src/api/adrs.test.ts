@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
 import { jsonResponse } from "../test/http";
-import { createAdr, deleteAdr, detachAdrSuccessor, getAdr, listAdrEvents, listAdrs, replaceAdrParticipants, replaceAdrTags, setAdrSupersedes, transitionAdr, updateAdr } from "./adrs";
+import { createAdr, deleteAdr, detachAdrSuccessor, exportAdr, exportAdrs, getAdr, listAdrEvents, listAdrs, replaceAdrParticipants, replaceAdrTags, setAdrSupersedes, transitionAdr, updateAdr } from "./adrs";
 
 type FetchMock = ReturnType<typeof vi.fn>;
 
@@ -25,6 +25,22 @@ describe("ADR API wrappers", () => {
     mockFetch.mockResolvedValue(jsonResponse(200, { items: [], page: 1, pageSize: 20, total: 0 }));
     await listAdrs({ page: 2, pageSize: 40, sort: "-number", status: ["ACTIVE", "IN_REVIEW"], q: "adr-1", participant: 7, role: "DRIVER" });
     expect(lastCall()[0]).toBe("/api/v1/adrs?page=2&pageSize=40&sort=-number&status=ACTIVE&status=IN_REVIEW&q=adr-1&participant=7&role=DRIVER");
+  });
+
+  test("exportAdr downloads the one ADR's Markdown under the server's file name", async () => {
+    mockFetch.mockResolvedValue(new Response("# 7. x\n", { headers: { "Content-Disposition": 'attachment; filename="ADR-0007-x.md"' } }));
+    const download = await exportAdr(7);
+    expect(lastCall()[0]).toBe("/api/v1/adrs/7/export");
+    expect(download.fileName).toBe("ADR-0007-x.md");
+  });
+
+  test("exportAdrs sends the list's filters under the list's names, and no paging or sort", async () => {
+    mockFetch.mockImplementation(() => Promise.resolve(new Response("zip")));
+    const download = await exportAdrs({ status: ["ACTIVE", "IN_REVIEW"], q: "pg", text: "queue", tag: ["data"], hasOpenIssues: false, participant: 5, role: "DRIVER" });
+    expect(lastCall()[0]).toBe("/api/v1/adrs/export?status=ACTIVE&status=IN_REVIEW&q=pg&participant=5&role=DRIVER&tag=data&text=queue&hasOpenIssues=false");
+    expect(download.fileName).toBe("adr-export.zip");
+    await exportAdrs({});
+    expect(lastCall()[0]).toBe("/api/v1/adrs/export?");
   });
 
   test("listAdrs repeats the tag key", async () => {

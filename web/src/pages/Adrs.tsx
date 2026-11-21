@@ -5,8 +5,9 @@ import { Anchor, Badge, Box, Button, CloseButton, Group, MultiSelect, Select, St
 import { useDebouncedValue } from "@mantine/hooks";
 import { keepPreviousData, useQuery } from "@tanstack/react-query";
 import { IconGavel, IconPlus } from "@tabler/icons-react";
-import { listAdrs } from "../api/adrs";
+import { exportAdrs, listAdrs } from "../api/adrs";
 import { getUserId } from "../api/session";
+import AdrExportButton from "../components/AdrExportButton";
 import AdrMatchText from "../components/AdrMatchText";
 import AdrStatusBadge from "../components/AdrStatusBadge";
 import AdrTagPills from "../components/AdrTagPills";
@@ -119,9 +120,13 @@ export default function Adrs() {
         title={t("adrs.title")}
         description={t("adrs.intro")}
         actions={
-          <Button component={RouterLink} to={newAdrPath} leftSection={<IconPlus size={16} />}>
-            {t("adrs.newAdr")}
-          </Button>
+          <>
+            {/* The ZIP of exactly what the filters select (the same parameters as the list, no paging); an inverted range is not requested. */}
+            <AdrExportButton label={t("adrs.export.zip")} run={() => exportAdrs(filters)} disabled={createdInverted || updatedInverted} />
+            <Button component={RouterLink} to={newAdrPath} leftSection={<IconPlus size={16} />}>
+              {t("adrs.newAdr")}
+            </Button>
+          </>
         }
       />
 

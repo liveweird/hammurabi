@@ -9,6 +9,9 @@ import { fireEvent, renderWithProviders, screen, waitFor, within } from "../test
 import { headingOutline } from "../test/headings";
 import Adrs from "./Adrs";
 
+const saveFile = vi.fn();
+vi.mock("../utils/saveFile", () => ({ saveFile: (download: unknown) => saveFile(download) }));
+
 const ROW = {
   id: 7,
   number: 7,
@@ -102,6 +105,55 @@ describe("Adrs list page", () => {
     expect(listUrls(stub)).toEqual(["/api/v1/adrs?page=1&pageSize=20&sort=-number"]);
     expect(headingOutline()).toEqual([[2, "ADRs"]]);
     expect(screen.getByRole("table", { name: "ADRs" })).toBeInTheDocument();
+  });
+
+  describe("Export (ZIP)", () => {
+    const zip = () =>
+      new Response("zip", { headers: { "Content-Disposition": 'attachment; filename="adr-export-2026-11-21.zip"' } });
+    const serveWithExport = (handler: (url: string) => Response) =>
+      stubFetch((r) => {
+        if (r.url.startsWith("/api/v1/adrs/export")) return handler(r.url);
+        if (r.url.startsWith("/api/v1/tag-categories")) return jsonResponse(200, REGISTRY);
+        if (r.url.startsWith("/api/v1/lenses")) return jsonResponse(200, { items: [], page: 1, pageSize: 100, total: 0 });
+        return jsonResponse(200, page);
+      });
+    afterEach(() => saveFile.mockReset());
+
+    test("downloads exactly what the filters select - their names, no paging or sort - and saves the file under the server's name", async () => {
+      const stub = serveWithExport(zip);
+      renderList("/adrs?status=ACTIVE&status=IN_REVIEW&tag=data&hasOpenIssues=true&text=queue&page=2");
+      await screen.findByRole("link", { name: "Open ADR-0007: Use PostgreSQL" });
+      await userEvent.click(screen.getByRole("button", { name: "Export (ZIP)" }));
+      await waitFor(() => expect(saveFile).toHaveBeenCalledTimes(1));
+      expect(stub.requests.filter((r) => r.url.startsWith("/api/v1/adrs/export")).map((r) => r.url)).toEqual([
+        "/api/v1/adrs/export?status=ACTIVE&status=IN_REVIEW&tag=data&text=queue&hasOpenIssues=true",
+      ]);
+      expect(saveFile.mock.calls[0]?.[0]).toMatchObject({ fileName: "adr-export-2026-11-21.zip" });
+    });
+
+    test("an unfiltered list exports everything (no query)", async () => {
+      const stub = serveWithExport(zip);
+      renderList();
+      await screen.findByRole("link", { name: "Open ADR-0007: Use PostgreSQL" });
+      await userEvent.click(screen.getByRole("button", { name: "Export (ZIP)" }));
+      await waitFor(() => expect(saveFile).toHaveBeenCalledTimes(1));
+      expect(stub.find("GET", "/api/v1/adrs/export")?.url).toBe("/api/v1/adrs/export?");
+    });
+
+    test("a refusal (more than 500 match) is said inline and nothing is saved", async () => {
+      serveWithExport(() => jsonResponse(400, { type: "about:blank", title: "Bad Request", status: 400, detail: "too many", instance: "/x" }));
+      renderList();
+      await screen.findByRole("link", { name: "Open ADR-0007: Use PostgreSQL" });
+      await userEvent.click(screen.getByRole("button", { name: "Export (ZIP)" }));
+      expect(await screen.findByRole("alert")).toHaveTextContent("an export holds at most 500 ADRs");
+      expect(saveFile).not.toHaveBeenCalled();
+    });
+
+    test("is disabled while a date range is inverted (no request would be valid)", async () => {
+      serveWithExport(zip);
+      renderList("/adrs?updatedFrom=2026-06-30&updatedTo=2026-06-01");
+      expect(await screen.findByRole("button", { name: "Export (ZIP)" })).toBeDisabled();
+    });
   });
 
   test("a URL with tags reproduces them in the request, and the picker writes them into the URL", async () => {

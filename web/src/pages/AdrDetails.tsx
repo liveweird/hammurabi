@@ -4,12 +4,13 @@ import { useNavigate, useParams } from "react-router-dom";
 import { Button, Grid, Stack } from "@mantine/core";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { IconPencil, IconTrash } from "@tabler/icons-react";
-import { deleteAdr, getAdr, type AdrResponse } from "../api/adrs";
+import { deleteAdr, exportAdr, getAdr, type AdrResponse } from "../api/adrs";
 import { ApiError } from "../api/http";
 import { getUserId } from "../api/session";
 import { useAdmin } from "../auth";
 import AdrContentSections from "../components/AdrContentSections";
 import AdrEditForm from "../components/AdrEditForm";
+import AdrExportButton from "../components/AdrExportButton";
 import AdrMainPane, { type AdrTab } from "../components/AdrMainPane";
 import AdrSidePanel from "../components/AdrSidePanel";
 import AdrSupersededBanner from "../components/AdrSupersededBanner";
@@ -79,6 +80,7 @@ export default function AdrDetails() {
         backTo={{ to: adrsPath, label: t("adrs.backToList") }}
         actions={
           <>
+            <AdrExportButton label={t("adrs.export.markdown")} run={() => exportAdr(data.id)} />
             {mayEdit && !editing && (
               <Button variant="default" leftSection={<IconPencil size={16} />} onClick={() => {
                   setTab("document");

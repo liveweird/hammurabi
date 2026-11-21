@@ -2,6 +2,7 @@
 // Thin endpoint wrappers: transport (authedFetch/ApiError) in ./http, types from ./schema. The document PUT, the transitions
 // the participants PUT, the tags PUT and the supersedes PUT carry `X-Expected-Revision` (the revision the caller read); a real change bumps it.
 
+import { downloadRequest, type Download } from "./download";
 import { buildQuery, jsonRequest, REVISION_HEADER, voidRequest } from "./http";
 import type { components, paths } from "./schema";
 
@@ -20,10 +21,8 @@ export type AdrEventPage = components["schemas"]["AdrEventPage"];
 export type AdrCreateBody = paths["/api/v1/adrs"]["post"]["requestBody"]["content"]["application/json"];
 export type AdrUpdateBody = paths["/api/v1/adrs/{id}"]["put"]["requestBody"]["content"]["application/json"];
 
-type AdrListQuery = {
-  page: number;
-  pageSize: number;
-  sort?: string;
+/** The list's filters: the list takes them with its paging, the export (`exportAdrs`) alone. */
+export type AdrFilterQuery = {
   /** Any-of; each status travels as its own repeated key. */
   status?: readonly AdrStatus[];
   q?: string;
@@ -48,11 +47,11 @@ type AdrListQuery = {
   supersededBy?: boolean;
 };
 
-export async function listAdrs(q: AdrListQuery): Promise<AdrPage> {
-  const params = buildQuery({
-    page: q.page,
-    pageSize: q.pageSize,
-    sort: q.sort,
+type AdrListQuery = AdrFilterQuery & { page: number; pageSize: number; sort?: string };
+
+/** The filter parameters in the list's own names (the export takes exactly these). */
+function filterParams(q: AdrFilterQuery) {
+  return {
     status: q.status,
     q: q.q,
     participant: q.participant,
@@ -67,8 +66,22 @@ export async function listAdrs(q: AdrListQuery): Promise<AdrPage> {
     hasOpenIssues: q.hasOpenIssues,
     supersedes: q.supersedes,
     supersededBy: q.supersededBy,
-  });
+  };
+}
+
+export async function listAdrs(q: AdrListQuery): Promise<AdrPage> {
+  const params = buildQuery({ page: q.page, pageSize: q.pageSize, sort: q.sort, ...filterParams(q) });
   return jsonRequest<AdrPage>(`/api/v1/adrs?${params}`);
+}
+
+/** The ADR as one Markdown file (any signed-in user); the server names it `ADR-0042-<slug>.md`. */
+export async function exportAdr(id: number): Promise<Download> {
+  return downloadRequest(`/api/v1/adrs/${id}/export`, `adr-${id}.md`);
+}
+
+/** A ZIP of the Markdown files of every ADR the filters match (at most 500, else the server answers 400) plus an `index.md`. */
+export async function exportAdrs(filters: AdrFilterQuery): Promise<Download> {
+  return downloadRequest(`/api/v1/adrs/export?${buildQuery(filterParams(filters))}`, "adr-export.zip");
 }
 
 export async function getAdr(id: number): Promise<AdrResponse> {

@@ -382,5 +382,11 @@
       "detachConfirm": "Odłącz",
       "cancel": "Zostaw"
     }
+  },
+  "export": {
+    "markdown": "Eksportuj Markdown",
+    "zip": "Eksportuj (ZIP)",
+    "tooBroad": "Nie można wyeksportować: eksport obejmuje najwyżej 500 ADR-ów albo filtr został odrzucony. Zawęź filtry i spróbuj ponownie.",
+    "busy": "Trwają teraz inne eksporty. Spróbuj ponownie za chwilę."
   }
 }

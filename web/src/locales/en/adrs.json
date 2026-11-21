@@ -382,5 +382,11 @@
       "detachConfirm": "Detach",
       "cancel": "Keep it"
     }
+  },
+  "export": {
+    "markdown": "Export Markdown",
+    "zip": "Export (ZIP)",
+    "tooBroad": "Cannot export: an export holds at most 500 ADRs, or a filter was refused. Narrow the filters and try again.",
+    "busy": "Other exports are running right now. Try again in a moment."
   }
 }

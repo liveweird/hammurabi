@@ -69,6 +69,7 @@ stele of the Code of Hammurabi on a lapis disc — the sun disc of Shamash crown
   successor link is the SUCCESSOR's (its Driver, Approver or ADMIN, only while it is pre-active); the predecessor may be `ACTIVE` or pre-active, a terminal one is refused, and activating the successor needs the predecessor to be `ACTIVE`
   (else `400`: unlink it or wait) - then it is superseded in the same transaction, the event actor being the activator. **Successor squatting (decided in the 0.4.0 review):** linking needs no role on the PREDECESSOR (anyone who owns a draft may point it at any live ADR), so a stranger could park a pending link on an ADR and block every honest successor (one successor in play per predecessor). To close that, the PREDECESSOR's Driver, Approver or ADMIN may DETACH its pending successor (`DELETE /adrs/{id}/successor`; the successor's Driver may link again, so detaching is a veto of that link, not a ban). The detach bumps the successor's revision and writes `SUCCESSOR_UNLINKED` on both ADRs. Details: `adr-model.md` "Tags", "Successors".
 - **Find (0.5.0; change on request):** `text` (full-text) is a separate parameter from `q` (name-or-key substring) and both stay; a search page is at most 20 rows and ranks by relevance unless sorted; `expiresBefore` is strictly before the day, any status; a lens stores the filters only (no sort, no page), keeps at most 50 per user, and an ADMIN may delete (not edit, not read if private) a PUBLIC lens; there is no per-user rate bucket on the list (the deadline and the concurrency cap bound a search). Details: `adr-model.md` "Search", "Lenses".
+- **Notify (0.6.0; change on request):** every notice derives from a history event of its own transaction and never reaches its actor; the email digest cadence is the deployment's (Adder's `delaySeconds` 300 / `minIntervalSeconds` 900), not a per-user frequency, and "email off" is the EMAIL switches; a comment reaches the Driver, Approver and Contributors, an issue or escalation the Driver and Approver; the expiry reminder is `adrs.expiry.reminderDays` (14, `0` off) days before the last day in force, once per ADR per expiry date (a changed date re-arms it); mail names the ADR by its KEY only, never its name or text; the bell is polled once a minute (no live channel). Details: `adr-model.md` "Notifications".
 - **Not built (one-line map changes if wanted):** `IN_REVIEW → SOLUTION_DRAFT` ("send back") and `ACTIVE → WITHDRAWN`.
 - **User directory:** any signed-in user may look up `{id, name, email}` of active users (`GET /users/directory`, Adder's, for the DACI pickers); the
   name+email disclosure to every signed-in user that Adder's owner accepted is carried over (`security.md` "What the user directory discloses"). Collapse it to `{id, name}` if that changes.
@@ -77,7 +78,7 @@ stele of the Code of Hammurabi on a lapis disc — the sun disc of Shamash crown
 
 ## Roadmap
 
-Each increment is built and gated on its own. **Current version: 0.5.0.**
+Each increment is built and gated on its own. **Current version: 0.6.0.**
 
 | Ver | Scope |
 |---|---|
@@ -86,7 +87,7 @@ Each increment is built and gated on its own. **Current version: 0.5.0.**
 | **0.3.0 Discussion** | `adr_discussion` (V12): comments/questions before `ACTIVE`, issues/escalations in `ACTIVE` (Covenant's version reviews, ported and reshaped); the Discussion and Issues tabs, `openIssueCount` on the ADR rows |
 | **0.4.0 Tags and successors** | Tag categories (Toadie) and successor links + `SUPERSEDED`, released |
 | **0.5.0 Find** | The remaining multi-criteria filters, full-text search (Adder), URL-synced filters, saved lenses (Toadie), released |
-| **0.6.0 Notify** | The bell, email digest and preferences (Adder's `notifications/`) for DACI participants; expiry reminders |
+| **0.6.0 Notify** | The bell, email digest and preferences (Adder's `notifications/`) for DACI participants, notices derived from the history events, expiry reminders (`adrs.expiry.reminderDays`), released |
 | **0.7.0–0.9.0 Extras** (approved by the user 2026-11-21) | Markdown export (adr-tools format), send back `IN_REVIEW` → `SOLUTION_DRAFT` and `ACTIVE` → `WITHDRAWN`, the ADR log/overview page |
 | **1.0.0 Checkup** | The family's technical checkup (docs, DRY/SRP, tests, UI consistency, security, guardrails, infra) |
 
@@ -100,10 +101,10 @@ port its implementation.
 - **Flow** (`~/Sources/flow`, the primary donor): the whole foundation — stack, API design, UI/UX, testing, gates, versioning, deployment, the
   telemetry panel.
 - **Adder** (`~/Sources/adder`): the trimmed bootstrap tree; ported in 0.2.0 (server): `infra/db/EventLog.kt`, the thread-number allocation (made global,
-  an advisory lock), `infra/revision/ExpectedRevision.kt`'s first use; ported in 0.5.0: `infra/db/Fts.kt`, the search column (V15), `SearchBudget` and the typed search `429`s (the per-user `search` bucket was left out, `security.md` "Search"); next: the pickers
-  (`UserDirectorySelect`), the `ThreadPane`/`ThreadSidePanel` detail layout, `EventTimeline`, Markdown building blocks, `notifications/`.
+  an advisory lock), `infra/revision/ExpectedRevision.kt`'s first use; ported in 0.5.0: `infra/db/Fts.kt`, the search column (V15), `SearchBudget` and the typed search `429`s (the per-user `search` bucket was left out, `security.md` "Search"); ported in 0.6.0: `notifications/` (the notices, the bell's routes, the preferences, the email digest with its claim-then-send machinery and the `mailSafe` text hardening, the retention sweep; the per-actor digest budget of V24 was left out, `security.md` "Notices"), `NotificationsButton` and the preferences page; next: the pickers
+  (`UserDirectorySelect`), the `ThreadPane`/`ThreadSidePanel` detail layout, `EventTimeline`, Markdown building blocks.
 - **Covenant** (`~/Sources/covenant`): `contracts/Lifecycle.kt` (the 409-on-illegal-move transition map), `ContractAccess.kt` (permission
-  verdicts) and `ReleaseLineReminders.kt` (the periodic date sweep) are ported (0.2.0, `adrs/`); `VersionReview*` (the entry table, its routes and `VersionReviews.tsx`) is ported
+  verdicts) and `ReleaseLineReminders.kt` (the periodic date sweep) are ported (0.2.0, `adrs/`; its reminder-once-per-date shape again in 0.6.0, `notifications/ExpiryReminders.kt`, with the sent marker `adr_expiry_reminders`); `VersionReview*` (the entry table, its routes and `VersionReviews.tsx`) is ported
   and reshaped as the ADR discussion (0.3.0): Covenant's open/outdated/closed review and its approvals are gone, a kind (comment/question/issue/escalation) and a state (open/answered/resolved) take their place.
 - **Toadie** (`~/Sources/toadie`): `tags/` tag categories and `infra/db/Locking.kt` (`lockingTransaction`) are ported (0.4.0, without the Backstage entity kinds; the tags became rows instead of a JSON array); `lenses/` saved filters are ported (0.5.0, V16: the typed filter document replaces Toadie's catalog slots, and an ADMIN may delete a PUBLIC lens).
 - **Lettuce** (`~/Sources/lettuce`): `infra/mail`, `infra/crypto`, `infra/paging` (through Flow); next: `MarkdownEditor`, sharing pickers.
@@ -113,6 +114,10 @@ Left in Flow on purpose: `ingest/`, `fetch/`, `jira/`, `gitlab/`, `norm/`, `iden
 `infra/outbound/` (the SSRF guard — port it with the first server-initiated call other than SMTP), `plugins/Role.kt`, `EncryptedAtRest`/`Reencrypt`.
 
 ## Release history
+
+### v0.6.0 — notify (2026-11-21)
+
+Server (`notifications/`, `adrs/AdrNotices.kt`, migrations V17-V18): `/api/v1/notifications` (the caller's own notices, newest first, `seen` filter, `total` capped at 1000, `POST .../{id}/seen`, `POST .../seen-all`) and `GET`/`PUT /api/v1/users/{id}/notification-preferences` (a bell and an email switch per kind), on the new per-user `read-state` bucket. Ten kinds of notice (a role given or taken away, a status change, a comment/question/issue/escalation, an answer or resolution, an expiry, a supersede, a successor linked or detached, an expiry reminder), each made INSIDE the ADR write that caused it from its history event, never for the actor. Adder's email digest in each recipient's language through the existing mailer, the retention sweep, and the expiry reminder (`adrs.expiry.reminderDays`, once per ADR per expiry date, V18). Web: the header bell with the unseen count and a drawer, and the Notification preferences page. E2E: `notifications`.
 
 ### v0.5.0 — find (2026-11-21)
 

@@ -178,7 +178,7 @@ Rendering & UI wiring:
 When a feature needs one of these, port the sibling's `web/` implementation and its
 `web/CLAUDE.md` section wholesale:
 
-- **Lettuce's chat-shaped pieces** (`~/Sources/lettuce/web/src/components/`): `EmojiPicker`/`EmojiButton`/`EmojiTextarea`, `NotificationsButton` (0.6 mentions), and
+- **Lettuce's chat-shaped pieces** (`~/Sources/lettuce/web/src/components/`): `EmojiPicker`/`EmojiButton`/`EmojiTextarea`, and
   `safeBackParam` (the open-redirect guard for any future `?back=` param), `StatusPill`/`MetaStrip`/`FormFooter`/`ListToolbar`, and `useDiscardGuard` + `DiscardGuard` for
   dirty-form navigation (its in-app half is the data router's `useBlocker`, which the plain `BrowserRouter` does not have; only the `beforeunload` half,
   `hooks/useBeforeUnloadGuard.ts`, was ported in Flow — port it again with the first dirty-form page that needs it — the ADR editor (0.2.0) does not guard a dirty leave yet).

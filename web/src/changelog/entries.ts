@@ -17,6 +17,24 @@ interface ChangelogEntry {
 
 export const CHANGELOG: readonly ChangelogEntry[] = [
   {
+    version: "0.6.0",
+    date: "2026-11-21",
+    en: `**Hammurabi 0.6.0: notify.**
+
+- The bell in the header shows how many notifications you have not seen. Open it to read them, click one to go to its ADR (it is marked as seen), or mark them all as seen.
+- You are told when you are given a role on an ADR or lose it, when an ADR you take part in changes status, expires or is superseded, and when a successor is linked to or detached from your ADR.
+- Drivers and Approvers are told about new comments, questions, issues and escalations on their ADRs (Contributors too for comments and questions); the author hears when a question is answered or an issue resolved. You never get a notification for your own actions.
+- Drivers and Approvers get a reminder two weeks before an active ADR expires, once for each expiry date.
+- Notifications you have not seen after a few minutes are mailed to you in one digest, in your language. The new Notification preferences page, in the account menu, switches each kind off for the bell and for email separately.`,
+    pl: `**Hammurabi 0.6.0: powiadomienia.**
+
+- Dzwonek w nagłówku pokazuje, ile powiadomień jeszcze nie widziałeś/aś. Otwórz go, aby je przeczytać, kliknij powiadomienie, aby przejść do jego ADR-a (zostanie oznaczone jako przeczytane), albo oznacz wszystkie jako przeczytane.
+- Dostajesz powiadomienie, gdy przypisano Ci rolę w ADR-ze lub ją utraciłeś/aś, gdy ADR, w którym uczestniczysz, zmienia status, wygasa lub zostaje zastąpiony, oraz gdy do Twojego ADR-a podłączono lub od niego odłączono następcę.
+- Prowadzący/a i Zatwierdzający/a dostają powiadomienia o nowych komentarzach, pytaniach, zgłoszeniach i eskalacjach w swoich ADR-ach (Współtwórcy/czynie także o komentarzach i pytaniach); autor/ka dowiaduje się, gdy odpowiedziano na pytanie lub rozwiązano zgłoszenie. Nigdy nie dostajesz powiadomienia o własnych działaniach.
+- Prowadzący/a i Zatwierdzający/a dostają przypomnienie na dwa tygodnie przed wygaśnięciem obowiązującego ADR-a, raz dla każdej daty wygaśnięcia.
+- Powiadomienia, których nie przeczytasz w ciągu kilku minut, przychodzą e-mailem w jednym podsumowaniu, w Twoim języku. Nowa strona Preferencje powiadomień, w menu konta, wyłącza każdy rodzaj osobno dla dzwonka i dla e-maila.`,
+  },
+  {
     version: "0.5.0",
     date: "2026-11-21",
     en: `**Hammurabi 0.5.0: find.**

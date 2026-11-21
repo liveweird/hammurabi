@@ -7,9 +7,9 @@ the decision, the alternatives considered and the accepted consequences; every c
 they are active (comments and questions) and challenged after (issues and escalations). The name is Hammurabi of Babylon, whose stele carried one of the oldest written codes:
 decisions written down so that they bind and can be looked up.
 
-## What's here today (0.5.0 — find)
+## What's here today (0.6.0 — notify)
 
-Hammurabi's repository started as an exact copy of [Flow](https://github.com/liveweird/flow) (1.57.1, `4e43e480`), trimmed to its generic foundation (0.1.0); 0.2.0 built the ADR core on it, 0.3.0 added the discussion, 0.4.0 the tags and successors and 0.5.0 the search:
+Hammurabi's repository started as an exact copy of [Flow](https://github.com/liveweird/flow) (1.57.1, `4e43e480`), trimmed to its generic foundation (0.1.0); 0.2.0 built the ADR core on it, 0.3.0 added the discussion, 0.4.0 the tags and successors, 0.5.0 the search and 0.6.0 the notifications:
 
 - **ADRs** (`/api/v1/adrs`; the list, create and detail pages): a gapless `ADR-0001` key, a name, the problem, context, decision, alternatives and consequences in Markdown, an expiry date, and the
   lifecycle `PROBLEM_RAISED` → `SOLUTION_DRAFT` → `IN_REVIEW` → `ACTIVE` (or `CANCELLED`, `WITHDRAWN`, and `EXPIRED` by a daily sweep). **DACI** decides who may do what — one Driver, one
@@ -22,6 +22,10 @@ Hammurabi's repository started as an exact copy of [Flow](https://github.com/liv
 - **Find** (`GET /api/v1/adrs`, `/api/v1/lenses`; the search box, the Filters panel and the lens picker of the ADR list): **full-text search** over the name, problem, context, decision, alternatives and
   consequences (accent- and case-insensitive, ranked by where the words occur, with highlighted snippets), next to filters for status, tags, participants and roles, created and updated date
   ranges, expiry, open issues and successor links; the whole filtered view lives in the URL, so it is a shareable link. **Lenses** save a combination of filters under a name, private or shared with everyone.
+- **Notify** (`/api/v1/notifications`; the bell in the header and the Notification preferences page): being given or losing a DACI role, a status change, a comment, question, issue or escalation, an
+  answer or resolution, an expiry or a supersede, a successor linked or detached, and an **expiry reminder** (`ADRS_EXPIRY_REMINDER_DAYS`, 14 by default, `0` off) reach the people it concerns, never
+  the person who caused it. Every notice is made in the same transaction as the change; an **email digest** (`NOTIFICATIONS_EMAIL_*`) in the recipient's language follows what stays unseen, through
+  the configured mailer, and each kind can be switched off for the bell and for email.
 
 - **Sign-in** with a JWT access/refresh pair, a server-side revocation blocklist, per-account lockout and per-IP rate limits; opt-in **email MFA**; **self-service password reset** by an
   emailed single-use link.
@@ -33,7 +37,7 @@ Hammurabi's repository started as an exact copy of [Flow](https://github.com/liv
 
 ## Roadmap
 
-0.2.0 ADR core (ids, lifecycle, DACI, history, expiry) · 0.3.0 discussion (comments, questions, issues, escalations) · 0.4.0 tags and successors · 0.5.0 find (full-text search, the remaining filters, URL-synced filters, saved lenses) · 0.6.0 notify · extras · 1.0.0 checkup.
+0.2.0 ADR core (ids, lifecycle, DACI, history, expiry) · 0.3.0 discussion (comments, questions, issues, escalations) · 0.4.0 tags and successors · 0.5.0 find (full-text search, the remaining filters, URL-synced filters, saved lenses) · 0.6.0 notify (the bell, email digest, preferences, expiry reminders) · extras · 1.0.0 checkup.
 The scope of each version and the decisions behind it: `.claude/docs/product.md`; the domain model: `.claude/docs/adr-model.md`; open items: `BACKLOG.md`. `CLAUDE.md`'s "Product" and
 "Donors" sections say which sibling project each capability ports from.
 

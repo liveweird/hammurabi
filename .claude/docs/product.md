@@ -90,7 +90,7 @@ stele of the Code of Hammurabi on a lapis disc — the sun disc of Shamash crown
 
 ## Roadmap
 
-Each increment is built and gated on its own. **Current version: 1.2.1** (safety net, tidied; the release commit bumps `APP_VERSION`).
+Each increment is built and gated on its own. **Current version: 1.2.2** (safer ADR edits).
 
 | Ver | Scope |
 |---|---|
@@ -130,6 +130,13 @@ Left in Flow on purpose: `ingest/`, `fetch/`, `jira/`, `gitlab/`, `norm/`, `iden
 `infra/outbound/` (the SSRF guard — port it with the first server-initiated call other than SMTP), `plugins/Role.kt`, `EncryptedAtRest`/`Reencrypt`.
 
 ## Release history
+
+### v1.2.2 — safer ADR edits (2026-11-21)
+
+Withdrawal, expiry and successor actions use the revision or target the user saw. V22 gives discussion entries their own revision.
+The web app sends the new preconditions, and existing v1 callers may omit them. Draft guards protect ADR and discussion forms.
+ADR pages, export plans and notification lists read a consistent snapshot. Tag validation, digest capacity and demo stack targeting
+match their documented behavior. The V22 backup and restore drill covers a populated upgrade. See `audit-status.md` for the review fixes.
 
 ### v1.2.1 — tidy-up (2026-11-21)
 

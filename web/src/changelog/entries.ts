@@ -17,6 +17,22 @@ interface ChangelogEntry {
 
 export const CHANGELOG: readonly ChangelogEntry[] = [
   {
+    version: "1.2.2",
+    date: "2026-11-21",
+    en: `**Hammurabi 1.2.2 — safer ADR edits.**
+
+- Withdrawal and successor confirmations act on the ADR revision or link you saw. When someone changes an expiry date or discussion entry while you are editing it, the app asks you to reload before saving.
+- The app asks before you leave an unsaved ADR or discussion draft. If editing closes while you are writing, you can still copy your text.
+- ADR list totals and ZIP export limits stay consistent when other people make changes. Tag filters validate names before counting distinct tags, and the email digest honors the configured limit.
+- For administrators, demo seeding checks that the browser endpoint and both containers belong to the same Compose stack. The backup and restore drill now tests upgrading existing discussion entries to their own revisions.`,
+    pl: `**Hammurabi 1.2.2 — bezpieczniejsza edycja ADR-ów.**
+
+- Potwierdzenie wycofania lub odłączenia następcy dotyczy wersji ADR-u albo powiązania widocznego w chwili otwarcia okna. Jeśli ktoś zmieni datę wygaśnięcia lub wpis w dyskusji w trakcie Twojej edycji, aplikacja poprosi o ponowne wczytanie przed zapisem.
+- Aplikacja pyta o potwierdzenie przed opuszczeniem niezapisanego szkicu ADR-u lub wpisu w dyskusji. Jeśli możliwość edycji skończy się w trakcie pisania, nadal możesz skopiować swój tekst.
+- Liczba wyników na liście ADR-ów i limit eksportu ZIP pozostają spójne, gdy inne osoby wprowadzają zmiany. Filtry sprawdzają nazwy tagów przed zliczeniem unikatowych wartości, a zbiorcze e-maile uwzględniają ustawiony limit.
+- Dla administratorów/ek: skrypt danych przykładowych sprawdza, czy adres aplikacji i oba kontenery należą do tego samego projektu Compose. Próba kopii zapasowej i odtwarzania sprawdza teraz, czy po aktualizacji istniejące wpisy w dyskusji otrzymują własne wersje.`,
+  },
+  {
     version: "1.2.1",
     date: "2026-11-21",
     en: `**Hammurabi 1.2.1: tidy-up.**

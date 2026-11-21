@@ -222,7 +222,7 @@ class AdrSuccessorAcceptTest {
         val onSuccessor = cast.driver.client.adrEventsOldestFirst(next.id).last()
         assertEquals(AdrEventType.SUCCESSOR_ACCEPTED, onSuccessor.type)
         assertEquals(mapOf("predecessorId" to old.id.toString(), "key" to old.key, "name" to old.name), onSuccessor.params)
-        assertEquals(cast.admin.id, onSuccessor.userId)
+        assertEquals(cast.admin.id, onSuccessor.actorId)
         val onPredecessor = cast.driver.client.adrEventsOldestFirst(old.id).last()
         assertEquals(AdrEventType.SUCCESSOR_ACCEPTED, onPredecessor.type)
         assertEquals(mapOf("successorId" to next.id.toString(), "key" to next.key, "name" to next.name), onPredecessor.params)

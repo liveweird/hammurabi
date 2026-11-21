@@ -9,7 +9,7 @@ describe("lens filters", () => {
     expect(filtersFromParams(parse(""), 5)).toEqual({});
     expect(
       filtersFromParams(
-        parse("q=%20db%20&text=queue&status=ACTIVE&tag=data&mine=1&role=DRIVER&createdFrom=2026-01-01&updatedTo=2026-04-01&expiresBefore=2027-01-01&hasOpenIssues=false&supersedes=true"),
+        parse("q=%20db%20&text=queue&status=ACTIVE&tag=data&mine=1&participantRole=DRIVER&createdFrom=2026-01-01&updatedTo=2026-04-01&expiresBefore=2027-01-01&hasOpenIssues=false&hasPredecessor=true"),
         5,
       ),
     ).toEqual({
@@ -17,48 +17,48 @@ describe("lens filters", () => {
       text: "queue",
       status: ["ACTIVE"],
       tag: ["data"],
-      participant: 5,
-      role: "DRIVER",
+      participantId: 5,
+      participantRole: "DRIVER",
       createdFrom: "2026-01-01",
       updatedTo: "2026-04-01",
       expiresBefore: "2027-01-01",
       hasOpenIssues: false,
-      supersedes: true,
+      hasPredecessor: true,
     });
   });
 
   test("mine without a known user, and a role without a participant, are left out", () => {
-    expect(filtersFromParams(parse("mine=1&role=DRIVER"), null)).toEqual({});
-    expect(filtersFromParams(parse("participant=9&role=INFORMED"), 5)).toEqual({ participant: 9, role: "INFORMED" });
+    expect(filtersFromParams(parse("mine=1&participantRole=DRIVER"), null)).toEqual({});
+    expect(filtersFromParams(parse("participantId=9&participantRole=INFORMED"), 5)).toEqual({ participantId: 9, participantRole: "INFORMED" });
   });
 
   test("a lens replaces EVERY filter: what it lacks is reset", () => {
     expect(paramsFromFilters({}, 5)).toEqual(NO_ADR_FILTERS);
-    expect(paramsFromFilters({ status: ["ACTIVE", "ACTIVE", "NOPE" as never], supersedes: false, createdFrom: "2026-13-45", text: "a" }, 5)).toEqual({
+    expect(paramsFromFilters({ status: ["ACTIVE", "ACTIVE", "NOPE" as never], hasPredecessor: false, createdFrom: "2026-13-45", text: "a" }, 5)).toEqual({
       ...NO_ADR_FILTERS,
       status: ["ACTIVE"],
-      supersedes: false,
+      hasPredecessor: false,
     });
   });
 
   test("the lens's participant is 'mine' when it is the signed-in user, someone else's id otherwise", () => {
-    expect(paramsFromFilters({ participant: 5, role: "APPROVER" }, 5)).toMatchObject({ mine: true, participant: null, role: "APPROVER" });
-    expect(paramsFromFilters({ participant: 9, role: "APPROVER" }, 5)).toMatchObject({ mine: false, participant: 9, role: "APPROVER" });
-    expect(paramsFromFilters({ role: "APPROVER" }, 5)).toMatchObject({ role: null });
+    expect(paramsFromFilters({ participantId: 5, participantRole: "APPROVER" }, 5)).toMatchObject({ mine: true, participantId: null, participantRole: "APPROVER" });
+    expect(paramsFromFilters({ participantId: 9, participantRole: "APPROVER" }, 5)).toMatchObject({ mine: false, participantId: 9, participantRole: "APPROVER" });
+    expect(paramsFromFilters({ participantRole: "APPROVER" }, 5)).toMatchObject({ participantRole: null });
   });
 
   test("a lens round-trips through the URL filters", () => {
-    const filters = { q: "db", text: "queue", status: ["IN_REVIEW" as const], tag: ["data"], participant: 5, role: "DRIVER" as const, expiresBefore: "2027-01-01", hasOpenIssues: true };
+    const filters = { q: "db", text: "queue", status: ["IN_REVIEW" as const], tag: ["data"], participantId: 5, participantRole: "DRIVER" as const, expiresBefore: "2027-01-01", hasOpenIssues: true };
     expect(filtersFromParams(paramsFromFilters(filters, 5), 5)).toEqual(filters);
   });
 
   test("equality ignores the order of statuses and tags, blanks, and a role without a participant", () => {
     expect(sameFilters({ status: ["ACTIVE", "IN_REVIEW"], tag: ["b", "a"] }, { status: ["IN_REVIEW", "ACTIVE"], tag: ["a", "b"] })).toBe(true);
     expect(sameFilters({ q: "  db " }, { q: "db", tag: [], status: [] })).toBe(true);
-    expect(sameFilters({ role: "DRIVER" }, {})).toBe(true);
-    expect(sameFilters({ supersedes: false }, {})).toBe(false);
+    expect(sameFilters({ participantRole: "DRIVER" }, {})).toBe(true);
+    expect(sameFilters({ hasPredecessor: false }, {})).toBe(false);
     expect(sameFilters({ text: "queue" }, { text: "queues" })).toBe(false);
-    expect(sameFilters({ participant: 5, role: "DRIVER" }, { participant: 5 })).toBe(false);
+    expect(sameFilters({ participantId: 5, participantRole: "DRIVER" }, { participantId: 5 })).toBe(false);
   });
 
   test("an empty document filters on nothing", () => {

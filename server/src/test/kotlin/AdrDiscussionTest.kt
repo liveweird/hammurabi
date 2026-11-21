@@ -8,7 +8,7 @@ import ch.nokillswit.adrs.AdrPageResponse
 import ch.nokillswit.adrs.AdrStatus
 import ch.nokillswit.adrs.DiscussionEntryResponse
 import ch.nokillswit.adrs.DiscussionKind
-import ch.nokillswit.adrs.DiscussionStatus
+import ch.nokillswit.adrs.DiscussionState
 import ch.nokillswit.adrs.MAX_DISCUSSION_BODY_LENGTH
 import ch.nokillswit.adrs.MAX_DISCUSSION_RESOLUTION_LENGTH
 import ch.nokillswit.infra.ProblemTypes
@@ -58,8 +58,8 @@ class AdrDiscussionTest {
             val adr = cast.raise(complete = true)
             forceAdrStatus(adr.id, status)
             val comment = cast.stranger.client.postEntryOk(adr.id, DiscussionKind.COMMENT, "Looks fine in $status")
-            assertEquals(null, comment.status, "a comment has no state")
-            assertEquals(DiscussionStatus.OPEN, cast.stranger.client.postEntryOk(adr.id, DiscussionKind.QUESTION).status)
+            assertEquals(null, comment.state, "a comment has no state")
+            assertEquals(DiscussionState.OPEN, cast.stranger.client.postEntryOk(adr.id, DiscussionKind.QUESTION).state)
             for (kind in listOf(DiscussionKind.ISSUE, DiscussionKind.ESCALATION)) {
                 val refused = cast.stranger.client.postEntry(adr.id, kind)
                 assertEquals(HttpStatusCode.Conflict, refused.status, "$kind in $status")
@@ -78,8 +78,8 @@ class AdrDiscussionTest {
         val adr = cast.raise(complete = true)
         cast.activate(adr)
         val issue = cast.stranger.client.postEntryOk(adr.id, DiscussionKind.ISSUE)
-        assertEquals(DiscussionStatus.OPEN, issue.status)
-        assertEquals(DiscussionStatus.OPEN, cast.stranger.client.postEntryOk(adr.id, DiscussionKind.ESCALATION).status)
+        assertEquals(DiscussionState.OPEN, issue.state)
+        assertEquals(DiscussionState.OPEN, cast.stranger.client.postEntryOk(adr.id, DiscussionKind.ESCALATION).state)
         for (kind in listOf(DiscussionKind.COMMENT, DiscussionKind.QUESTION)) {
             val refused = cast.stranger.client.postEntry(adr.id, kind)
             assertEquals(HttpStatusCode.Conflict, refused.status, "$kind while ACTIVE")
@@ -144,7 +144,7 @@ class AdrDiscussionTest {
             assertEquals(HttpStatusCode.Conflict, cast.stranger.client.editEntry(adr.id, question.id, "Edited late").status)
             val seen = cast.driver.client.entry(adr.id, question.id)
             assertTrue(seen.canChangeState && !seen.canEdit)
-            assertEquals(HttpStatusCode.OK, cast.driver.client.setEntryState(adr.id, question.id, DiscussionStatus.ANSWERED).status)
+            assertEquals(HttpStatusCode.OK, cast.driver.client.setEntryState(adr.id, question.id, DiscussionState.ANSWERED).status)
             assertEquals(0, cast.informed.client.getAdr(adr.id).unansweredQuestionCount)
 
             val expired = cast.stranger.client.postEntryOk(adr.id, DiscussionKind.ISSUE, "Raised while active")
@@ -160,13 +160,13 @@ class AdrDiscussionTest {
             assertEquals(AdrStatus.EXPIRED, cast.informed.client.getAdr(adr.id).status)
             assertEquals(2, cast.informed.client.getAdr(adr.id).openIssueCount, "the open issues keep counting once expired")
             assertTrue(cast.informed.client.entry(adr.id, expired.id).canChangeState.not(), "the informed still cannot")
-            val resolved = cast.approver.client.setEntryState(adr.id, expired.id, DiscussionStatus.RESOLVED, "Moot: the decision expired")
+            val resolved = cast.approver.client.setEntryState(adr.id, expired.id, DiscussionState.RESOLVED, "Moot: the decision expired")
             assertEquals(HttpStatusCode.OK, resolved.status)
             assertEquals(1, cast.informed.client.getAdr(adr.id).openIssueCount)
             // The same after a supersede (forced: the successor link arrives with 0.4.0), reopen included.
             forceAdrStatus(adr.id, AdrStatus.SUPERSEDED)
-            assertEquals(HttpStatusCode.OK, cast.driver.client.setEntryState(adr.id, superseded.id, DiscussionStatus.RESOLVED).status)
-            assertEquals(HttpStatusCode.OK, cast.driver.client.setEntryState(adr.id, expired.id, DiscussionStatus.OPEN).status)
+            assertEquals(HttpStatusCode.OK, cast.driver.client.setEntryState(adr.id, superseded.id, DiscussionState.RESOLVED).status)
+            assertEquals(HttpStatusCode.OK, cast.driver.client.setEntryState(adr.id, expired.id, DiscussionState.OPEN).status)
             assertEquals(1, cast.informed.client.getAdr(adr.id).openIssueCount)
             // Posting and editing stay closed in a terminal status.
             assertEquals(HttpStatusCode.Conflict, cast.stranger.client.postEntry(adr.id, DiscussionKind.ISSUE).status)
@@ -174,26 +174,26 @@ class AdrDiscussionTest {
         }
 
     @Test
-    fun `the list filters by kind, any-of, and by status, and answers 400 for a bad value`() = testApplication {
+    fun `the list filters by kind, any-of, and by state, and answers 400 for a bad value`() = testApplication {
         usePostgresTestcontainer()
         val cast = adrCast()
         val adr = cast.raise(complete = true)
         val comment = cast.stranger.client.postEntryOk(adr.id, DiscussionKind.COMMENT)
         val open = cast.stranger.client.postEntryOk(adr.id, DiscussionKind.QUESTION)
         val answered = cast.stranger.client.postEntryOk(adr.id, DiscussionKind.QUESTION)
-        assertEquals(HttpStatusCode.OK, cast.driver.client.setEntryState(adr.id, answered.id, DiscussionStatus.ANSWERED).status)
+        assertEquals(HttpStatusCode.OK, cast.driver.client.setEntryState(adr.id, answered.id, DiscussionState.ANSWERED).status)
         val client = cast.informed.client
         val both = client.discussion(adr.id, "?kind=COMMENT&kind=QUESTION")
         assertEquals(setOf(comment.id, open.id, answered.id), both.items.map { it.id }.toSet())
         assertEquals(listOf(comment.id), client.discussion(adr.id, "?kind=COMMENT").items.map { it.id })
-        assertEquals(listOf(open.id), client.discussion(adr.id, "?status=OPEN").items.map { it.id })
-        assertEquals(listOf(answered.id), client.discussion(adr.id, "?status=ANSWERED&kind=QUESTION").items.map { it.id })
-        assertEquals(0, client.discussion(adr.id, "?status=RESOLVED").total)
+        assertEquals(listOf(open.id), client.discussion(adr.id, "?state=OPEN").items.map { it.id })
+        assertEquals(listOf(answered.id), client.discussion(adr.id, "?state=ANSWERED&kind=QUESTION").items.map { it.id })
+        assertEquals(0, client.discussion(adr.id, "?state=RESOLVED").total)
         assertEquals(2, client.discussion(adr.id, "?pageSize=2").items.size)
         assertEquals(3, client.discussion(adr.id, "?pageSize=2").total)
         assertEquals(listOf(answered.id), client.discussion(adr.id, "?pageSize=2&page=2").items.map { it.id })
         val tooManyKinds = "?kind=COMMENT&kind=QUESTION&kind=ISSUE&kind=ESCALATION&kind=X"
-        for (bad in listOf("?kind=NOPE", "?status=NOPE", tooManyKinds, "?status=OPEN&status=ANSWERED", "?sort=body")) {
+        for (bad in listOf("?kind=NOPE", "?state=NOPE", tooManyKinds, "?state=OPEN&state=ANSWERED", "?sort=body")) {
             assertEquals(HttpStatusCode.BadRequest, client.get("/api/v1/adrs/${adr.id}/discussion$bad").status, bad)
         }
     }
@@ -232,17 +232,17 @@ class AdrDiscussionTest {
         val tombstone = cast.informed.client.discussion(adr.id).items.single()
         assertTrue(tombstone.deleted)
         assertNull(tombstone.body)
-        assertNull(tombstone.status, "a tombstone is in no state")
+        assertNull(tombstone.state, "a tombstone is in no state")
         assertEquals(DiscussionKind.QUESTION, tombstone.kind)
-        assertEquals(secret.author, tombstone.author)
+        assertEquals(secret.authorId, tombstone.authorId)
         assertEquals(secret.createdAt, tombstone.createdAt)
         assertFalse(tombstone.canEdit || tombstone.canDelete || tombstone.canChangeState)
         assertEquals("", rawEntry(secret.id).body, "the text is wiped from the store too")
         assertEquals(before, cast.driver.client.adrEvents(adr.id).total, "a delete is audit-only, not a history event")
-        assertEquals(0, cast.informed.client.discussion(adr.id, "?status=OPEN").total, "no status filter matches a tombstone")
+        assertEquals(0, cast.informed.client.discussion(adr.id, "?state=OPEN").total, "no state filter matches a tombstone")
         assertEquals(HttpStatusCode.NotFound, cast.contributor.client.delete("/api/v1/adrs/${adr.id}/discussion/${secret.id}").status)
         assertEquals(HttpStatusCode.NotFound, cast.contributor.client.editEntry(adr.id, secret.id, "Back").status)
-        assertEquals(HttpStatusCode.NotFound, cast.driver.client.setEntryState(adr.id, secret.id, DiscussionStatus.ANSWERED).status)
+        assertEquals(HttpStatusCode.NotFound, cast.driver.client.setEntryState(adr.id, secret.id, DiscussionState.ANSWERED).status)
         assertTrue(cast.informed.client.entry(adr.id, secret.id).deleted, "the tombstone still reads")
     }
 
@@ -252,22 +252,22 @@ class AdrDiscussionTest {
         val cast = adrCast()
         val adr = cast.raise(complete = true)
         val question = cast.stranger.client.postEntryOk(adr.id, DiscussionKind.QUESTION, "Why Postgres?")
-        val answered = cast.driver.client.setEntryState(adr.id, question.id, DiscussionStatus.ANSWERED)
+        val answered = cast.driver.client.setEntryState(adr.id, question.id, DiscussionState.ANSWERED)
         assertEquals(HttpStatusCode.OK, answered.status)
         val entry = answered.body<DiscussionEntryResponse>()
-        assertEquals(DiscussionStatus.ANSWERED, entry.status)
-        assertEquals(cast.driver.id, entry.stateChangedBy?.id)
+        assertEquals(DiscussionState.ANSWERED, entry.state)
+        assertEquals(cast.driver.id, entry.stateChangedById)
         assertNotNull(entry.stateChangedAt)
         val total = cast.driver.client.adrEvents(adr.id).total
-        assertEquals(HttpStatusCode.OK, cast.driver.client.setEntryState(adr.id, question.id, DiscussionStatus.ANSWERED).status)
+        assertEquals(HttpStatusCode.OK, cast.driver.client.setEntryState(adr.id, question.id, DiscussionState.ANSWERED).status)
         assertEquals(total, cast.driver.client.adrEvents(adr.id).total, "answering an answered question records nothing")
-        val reopened = cast.stranger.client.setEntryState(adr.id, question.id, DiscussionStatus.OPEN)
-        assertEquals(DiscussionStatus.OPEN, reopened.body<DiscussionEntryResponse>().status, "its author may reopen it")
+        val reopened = cast.stranger.client.setEntryState(adr.id, question.id, DiscussionState.OPEN)
+        assertEquals(DiscussionState.OPEN, reopened.body<DiscussionEntryResponse>().state, "its author may reopen it")
         val events = cast.driver.client.adrEventsOldestFirst(adr.id).filter { it.params["entryId"] == question.id.toString() }
         val expected = listOf(AdrEventType.QUESTION_ASKED, AdrEventType.QUESTION_ANSWERED, AdrEventType.QUESTION_REOPENED)
         assertEquals(expected, events.map { it.type })
         assertEquals(mapOf("entryId" to question.id.toString(), "kind" to "QUESTION"), events[1].params)
-        assertEquals(listOf(cast.stranger.id, cast.driver.id, cast.stranger.id), events.map { it.userId })
+        assertEquals(listOf(cast.stranger.id, cast.driver.id, cast.stranger.id), events.map { it.actorId })
     }
 
     @Test
@@ -279,20 +279,20 @@ class AdrDiscussionTest {
         val issue = cast.stranger.client.postEntryOk(adr.id, DiscussionKind.ISSUE, "It does not scale")
         val escalation = cast.stranger.client.postEntryOk(adr.id, DiscussionKind.ESCALATION, "Production is down")
         assertEquals(2, cast.informed.client.getAdr(adr.id).openIssueCount)
-        val resolved = cast.approver.client.setEntryState(adr.id, issue.id, DiscussionStatus.RESOLVED, "Sharded in 2.1 \r\n")
+        val resolved = cast.approver.client.setEntryState(adr.id, issue.id, DiscussionState.RESOLVED, "Sharded in 2.1 \r\n")
         assertEquals(HttpStatusCode.OK, resolved.status)
         val entry = resolved.body<DiscussionEntryResponse>()
-        assertEquals(DiscussionStatus.RESOLVED, entry.status)
+        assertEquals(DiscussionState.RESOLVED, entry.state)
         assertEquals("Sharded in 2.1", entry.resolution)
-        assertEquals(cast.approver.id, entry.stateChangedBy?.id)
+        assertEquals(cast.approver.id, entry.stateChangedById)
         assertEquals(1, cast.informed.client.getAdr(adr.id).openIssueCount)
-        val resolvedList = cast.informed.client.discussion(adr.id, "?status=RESOLVED").items
+        val resolvedList = cast.informed.client.discussion(adr.id, "?state=RESOLVED").items
         assertEquals(listOf(issue.id), resolvedList.map { it.id })
-        val reopened = cast.driver.client.setEntryState(adr.id, issue.id, DiscussionStatus.OPEN).body<DiscussionEntryResponse>()
-        assertEquals(DiscussionStatus.OPEN, reopened.status)
+        val reopened = cast.driver.client.setEntryState(adr.id, issue.id, DiscussionState.OPEN).body<DiscussionEntryResponse>()
+        assertEquals(DiscussionState.OPEN, reopened.state)
         assertNull(reopened.resolution, "a reopen clears the note")
         assertEquals(2, cast.informed.client.getAdr(adr.id).openIssueCount)
-        assertEquals(HttpStatusCode.OK, cast.admin.client.setEntryState(adr.id, escalation.id, DiscussionStatus.RESOLVED).status)
+        assertEquals(HttpStatusCode.OK, cast.admin.client.setEntryState(adr.id, escalation.id, DiscussionState.RESOLVED).status)
         val events = cast.driver.client.adrEventsOldestFirst(adr.id).filter { "entryId" in it.params }
         assertEquals(
             listOf(
@@ -311,20 +311,20 @@ class AdrDiscussionTest {
         val adr = cast.raise(complete = true)
         val comment = cast.stranger.client.postEntryOk(adr.id, DiscussionKind.COMMENT)
         val question = cast.stranger.client.postEntryOk(adr.id, DiscussionKind.QUESTION)
-        assertEquals(HttpStatusCode.BadRequest, cast.driver.client.setEntryState(adr.id, comment.id, DiscussionStatus.OPEN).status)
-        assertEquals(HttpStatusCode.BadRequest, cast.driver.client.setEntryState(adr.id, question.id, DiscussionStatus.RESOLVED).status)
+        assertEquals(HttpStatusCode.BadRequest, cast.driver.client.setEntryState(adr.id, comment.id, DiscussionState.OPEN).status)
+        assertEquals(HttpStatusCode.BadRequest, cast.driver.client.setEntryState(adr.id, question.id, DiscussionState.RESOLVED).status)
         val longNote = "x".repeat(MAX_DISCUSSION_RESOLUTION_LENGTH + 1)
         val driver = cast.driver.client
-        assertEquals(HttpStatusCode.BadRequest, driver.setEntryState(adr.id, question.id, DiscussionStatus.ANSWERED, longNote).status)
-        assertEquals(HttpStatusCode.BadRequest, driver.setEntryState(adr.id, question.id, DiscussionStatus.OPEN, "a note").status)
+        assertEquals(HttpStatusCode.BadRequest, driver.setEntryState(adr.id, question.id, DiscussionState.ANSWERED, longNote).status)
+        assertEquals(HttpStatusCode.BadRequest, driver.setEntryState(adr.id, question.id, DiscussionState.OPEN, "a note").status)
         cast.activate(adr)
         val issue = cast.stranger.client.postEntryOk(adr.id, DiscussionKind.ISSUE)
-        assertEquals(HttpStatusCode.BadRequest, cast.driver.client.setEntryState(adr.id, issue.id, DiscussionStatus.ANSWERED).status)
+        assertEquals(HttpStatusCode.BadRequest, cast.driver.client.setEntryState(adr.id, issue.id, DiscussionState.ANSWERED).status)
         // The state is not windowed: the question is still answered by the Driver now that the ADR is ACTIVE.
-        assertEquals(HttpStatusCode.OK, cast.driver.client.setEntryState(adr.id, question.id, DiscussionStatus.ANSWERED).status)
+        assertEquals(HttpStatusCode.OK, cast.driver.client.setEntryState(adr.id, question.id, DiscussionState.ANSWERED).status)
         val unknown = cast.driver.client.put("/api/v1/adrs/${adr.id}/discussion/${issue.id}/state") {
             contentType(ContentType.Application.Json)
-            setBody("""{"status":"WHATEVER"}""")
+            setBody("""{"state":"WHATEVER"}""")
         }
         assertEquals(HttpStatusCode.BadRequest, unknown.status)
     }
@@ -339,7 +339,7 @@ class AdrDiscussionTest {
         val settled = cast.stranger.client.postEntryOk(busy.id, DiscussionKind.QUESTION)
         val gone = cast.stranger.client.postEntryOk(busy.id, DiscussionKind.QUESTION)
         cast.stranger.client.postEntryOk(busy.id, DiscussionKind.COMMENT)
-        cast.driver.client.setEntryState(busy.id, settled.id, DiscussionStatus.ANSWERED)
+        cast.driver.client.setEntryState(busy.id, settled.id, DiscussionState.ANSWERED)
         cast.stranger.client.delete("/api/v1/adrs/${busy.id}/discussion/${gone.id}")
         val detail = cast.informed.client.getAdr(busy.id)
         assertEquals(1, detail.unansweredQuestionCount)
@@ -352,7 +352,7 @@ class AdrDiscussionTest {
         val rows = cast.informed.client.get("/api/v1/adrs?pageSize=100").body<AdrPageResponse>().items.associateBy { it.id }
         assertEquals(2, rows.getValue(busy.id).openIssueCount)
         assertEquals(0, rows.getValue(quiet.id).openIssueCount)
-        cast.driver.client.setEntryState(busy.id, issue.id, DiscussionStatus.RESOLVED)
+        cast.driver.client.setEntryState(busy.id, issue.id, DiscussionState.RESOLVED)
         assertEquals(1, cast.informed.client.getAdr(busy.id).openIssueCount)
         assertEquals(1, cast.informed.client.getAdr(busy.id).unansweredQuestionCount, "the question stays counted once active")
     }
@@ -403,7 +403,7 @@ class AdrDiscussionTest {
                 setBody(oversize)
             }.status,
         )
-        val smallOversize = """{"status":"ANSWERED","resolution":"""" + "x".repeat(MAX_SMALL_REQUEST_BODY_BYTES.toInt()) + "\"}"
+        val smallOversize = """{"state":"ANSWERED","resolution":"""" + "x".repeat(MAX_SMALL_REQUEST_BODY_BYTES.toInt()) + "\"}"
         assertEquals(
             HttpStatusCode.PayloadTooLarge,
             cast.driver.client.put("/api/v1/adrs/${adr.id}/discussion/${wide.id}/state") {
@@ -423,7 +423,7 @@ class AdrDiscussionTest {
         cast.activate(adr)
         val issue = cast.stranger.client.postEntryOk(adr.id, DiscussionKind.ISSUE, "It leaks")
         assertEquals(HttpStatusCode.OK, cast.stranger.client.editEntry(adr.id, issue.id, "It leaks badly").status)
-        assertEquals(HttpStatusCode.OK, cast.approver.client.setEntryState(adr.id, issue.id, DiscussionStatus.RESOLVED, "Patched").status)
+        assertEquals(HttpStatusCode.OK, cast.approver.client.setEntryState(adr.id, issue.id, DiscussionState.RESOLVED, "Patched").status)
         val live = rawEntry(issue.id)
         assertEquals("Patched", live.resolution)
         assertNotNull(live.editedAt)
@@ -432,10 +432,10 @@ class AdrDiscussionTest {
         val wire = cast.informed.client.entry(adr.id, issue.id)
         assertTrue(wire.deleted)
         assertNull(wire.body)
-        assertNull(wire.status)
+        assertNull(wire.state)
         assertNull(wire.resolution)
         assertNull(wire.editedAt)
-        assertNull(wire.stateChangedBy)
+        assertNull(wire.stateChangedById)
         assertNull(wire.stateChangedAt)
         val stored = rawEntry(issue.id)
         assertEquals(RawEntryWiped, stored.copy(deletedAt = null))
@@ -458,16 +458,16 @@ class AdrDiscussionTest {
         val adr = cast.raise(complete = true)
         cast.activate(adr)
         val issue = cast.stranger.client.postEntryOk(adr.id, DiscussionKind.ISSUE)
-        cast.driver.client.setEntryState(adr.id, issue.id, DiscussionStatus.RESOLVED, "First note")
+        cast.driver.client.setEntryState(adr.id, issue.id, DiscussionState.RESOLVED, "First note")
         val events = cast.driver.client.adrEvents(adr.id).total
-        val same = cast.driver.client.setEntryState(adr.id, issue.id, DiscussionStatus.RESOLVED, "First note")
-        assertEquals(cast.driver.id, same.body<DiscussionEntryResponse>().stateChangedBy?.id)
-        val better = cast.approver.client.setEntryState(adr.id, issue.id, DiscussionStatus.RESOLVED, "Better note")
+        val same = cast.driver.client.setEntryState(adr.id, issue.id, DiscussionState.RESOLVED, "First note")
+        assertEquals(cast.driver.id, same.body<DiscussionEntryResponse>().stateChangedById)
+        val better = cast.approver.client.setEntryState(adr.id, issue.id, DiscussionState.RESOLVED, "Better note")
         val replaced = better.body<DiscussionEntryResponse>()
         assertEquals("Better note", replaced.resolution)
-        assertEquals(DiscussionStatus.RESOLVED, replaced.status)
-        assertEquals(cast.approver.id, replaced.stateChangedBy?.id)
-        val cleared = cast.driver.client.setEntryState(adr.id, issue.id, DiscussionStatus.RESOLVED).body<DiscussionEntryResponse>()
+        assertEquals(DiscussionState.RESOLVED, replaced.state)
+        assertEquals(cast.approver.id, replaced.stateChangedById)
+        val cleared = cast.driver.client.setEntryState(adr.id, issue.id, DiscussionState.RESOLVED).body<DiscussionEntryResponse>()
         assertNull(cleared.resolution)
         assertEquals(events, cast.driver.client.adrEvents(adr.id).total, "a note change is not a history event")
     }
@@ -480,7 +480,7 @@ class AdrDiscussionTest {
         val before = cast.driver.client.getAdr(adr.id)
         val question = cast.stranger.client.postEntryOk(adr.id, DiscussionKind.QUESTION)
         assertEquals(HttpStatusCode.OK, cast.stranger.client.editEntry(adr.id, question.id, "Edited").status)
-        assertEquals(HttpStatusCode.OK, cast.driver.client.setEntryState(adr.id, question.id, DiscussionStatus.ANSWERED).status)
+        assertEquals(HttpStatusCode.OK, cast.driver.client.setEntryState(adr.id, question.id, DiscussionState.ANSWERED).status)
         assertEquals(HttpStatusCode.NoContent, cast.stranger.client.delete("/api/v1/adrs/${adr.id}/discussion/${question.id}").status)
         val after = cast.driver.client.getAdr(adr.id)
         assertEquals(before.revision, after.revision)
@@ -504,7 +504,7 @@ class AdrDiscussionTest {
         // The entry exists, but under another ADR's path.
         assertEquals(HttpStatusCode.NotFound, client.get("/api/v1/adrs/${other.id}/discussion/${entry.id}").status)
         assertEquals(HttpStatusCode.NotFound, cast.stranger.client.editEntry(other.id, entry.id, "x").status)
-        assertEquals(HttpStatusCode.NotFound, client.setEntryState(other.id, entry.id, DiscussionStatus.OPEN).status)
+        assertEquals(HttpStatusCode.NotFound, client.setEntryState(other.id, entry.id, DiscussionState.OPEN).status)
         assertEquals(HttpStatusCode.NotFound, cast.stranger.client.delete("/api/v1/adrs/${other.id}/discussion/${entry.id}").status)
         assertEquals(HttpStatusCode.NoContent, cast.admin.client.delete("/api/v1/adrs/${adr.id}").status)
         assertEquals(HttpStatusCode.NotFound, client.get("/api/v1/adrs/${adr.id}/discussion").status)
@@ -522,9 +522,9 @@ class AdrDiscussionTest {
         val entry = response.body<DiscussionEntryResponse>()
         assertEquals("/api/v1/adrs/${adr.id}/discussion/${entry.id}", response.headers[HttpHeaders.Location])
         assertEquals(adr.id, entry.adrId)
-        assertEquals(cast.contributor.id, entry.author.id)
-        assertEquals("Con", entry.author.name)
-        assertFalse(entry.author.deleted)
+        assertEquals(cast.contributor.id, entry.authorId)
+        assertEquals("Con", entry.authorName)
+        assertFalse(entry.authorDeleted)
         assertEquals("Does it work?", entry.body)
         assertTrue(entry.canEdit && entry.canDelete && entry.canChangeState, "the author of a question may do all three")
         assertEquals(entry, cast.contributor.client.entry(adr.id, entry.id))

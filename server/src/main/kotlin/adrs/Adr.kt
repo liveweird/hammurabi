@@ -116,7 +116,7 @@ data class AdrResponse(
     /** The optimistic-concurrency token: send it back as `X-Expected-Revision` on a document PUT or a transition. */
     val revision: Long,
     val createdAt: Long,
-    val createdBy: UInt,
+    val createdById: UInt,
     val updatedAt: Long,
     val statusChangedAt: Long,
     val participants: List<AdrParticipant>,
@@ -244,7 +244,7 @@ fun AdrView.toResponse(standing: AdrStanding, counts: DiscussionCounts): AdrResp
     expiresOn = record.expiresOn,
     revision = record.revision,
     createdAt = record.createdAt,
-    createdBy = record.createdBy,
+    createdById = record.createdBy,
     updatedAt = record.updatedAt,
     statusChangedAt = record.statusChangedAt,
     participants = participants,

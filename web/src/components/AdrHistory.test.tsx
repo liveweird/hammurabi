@@ -35,7 +35,7 @@ describe("AdrHistory", () => {
 
   test("a system event is attributed to the system", async () => {
     stubFetch(() =>
-      jsonResponse(200, { items: [eventFixture({ type: "EXPIRED", userId: null, userName: null, params: { expiresOn: "2026-12-31" } })], page: 1, pageSize: 10, total: 1 }),
+      jsonResponse(200, { items: [eventFixture({ type: "EXPIRED", actorId: null, actorName: null, params: { expiresOn: "2026-12-31" } })], page: 1, pageSize: 10, total: 1 }),
     );
     renderWithProviders(<AdrHistory adrId={9} />);
     expect(await screen.findByText("Expired: the expiry date 2026-12-31 has passed")).toBeInTheDocument();

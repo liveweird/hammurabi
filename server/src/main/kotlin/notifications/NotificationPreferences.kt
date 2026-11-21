@@ -21,16 +21,18 @@ import org.jetbrains.exposed.v1.r2dbc.transactions.suspendTransaction
 /**
  * The channels a notice can reach a person through, PERSISTED by name and frozen (`user_notification_preferences.channel` has no CHECK:
  * this enum is the whitelist, the V5 rule). `IN_APP` is the bell (a switched-off kind makes no notice for the person), `EMAIL` the digest
- * (a switched-off kind is never mailed; the bell is unchanged). A stored name this build does not know is dropped by every reader.
+ * (a switched-off kind is never mailed; the bell is unchanged). A stored name this build does not know is dropped by every reader. Not on
+ * the wire: the API speaks the two switches of a kind ([NotificationPreferenceKind]), the table stores the disabled pairs.
  */
-@Serializable
-enum class NotificationChannel { IN_APP, EMAIL }
+internal enum class NotificationChannel { IN_APP, EMAIL }
 
-/** One DISABLED `(kind, channel)` pair: the stored shape, and one element of the PUT body. */
-@Serializable
-data class DisabledNotificationPreference(val type: NotificationType, val channel: NotificationChannel)
+/** One DISABLED `(kind, channel)` pair: the stored shape (the wire carries [NotificationPreferenceKind]). */
+internal data class DisabledNotificationPreference(val type: NotificationType, val channel: NotificationChannel)
 
-/** One kind in `GET /users/{id}/notification-preferences`: whether its bell notice and its digest email are on for the person. */
+/**
+ * One kind, on the wire in BOTH directions: an element of `kinds` in the body of `GET /users/{id}/notification-preferences` and of its
+ * `PUT` (what you read is what you write): whether its bell notice and its digest email are on for the person.
+ */
 @Serializable
 data class NotificationPreferenceKind(val type: NotificationType, val inApp: Boolean, val email: Boolean)
 
@@ -38,23 +40,30 @@ data class NotificationPreferenceKind(val type: NotificationType, val inApp: Boo
 @Serializable
 data class NotificationPreferencesResponse(val emailAvailable: Boolean, val kinds: List<NotificationPreferenceKind>)
 
-/** Body of `PUT /users/{id}/notification-preferences`: a wholesale replace of the person's disabled set. */
+/**
+ * Body of `PUT /users/{id}/notification-preferences`: a wholesale replace, in the shape the GET answers. A kind left out is ON (both of
+ * its switches), exactly as a kind with no stored row reads; the last write wins.
+ */
 @Serializable
-data class NotificationPreferencesUpdateRequest(val disabled: List<DisabledNotificationPreference>)
+data class NotificationPreferencesUpdateRequest(val kinds: List<NotificationPreferenceKind>)
 
-/** Every `(kind, channel)` pair there is: a longer list repeats one (and is refused as that). The spec's `maxItems` on the PUT body. */
-internal val MAX_DISABLED_PAIRS = NotificationType.entries.size * NotificationChannel.entries.size
+/** One entry per kind: a longer list repeats one (and is refused as that). The spec's `maxItems` on the PUT body. */
+internal val MAX_PREFERENCE_KINDS = NotificationType.entries.size
 
 /**
- * The PUT body's rules, run by the route AND the service: no pair twice (a longer list than there are pairs is a repeat by the pigeonhole
- * rule, checked first so an oversized body is refused before it is hashed). Answers the set; a violation is a `400`. An unknown kind or
- * channel never gets here: it fails to decode.
+ * The PUT body's rules, run by the route AND the service: no kind twice (a longer list than there are kinds is a repeat by the pigeonhole
+ * rule, checked first so an oversized body is refused before it is walked). Answers the DISABLED set (the switches that are off); a
+ * violation is a `400`. An unknown kind never gets here: it fails to decode.
  */
-internal fun validateNotificationPreferences(requested: List<DisabledNotificationPreference>): Set<DisabledNotificationPreference> {
-    if (requested.size > MAX_DISABLED_PAIRS) throw BadRequestException("A notification preference is listed more than once")
-    val wanted = requested.toSet()
-    if (wanted.size != requested.size) throw BadRequestException("A notification preference is listed more than once")
-    return wanted
+internal fun validateNotificationPreferences(requested: List<NotificationPreferenceKind>): Set<DisabledNotificationPreference> {
+    if (requested.size > MAX_PREFERENCE_KINDS) throw BadRequestException("A notification kind is listed more than once")
+    if (requested.map { it.type }.toSet().size != requested.size) throw BadRequestException("A notification kind is listed more than once")
+    return buildSet {
+        for (kind in requested) {
+            if (!kind.inApp) add(DisabledNotificationPreference(kind.type, NotificationChannel.IN_APP))
+            if (!kind.email) add(DisabledNotificationPreference(kind.type, NotificationChannel.EMAIL))
+        }
+    }
 }
 
 /** Every kind with its two switches, in enum order: a kind with no stored row is on. */
@@ -101,7 +110,7 @@ internal class NotificationPreferenceService(private val database: R2dbcDatabase
      * serialize (the second reads the first's committed set: last writer wins, and the audited `from` is true) instead of
      * interleaving into a union. A same-set PUT is a no-op replace.
      */
-    suspend fun replace(userId: UInt, requested: List<DisabledNotificationPreference>): Set<DisabledNotificationPreference>? {
+    suspend fun replace(userId: UInt, requested: List<NotificationPreferenceKind>): Set<DisabledNotificationPreference>? {
         val disabled = validateNotificationPreferences(requested)
         return suspendTransaction(database) {
             val users = UserService.Users

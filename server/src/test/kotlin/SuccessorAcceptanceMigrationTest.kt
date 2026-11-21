@@ -81,10 +81,11 @@ class SuccessorAcceptanceMigrationTest {
             execute(script, database)
             val before = release(database)
 
-            val migrated = flywayFor(database).migrate()
+            // Stopped at V19: later migrations (V20 rewrites lens documents) have their own populated-upgrade test.
+            val migrated = flywayFor(database, target = "19").migrate()
             assertTrue(migrated.success)
             assertEquals(1, migrated.migrationsExecuted, "exactly V19 ran on the populated database")
-            flywayFor(database).validate()
+            flywayFor(database, target = "19").validate()
 
             val accepted = query(
                 database,

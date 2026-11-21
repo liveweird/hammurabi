@@ -29,9 +29,9 @@ data class LensResponse(
     val name: String,
     val visibility: LensVisibility,
     val filters: AdrFilterDocument,
-    val createdBy: UInt,
-    val creatorName: String,
-    val creatorDeleted: Boolean,
+    val createdById: UInt,
+    val createdByName: String,
+    val createdByDeleted: Boolean,
     val createdAt: Long,
     val updatedAt: Long,
     /** The caller may rename it, flip its visibility and replace its filters (its creator). */

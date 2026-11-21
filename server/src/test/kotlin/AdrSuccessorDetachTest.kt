@@ -62,11 +62,11 @@ class AdrSuccessorDetachTest {
             val onSuccessor = squatter.client.adrEventsOldestFirst(parked.id).last()
             assertEquals(AdrEventType.SUCCESSOR_UNLINKED, onSuccessor.type)
             assertEquals(mapOf("predecessorId" to old.id.toString(), "key" to old.key, "name" to old.name), onSuccessor.params)
-            assertEquals(cast.driver.id, onSuccessor.userId, "the detaching owner is the actor")
+            assertEquals(cast.driver.id, onSuccessor.actorId, "the detaching owner is the actor")
             val onPredecessor = cast.driver.client.adrEventsOldestFirst(old.id).last()
             assertEquals(AdrEventType.SUCCESSOR_UNLINKED, onPredecessor.type)
             assertEquals(mapOf("successorId" to parked.id.toString(), "key" to parked.key, "name" to parked.name), onPredecessor.params)
-            assertEquals(cast.driver.id, onPredecessor.userId)
+            assertEquals(cast.driver.id, onPredecessor.actorId)
             // The squatter's editor, opened before the detach, is stale; the predecessor is free for an honest successor.
             val stale = squatter.client.setSupersedes(parked.id, old.id, revision = linked.revision)
             assertEquals(ProblemTypes.REVISION_CONFLICT, stale.body<ProblemDetail>().type)

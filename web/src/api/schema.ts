@@ -507,7 +507,7 @@ export interface paths {
         get: operations["getTeam"];
         /**
          * Rename / re-describe a team, set its manager
-         * @description ADMIN only, guard before the id lookup (uniform 403). A full replace: an omitted `managerUserId` clears the manager; a set one must be an active user (`400` otherwise). A case-insensitive name clash with another active team is `409`.
+         * @description ADMIN only, guard before the id lookup (uniform 403). A full replace: an omitted `managerId` clears the manager; a set one must be an active user (`400` otherwise). A case-insensitive name clash with another active team is `409`. No `X-Expected-Revision`: the last write wins (two admins saving the same team at once is not detected, the later PUT replaces the earlier).
          */
         put: operations["updateTeam"];
         post?: never;
@@ -610,15 +610,15 @@ export interface paths {
          *         plain-text segments - never markup). A search runs under a deadline (`search.timeoutSeconds`) and a process cap: `429` of type
          *         `urn:hammurabi:problem:search-timeout` or `urn:hammurabi:problem:search-busy`, both with `Retry-After`. `pageSize` is at most 20
          *         with `text`. The term is never logged.
-         *       - `participant` - a user id: the ADRs that user holds a role on; `role` narrows it to one DACI role (`400` without `participant`).
+         *       - `participantId` - a user id: the ADRs that user holds a role on; `participantRole` narrows it to one DACI role (`400` without `participantId`).
          *       - `tag` - repeatable, any-of (`tag=data&tag=security`), a tag name (normalised: trimmed and lower-cased), at most 20, duplicates collapsed.
          *         An unregistered name simply matches nothing (a retired tag still matches the ADRs that kept it).
          *       - `createdFrom` / `createdTo` and `updatedFrom` / `updatedTo` - inclusive UTC days (`YYYY-MM-DD`) on the creation and last-change
          *         times; a malformed or impossible date, or a `...From` after its `...To`, is `400`.
          *       - `expiresBefore` - a day (`YYYY-MM-DD`): the ADRs with an expiry date strictly before it (any status; an ADR with no expiry date never matches).
          *       - `hasOpenIssues` - `true` keeps the ADRs with an open issue or escalation (`openIssueCount > 0`), `false` the others.
-         *       - `supersedes` - `true` keeps the ADRs that replace another (a live predecessor), `false` the others.
-         *       - `supersededBy` - `true` keeps the ADRs that have a successor (pending, or the one that replaced them; never one cancelled or withdrawn before it activated), `false` the others.
+         *       - `hasPredecessor` - `true` keeps the ADRs that replace another (a live predecessor), `false` the others.
+         *       - `hasSuccessor` - `true` keeps the ADRs that have a successor (pending, or the one that replaced them; never one cancelled or withdrawn before it activated), `false` the others.
          *       A saved combination of these is a lens (`/lenses`): the lens's `filters` use exactly these names.
          */
         get: operations["listAdrs"];
@@ -649,8 +649,8 @@ export interface paths {
          * Export the matching ADRs as a ZIP of Markdown files
          * @description Any authenticated user (ADRs are an open decision log). A download, not a page: `application/zip` with one adr-tools Markdown file
          *     per matching ADR (`ADR-0042-use-postgresql.md`) and an `index.md` listing them in number order. It takes the list's FILTERS with the
-         *     same names and the same validation (`status`, `q`, `text`, `participant`, `role`, `tag`, the created/updated day ranges,
-         *     `expiresBefore`, `hasOpenIssues`, `supersedes`, `supersededBy`; every one an AND); `text` is allowed and runs under the search's deadline
+         *     same names and the same validation (`status`, `q`, `text`, `participantId`, `participantRole`, `tag`, the created/updated day ranges,
+         *     `expiresBefore`, `hasOpenIssues`, `hasPredecessor`, `hasSuccessor`; every one an AND); `text` is allowed and runs under the search's deadline
          *     and process cap like the list (`429`, `Retry-After`). It takes no `page`, `pageSize` or `sort` (the files are always in number order).
          *     A filter matching more than 500 ADRs (`adrs.export.maxAdrs`) is `400` - narrow it; nothing is truncated silently. At most
          *     `adrs.export.maxConcurrent` (2) bulk exports stream per process: the next is `429` `urn:hammurabi:problem:export-busy` with `Retry-After`. `HEAD` is `405`. No match is a `200` archive holding only
@@ -690,7 +690,7 @@ export interface paths {
          *     - `expiringSoon`: ACTIVE ADRs whose expiry date (the LAST day in force) is within `days` days of today (UTC), soonest first, at most
          *       20; a date already past that the sweep has not acted on is included (it leads). `days` is `adrs.overview.expiringSoonDays` (30).
          *     - `awaitingDecision`: ADRs IN_REVIEW, the longest-waiting first, at most 20, each with its Approver and `mine` (the caller IS the
-         *       Approver); `mineTotal` counts ALL the caller's, including any beyond the cap (the list filters `status=IN_REVIEW&participant=<me>&role=APPROVER` show them).
+         *       Approver); `mineTotal` counts ALL the caller's, including any beyond the cap (the list filters `status=IN_REVIEW&participantId=<me>&participantRole=APPROVER` show them).
          *
          *     Rows link to the ADR (`/adrs/{id}`); the sections' "more" links are the list's own filters (`status`, `tag`). No rate bucket (like
          *     `GET /adrs`: bounded, one call per page load); not audited (a read).
@@ -959,7 +959,7 @@ export interface paths {
         /**
          * An ADR's history
          * @description Any authenticated user. The immutable structural events of the ADR (`type` + string `params` the client renders in the viewer's
-         *     language), committed with the write they describe. A null `userId` is the system (the expiry sweep).
+         *     language), committed with the write they describe. A null `actorId` is the system (the expiry sweep).
          *
          *     - Sortable fields: `id`, `createdAt`. The default sort is `createdAt` descending, then `id` descending (newest first).
          */
@@ -1017,7 +1017,7 @@ export interface paths {
          *
          *     - Sortable fields: `id`, `createdAt`. The default sort is `createdAt` ascending (oldest first); `id` ascending is always appended.
          *     - Filters (optional, whitelisted): `kind` - repeatable, any-of (`kind=COMMENT&kind=QUESTION`), at most one per kind, an unknown value
-         *       is `400`; `status` - one state (`OPEN`, `ANSWERED`, `RESOLVED`; a comment and a tombstone have none, so no status matches them).
+         *       is `400`; `state` - one state (`OPEN`, `ANSWERED`, `RESOLVED`; a comment and a tombstone have none, so no state matches them).
          */
         get: operations["listAdrDiscussion"];
         put?: never;
@@ -1150,7 +1150,8 @@ export interface paths {
          * Replace a lens
          * @description Whole-lens replace (rename, flip the visibility and overwrite the filters are all this one PUT), by its CREATOR only. Disclosure
          *     and order: a missing, deleted or someone else's PRIVATE lens is `404`; someone else's PUBLIC lens is `403` (an ADMIN's too); only then
-         *     is the body judged (`400`), so `403`/`404` win over `400`. A name clash among the caller's own lenses is `409`.
+         *     is the body judged (`400`), so `403`/`404` win over `400`. A name clash among the caller's own lenses is `409`. No `X-Expected-Revision`: the last write wins (the same lens saved
+         *     from two tabs is not detected, the later PUT replaces the earlier).
          */
         put: operations["updateLens"];
         post?: never;
@@ -1253,10 +1254,11 @@ export interface paths {
          */
         get: operations["getNotificationPreferences"];
         /**
-         * Replace a user's disabled notification switches (target user or ADMIN)
-         * @description A **wholesale replace** of the person's DISABLED `(type, channel)` pairs - an empty array switches everything on (idempotent, a
-         *     same-set re-PUT is `204` again). Order: `403` (target user or ADMIN) first, then the body (`400`: an unknown type or channel, a pair
-         *     listed twice), then the target (`404`). Audited as `user.notification_preferences_changed` on an actual change. It changes what is
+         * Replace a user's notification switches (target user or ADMIN)
+         * @description A **wholesale replace** in the shape the GET answers: `kinds`, one `{type, inApp, email}` entry per kind. A kind left out is ON (both
+         *     switches), so an empty array switches everything on; the last write wins (no revision), and sending the GET's own `kinds` back changes
+         *     nothing (idempotent, a same-set re-PUT is `204` again). Order: `403` (target user or ADMIN) first, then the body (`400`: an unknown
+         *     type, a kind listed twice), then the target (`404`). Audited as `user.notification_preferences_changed` on an actual change. It changes what is
          *     made or mailed from then on and deletes nothing already made. Rides the per-user `read-state` bucket (`429`).
          */
         put: operations["setNotificationPreferences"];
@@ -1486,7 +1488,7 @@ export interface components {
              * Format: int32
              * @description The team's manager, a user; must be active (`400` otherwise).
              */
-            managerUserId?: number | null;
+            managerId?: number | null;
         };
         TeamUpdateRequest: {
             name: string;
@@ -1495,7 +1497,7 @@ export interface components {
              * Format: int32
              * @description The team's manager, a user; must be active (`400` otherwise). Omitted on PUT (a full replace) = no manager.
              */
-            managerUserId?: number | null;
+            managerId?: number | null;
         };
         TeamResponse: {
             /** Format: int32 */
@@ -1506,8 +1508,8 @@ export interface components {
              * Format: int32
              * @description The team's manager; null when unset or when the assigned user was soft-deleted.
              */
-            managerUserId: number | null;
-            /** @description The manager's display name; null with `managerUserId`. */
+            managerId: number | null;
+            /** @description The manager's display name; null with `managerId`. */
             managerName: string | null;
             /**
              * Format: int64
@@ -1529,8 +1531,8 @@ export interface components {
              * Format: int32
              * @description The team's manager; null when unset or when the assigned user was soft-deleted.
              */
-            managerUserId: number | null;
-            /** @description The manager's display name; null with `managerUserId`. */
+            managerId: number | null;
+            /** @description The manager's display name; null with `managerId`. */
             managerName: string | null;
             /** Format: int64 */
             createdAt: number;
@@ -1684,7 +1686,7 @@ export interface components {
              * Format: int32
              * @description The creating user (the first Driver).
              */
-            createdBy: number;
+            createdById: number;
             /**
              * Format: int64
              * @description Epoch millis
@@ -1917,11 +1919,11 @@ export interface components {
              * Format: int32
              * @description The acting user; null = the system.
              */
-            userId: number | null;
-            /** @description The actor's display name; null with `userId`. */
-            userName: string | null;
+            actorId: number | null;
+            /** @description The actor's display name; null with `actorId`. */
+            actorName: string | null;
             /** @description The acting account has since been soft-deleted (the name is still the one recorded). */
-            userDeleted: boolean;
+            actorDeleted: boolean;
             type: components["schemas"]["AdrEventType"];
             params: {
                 [key: string]: string;
@@ -1969,8 +1971,8 @@ export interface components {
             q?: string;
             text?: string;
             /** Format: int32 */
-            participant?: number;
-            role?: components["schemas"]["AdrRole"];
+            participantId?: number;
+            participantRole?: components["schemas"]["AdrRole"];
             tag?: string[];
             /** Format: date */
             createdFrom?: string;
@@ -1983,8 +1985,8 @@ export interface components {
             /** Format: date */
             expiresBefore?: string;
             hasOpenIssues?: boolean;
-            supersedes?: boolean;
-            supersededBy?: boolean;
+            hasPredecessor?: boolean;
+            hasSuccessor?: boolean;
         };
         LensRequest: {
             name: string;
@@ -1998,9 +2000,9 @@ export interface components {
             visibility: components["schemas"]["LensVisibility"];
             filters: components["schemas"]["AdrFilterDocument"];
             /** Format: int32 */
-            createdBy: number;
-            creatorName: string;
-            creatorDeleted: boolean;
+            createdById: number;
+            createdByName: string;
+            createdByDeleted: boolean;
             /** Format: int64 */
             createdAt: number;
             /** Format: int64 */
@@ -2015,11 +2017,6 @@ export interface components {
          * @enum {string}
          */
         NotificationType: "ROLE_ASSIGNED" | "ROLE_REMOVED" | "STATUS_CHANGED" | "DISCUSSION_POSTED" | "DISCUSSION_SETTLED" | "ADR_EXPIRED" | "ADR_SUPERSEDED" | "SUCCESSOR_LINKED" | "SUCCESSOR_UNLINKED" | "EXPIRY_REMINDER" | "EXPIRY_CHANGED" | "SUCCESSOR_ACCEPTED";
-        /**
-         * @description `IN_APP` is the bell, `EMAIL` the digest.
-         * @enum {string}
-         */
-        NotificationChannel: "IN_APP" | "EMAIL";
         Notification: {
             /** Format: int32 */
             id: number;
@@ -2062,21 +2059,21 @@ export interface components {
              */
             total: number;
         };
+        /** @description One kind and its two switches: an element of `kinds` in what the GET answers AND in what the PUT takes. */
         NotificationPreferenceKind: {
             type: components["schemas"]["NotificationType"];
+            /** @description The bell: false = no notice of this kind is made for the person from then on. */
             inApp: boolean;
+            /** @description The digest: false = a notice of this kind is never mailed; the bell is unchanged. */
             email: boolean;
         };
         NotificationPreferences: {
             emailAvailable: boolean;
             kinds: components["schemas"]["NotificationPreferenceKind"][];
         };
-        DisabledNotificationPreference: {
-            type: components["schemas"]["NotificationType"];
-            channel: components["schemas"]["NotificationChannel"];
-        };
         NotificationPreferencesUpdateRequest: {
-            disabled: components["schemas"]["DisabledNotificationPreference"][];
+            /** @description One entry per kind at most (the `kinds` of the GET, edited and sent back); a kind left out is on. */
+            kinds: components["schemas"]["NotificationPreferenceKind"][];
         };
         LensPage: {
             items: components["schemas"]["Lens"][];
@@ -2094,7 +2091,7 @@ export interface components {
          * @description A `QUESTION` is `OPEN` or `ANSWERED`; an `ISSUE` or `ESCALATION` is `OPEN` or `RESOLVED`. A `COMMENT` and a deleted entry have none.
          * @enum {string}
          */
-        DiscussionStatus: "OPEN" | "ANSWERED" | "RESOLVED";
+        DiscussionState: "OPEN" | "ANSWERED" | "RESOLVED";
         DiscussionCreateRequest: {
             kind: components["schemas"]["DiscussionKind"];
             /** @description Markdown; not blank. */
@@ -2105,17 +2102,9 @@ export interface components {
             body: string;
         };
         DiscussionStateRequest: {
-            status: components["schemas"]["DiscussionStatus"];
-            /** @description An optional note, only with `RESOLVED` (`400` with any other status); blank = none. */
+            state: components["schemas"]["DiscussionState"];
+            /** @description An optional note, only with `RESOLVED` (`400` with any other state); blank = none. */
             resolution?: string | null;
-        };
-        DiscussionUser: {
-            /** Format: int32 */
-            id: number;
-            /** @description The display name as it is now (kept for a soft-deleted account). */
-            name: string;
-            /** @description The account has since been soft-deleted. */
-            deleted: boolean;
         };
         DiscussionEntry: {
             /** Format: int32 */
@@ -2124,12 +2113,17 @@ export interface components {
             adrId: number;
             kind: components["schemas"]["DiscussionKind"];
             /** @description Absent for a comment and for a tombstone (neither has a state). */
-            status?: components["schemas"]["DiscussionStatus"];
+            state?: components["schemas"]["DiscussionState"];
             /** @description Markdown; null for a tombstone (the text is gone). */
             body: string | null;
             /** @description A tombstone: the entry was deleted; only its kind, author and creation time remain. */
             deleted: boolean;
-            author: components["schemas"]["DiscussionUser"];
+            /** Format: int32 */
+            authorId: number;
+            /** @description The author's display name as it is now (kept for a soft-deleted account). */
+            authorName: string;
+            /** @description The author's account has since been soft-deleted. */
+            authorDeleted: boolean;
             /**
              * Format: int64
              * @description Epoch millis
@@ -2142,8 +2136,15 @@ export interface components {
             editedAt: number | null;
             /** @description The note of the last resolution, if it had one; cleared on a reopen. */
             resolution: string | null;
-            /** @description Who last answered, resolved or reopened the entry. */
-            stateChangedBy: components["schemas"]["DiscussionUser"] | null;
+            /**
+             * Format: int32
+             * @description Who last answered, resolved or reopened the entry; null when nobody did (and for a tombstone).
+             */
+            stateChangedById: number | null;
+            /** @description That user's display name as it is now; null with `stateChangedById`. */
+            stateChangedByName: string | null;
+            /** @description That user's account has since been soft-deleted (false when there is none). */
+            stateChangedByDeleted: boolean;
             /**
              * Format: int64
              * @description Epoch millis
@@ -2541,9 +2542,9 @@ export interface components {
         /** @description Any-of filter on the lifecycle status; repeat the key for several. */
         AdrFilterStatus: components["schemas"]["AdrStatus"][];
         /** @description A user id - only the ADRs this user holds a DACI role on. */
-        AdrFilterParticipant: number;
-        /** @description Narrows `participant` to one role (`400` without `participant`). */
-        AdrFilterRole: components["schemas"]["AdrRole"];
+        AdrFilterParticipantId: number;
+        /** @description Narrows `participantId` to one role (`400` without `participantId`). */
+        AdrFilterParticipantRole: components["schemas"]["AdrRole"];
         /** @description Any-of filter on the ADR's tags; repeat the key for several. */
         AdrFilterTag: string[];
         /** @description Created on or after this UTC day. */
@@ -2559,9 +2560,9 @@ export interface components {
         /** @description Has (`true`) or has no (`false`) open issue or escalation. */
         AdrFilterHasOpenIssues: boolean;
         /** @description Replaces (`true`) or does not replace (`false`) another ADR. */
-        AdrFilterSupersedes: boolean;
+        AdrFilterHasPredecessor: boolean;
         /** @description Has (`true`) or has no (`false`) successor. */
-        AdrFilterSupersededBy: boolean;
+        AdrFilterHasSuccessor: boolean;
         /** @description A discussion entry of the ADR in the path; one of another ADR is `404`. */
         DiscussionEntryId: number;
         /**
@@ -3452,9 +3453,9 @@ export interface operations {
                 /** @description Free-text search (API-LIST-005), OPTIONAL where declared (the ADR list): a case- and accent-insensitive substring match on the fields the endpoint names (an ADR's name or key), at most 100 characters. */
                 q?: components["parameters"]["OptionalQ"];
                 /** @description A user id - only the ADRs this user holds a DACI role on. */
-                participant?: components["parameters"]["AdrFilterParticipant"];
-                /** @description Narrows `participant` to one role (`400` without `participant`). */
-                role?: components["parameters"]["AdrFilterRole"];
+                participantId?: components["parameters"]["AdrFilterParticipantId"];
+                /** @description Narrows `participantId` to one role (`400` without `participantId`). */
+                participantRole?: components["parameters"]["AdrFilterParticipantRole"];
                 /** @description Any-of filter on the ADR's tags; repeat the key for several. */
                 tag?: components["parameters"]["AdrFilterTag"];
                 /** @description Full-text search (0.5.0), OPTIONAL where declared (the ADR list): accent- and case-insensitive, every word must match, a word of three characters or more as a prefix. 2 to 100 characters (code points) after trimming with a letter or a digit (`400` otherwise); blank is no search. Distinct from `q`, the name-or-key substring. */
@@ -3472,9 +3473,9 @@ export interface operations {
                 /** @description Has (`true`) or has no (`false`) open issue or escalation. */
                 hasOpenIssues?: components["parameters"]["AdrFilterHasOpenIssues"];
                 /** @description Replaces (`true`) or does not replace (`false`) another ADR. */
-                supersedes?: components["parameters"]["AdrFilterSupersedes"];
+                hasPredecessor?: components["parameters"]["AdrFilterHasPredecessor"];
                 /** @description Has (`true`) or has no (`false`) successor. */
-                supersededBy?: components["parameters"]["AdrFilterSupersededBy"];
+                hasSuccessor?: components["parameters"]["AdrFilterHasSuccessor"];
             };
             header?: never;
             path?: never;
@@ -3547,9 +3548,9 @@ export interface operations {
                 /** @description Full-text search (0.5.0), OPTIONAL where declared (the ADR list): accent- and case-insensitive, every word must match, a word of three characters or more as a prefix. 2 to 100 characters (code points) after trimming with a letter or a digit (`400` otherwise); blank is no search. Distinct from `q`, the name-or-key substring. */
                 text?: components["parameters"]["SearchText"];
                 /** @description A user id - only the ADRs this user holds a DACI role on. */
-                participant?: components["parameters"]["AdrFilterParticipant"];
-                /** @description Narrows `participant` to one role (`400` without `participant`). */
-                role?: components["parameters"]["AdrFilterRole"];
+                participantId?: components["parameters"]["AdrFilterParticipantId"];
+                /** @description Narrows `participantId` to one role (`400` without `participantId`). */
+                participantRole?: components["parameters"]["AdrFilterParticipantRole"];
                 /** @description Any-of filter on the ADR's tags; repeat the key for several. */
                 tag?: components["parameters"]["AdrFilterTag"];
                 /** @description Created on or after this UTC day. */
@@ -3565,9 +3566,9 @@ export interface operations {
                 /** @description Has (`true`) or has no (`false`) open issue or escalation. */
                 hasOpenIssues?: components["parameters"]["AdrFilterHasOpenIssues"];
                 /** @description Replaces (`true`) or does not replace (`false`) another ADR. */
-                supersedes?: components["parameters"]["AdrFilterSupersedes"];
+                hasPredecessor?: components["parameters"]["AdrFilterHasPredecessor"];
                 /** @description Has (`true`) or has no (`false`) successor. */
-                supersededBy?: components["parameters"]["AdrFilterSupersededBy"];
+                hasSuccessor?: components["parameters"]["AdrFilterHasSuccessor"];
             };
             header?: never;
             path?: never;
@@ -4007,7 +4008,7 @@ export interface operations {
                 /** @description Any-of filter on the kind; repeat the key for several. */
                 kind?: components["schemas"]["DiscussionKind"][];
                 /** @description Only the entries in this state. */
-                status?: components["schemas"]["DiscussionStatus"];
+                state?: components["schemas"]["DiscussionState"];
             };
             header?: never;
             path: {

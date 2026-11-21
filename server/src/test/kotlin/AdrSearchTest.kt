@@ -168,7 +168,7 @@ class AdrSearchTest {
         val reader = cast.informed.client
         assertEquals(setOf(raised.id, draft.id, other.id), reader.search(term).items.map { it.id }.toSet())
         assertEquals(listOf(draft.id), reader.search(term, "&status=SOLUTION_DRAFT").items.map { it.id })
-        val drivenBy = "&participant=${cast.driver.id}&role=DRIVER"
+        val drivenBy = "&participantId=${cast.driver.id}&participantRole=DRIVER"
         assertEquals(setOf(raised.id, draft.id), reader.search(term, drivenBy).items.map { it.id }.toSet())
         assertEquals(listOf(raised.id), reader.search(term, "&q=${encoded("Combo A")}").items.map { it.id })
         assertEquals(0, reader.search(term, "&hasOpenIssues=true").total)

@@ -117,7 +117,7 @@ test.describe("the decision log", () => {
 
     // The count leads to the Approver's own review queue in the ADR list.
     await awaiting.getByRole("link", { name: "1 ADR is waiting for your decision" }).click();
-    await expect(page).toHaveURL(/\/adrs\?status=IN_REVIEW&mine=1&role=APPROVER$/);
+    await expect(page).toHaveURL(/\/adrs\?status=IN_REVIEW&mine=1&participantRole=APPROVER$/);
     await expect(page.getByRole("link", { name: `Open ${review.key}: ${review.name}` })).toBeVisible();
 
     // The Driver sees the same ADR waiting, but not as theirs to decide.

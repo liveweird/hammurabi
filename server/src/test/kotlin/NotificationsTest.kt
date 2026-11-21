@@ -4,7 +4,7 @@ import ch.nokillswit.adrs.AdrParticipantRequest
 import ch.nokillswit.adrs.AdrRole
 import ch.nokillswit.adrs.AdrStatus
 import ch.nokillswit.adrs.DiscussionKind
-import ch.nokillswit.adrs.DiscussionStatus
+import ch.nokillswit.adrs.DiscussionState
 import ch.nokillswit.notifications.NotificationType
 import io.ktor.client.request.delete
 import io.ktor.client.request.get
@@ -150,22 +150,22 @@ class NotificationsTest {
         val cast = adrCast()
         val adr = cast.raise()
         val question = cast.stranger.client.postEntryOk(adr.id, DiscussionKind.QUESTION)
-        cast.driver.client.setEntryState(adr.id, question.id, DiscussionStatus.ANSWERED)
+        cast.driver.client.setEntryState(adr.id, question.id, DiscussionState.ANSWERED)
         val answered = cast.stranger.client.noticesOf(NotificationType.DISCUSSION_SETTLED, adr.id).single()
         assertEquals("QUESTION", answered.detail)
         assertEquals(cast.driver.id, answered.actorId)
-        cast.driver.client.setEntryState(adr.id, question.id, DiscussionStatus.OPEN)
+        cast.driver.client.setEntryState(adr.id, question.id, DiscussionState.OPEN)
         cast.stranger.client.editEntry(adr.id, question.id, "A reworded question")
         assertEquals(1, cast.stranger.client.noticesOf(NotificationType.DISCUSSION_SETTLED, adr.id).size)
 
         cast.activate(adr)
         val issue = cast.contributor.client.postEntryOk(adr.id, DiscussionKind.ISSUE)
-        cast.approver.client.setEntryState(adr.id, issue.id, DiscussionStatus.RESOLVED, "Fixed")
+        cast.approver.client.setEntryState(adr.id, issue.id, DiscussionState.RESOLVED, "Fixed")
         assertEquals("ISSUE", cast.contributor.client.noticesOf(NotificationType.DISCUSSION_SETTLED, adr.id).single().detail)
         // A question settled by its own author tells nobody (the actor is never told).
         val own = cast.stranger.client.postEntryOk(adr.id, DiscussionKind.ESCALATION)
-        cast.driver.client.setEntryState(adr.id, own.id, DiscussionStatus.RESOLVED)
-        cast.stranger.client.setEntryState(adr.id, own.id, DiscussionStatus.OPEN)
+        cast.driver.client.setEntryState(adr.id, own.id, DiscussionState.RESOLVED)
+        cast.stranger.client.setEntryState(adr.id, own.id, DiscussionState.OPEN)
         assertEquals(2, cast.stranger.client.noticesOf(NotificationType.DISCUSSION_SETTLED, adr.id).size)
     }
 
@@ -271,8 +271,7 @@ class NotificationsTest {
         val cast = adrCast()
         val adr = cast.raise()
         val off = ch.nokillswit.notifications.NotificationPreferencesUpdateRequest(
-            listOf(ch.nokillswit.notifications.DisabledNotificationPreference(NotificationType.STATUS_CHANGED,
-                ch.nokillswit.notifications.NotificationChannel.IN_APP)),
+            listOf(ch.nokillswit.notifications.NotificationPreferenceKind(NotificationType.STATUS_CHANGED, inApp = false, email = true)),
         )
         assertEquals(HttpStatusCode.NoContent,
             cast.approver.client.putJson("/api/v1/users/${cast.approver.id}/notification-preferences", off).status)

@@ -193,7 +193,7 @@ class AdrExportTest {
         val none = cast.stranger.client.get("/api/v1/adrs/export?q=${encoded(marker())}")
         assertEquals(HttpStatusCode.OK, none.status)
         assertEquals(listOf("index.md"), none.zip().keys.toList())
-        for (bad in listOf("role=DRIVER", "status=NOPE", "createdFrom=2026-02-30", "text=!!", "q=${"x".repeat(101)}")) {
+        for (bad in listOf("participantRole=DRIVER", "status=NOPE", "createdFrom=2026-02-30", "text=!!", "q=${"x".repeat(101)}")) {
             val refused = cast.stranger.client.get("/api/v1/adrs/export?$bad")
             assertEquals(HttpStatusCode.BadRequest, refused.status, bad)
             assertEquals(400, refused.body<ProblemDetail>().status)
@@ -247,7 +247,7 @@ class AdrExportTest {
             delay(200)
             assertFalse(capture.events.any { e -> e.keyValuePairs.orEmpty().any { tag in it.value.toString() } }, "no name, no filter")
             cast.stranger.client.get("/api/v1/adrs/4000000/export")
-            cast.stranger.client.get("/api/v1/adrs/export?role=DRIVER")
+            cast.stranger.client.get("/api/v1/adrs/export?participantRole=DRIVER")
             delay(200)
             assertEquals(1, capture.events.count { it.message == "adr.exported" }, "a 404 exports nothing")
             assertEquals(1, capture.events.count { it.message == "adr.exported_bulk" }, "a refusal exports nothing")

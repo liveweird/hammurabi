@@ -116,6 +116,6 @@ export function adrEventLines(event: AdrEventResponse, t: TFunction): string[] {
 
 /** Who did it: the recorded name (with a note for a since-deleted account), or "the system" for the sweep. */
 export function adrEventActor(event: AdrEventResponse, t: TFunction): string {
-  if (event.userId === null || event.userName === null) return t("adrs.history.system");
-  return event.userDeleted ? t("adrs.history.userDeleted", { name: event.userName }) : event.userName;
+  if (event.actorId === null || event.actorName === null) return t("adrs.history.system");
+  return event.actorDeleted ? t("adrs.history.deletedAccount", { name: event.actorName }) : event.actorName;
 }

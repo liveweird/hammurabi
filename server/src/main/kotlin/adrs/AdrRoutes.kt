@@ -152,8 +152,8 @@ internal fun adrFilterDocument(params: Parameters): AdrFilterDocument = AdrFilte
     status = params.repeatedStrings("status", maxCount = AdrStatus.entries.size).map(::parseStatus),
     q = params.optionalString("q"),
     text = params.optionalString("text"),
-    participant = params.optionalUInt("participant"),
-    role = params.optionalEnum<AdrRole>("role"),
+    participantId = params.optionalUInt("participantId"),
+    participantRole = params.optionalEnum<AdrRole>("participantRole"),
     // Bounded in count here (`repeatedStrings`: more than MAX_TAG_FILTERS distinct values is a 400);
     // `normalized` bounds each name's length and form.
     tag = params.repeatedStrings("tag", maxCount = MAX_TAG_FILTERS),
@@ -163,8 +163,8 @@ internal fun adrFilterDocument(params: Parameters): AdrFilterDocument = AdrFilte
     updatedTo = params.optionalString("updatedTo"),
     expiresBefore = params.optionalString("expiresBefore"),
     hasOpenIssues = params.optionalBoolean("hasOpenIssues"),
-    supersedes = params.optionalBoolean("supersedes"),
-    supersededBy = params.optionalBoolean("supersededBy"),
+    hasPredecessor = params.optionalBoolean("hasPredecessor"),
+    hasSuccessor = params.optionalBoolean("hasSuccessor"),
 )
 
 private fun parseStatus(raw: String): AdrStatus =

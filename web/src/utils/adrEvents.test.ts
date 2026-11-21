@@ -107,7 +107,7 @@ describe("adrEventLines", () => {
 describe("adrEventActor", () => {
   test("the recorded name, with a note for a deleted account, or the system", () => {
     expect(adrEventActor(eventFixture(), t)).toBe("Dana Driver");
-    expect(adrEventActor(eventFixture({ userDeleted: true }), t)).toBe("Dana Driver (deleted account)");
-    expect(adrEventActor(eventFixture({ userId: null, userName: null, type: "EXPIRED" }), t)).toBe("System");
+    expect(adrEventActor(eventFixture({ actorDeleted: true }), t)).toBe("Dana Driver (deleted account)");
+    expect(adrEventActor(eventFixture({ actorId: null, actorName: null, type: "EXPIRED" }), t)).toBe("System");
   });
 });

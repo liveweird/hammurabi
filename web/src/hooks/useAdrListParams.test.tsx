@@ -14,16 +14,16 @@ describe("useAdrListParams", () => {
   afterEach(() => vi.useRealTimers());
 
   test("reads the filters from the URL and writes a patch back, keeping the rest, without adding history entries", () => {
-    const { result } = setup("/adrs?status=ACTIVE&supersedes=true");
-    expect(result.current.list.params).toMatchObject({ status: ["ACTIVE"], supersedes: true });
+    const { result } = setup("/adrs?status=ACTIVE&hasPredecessor=true");
+    expect(result.current.list.params).toMatchObject({ status: ["ACTIVE"], hasPredecessor: true });
     act(() => result.current.list.update({ hasOpenIssues: false, createdFrom: "2026-01-01" }));
-    expect(result.current.location.search).toBe("?status=ACTIVE&createdFrom=2026-01-01&hasOpenIssues=false&supersedes=true");
-    expect(result.current.list.params).toMatchObject({ status: ["ACTIVE"], supersedes: true, hasOpenIssues: false, createdFrom: "2026-01-01" });
+    expect(result.current.location.search).toBe("?status=ACTIVE&createdFrom=2026-01-01&hasOpenIssues=false&hasPredecessor=true");
+    expect(result.current.list.params).toMatchObject({ status: ["ACTIVE"], hasPredecessor: true, hasOpenIssues: false, createdFrom: "2026-01-01" });
   });
 
   test("a filtered link round-trips: parsing the URL it wrote gives the same filters", () => {
     const first = setup();
-    act(() => first.result.current.list.update({ text: "queue", tag: ["data"], participant: 9, role: "DRIVER", expiresBefore: "2027-01-01", supersededBy: true }));
+    act(() => first.result.current.list.update({ text: "queue", tag: ["data"], participantId: 9, participantRole: "DRIVER", expiresBefore: "2027-01-01", hasSuccessor: true }));
     const search = first.result.current.location.search;
     const second = setup(`/adrs${search}`);
     expect(second.result.current.list.params).toEqual(first.result.current.list.params);

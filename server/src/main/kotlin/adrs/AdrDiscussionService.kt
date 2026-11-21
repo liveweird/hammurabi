@@ -40,7 +40,10 @@ data class DiscussionEdited(val number: Int, val kind: DiscussionKind, val chang
 data class DiscussionDeleted(val number: Int, val kind: DiscussionKind, val byAdmin: Boolean)
 
 /** What a state change did (null from [AdrDiscussionService.setState] = the entry was already in that state). */
-data class DiscussionStateChanged(val number: Int, val kind: DiscussionKind, val from: DiscussionStatus, val to: DiscussionStatus)
+data class DiscussionStateChanged(val number: Int, val kind: DiscussionKind, val from: DiscussionState, val to: DiscussionState)
+
+/** A user's display name as it is now (kept for a soft-deleted account) and whether the account is deleted; flattened onto the entry. */
+private data class PersonRef(val name: String, val deleted: Boolean)
 
 /** The entry a route is about to write, resolved BEFORE the body is read so the guard runs first: kind, author, the caller's standing. */
 data class DiscussionTarget(val kind: DiscussionKind, val authorId: UInt, val standing: AdrStanding)
@@ -107,16 +110,16 @@ class AdrDiscussionService(
         DiscussionTarget(DiscussionKind.valueOf(row[entries.kind]), row[entries.authorId].value, standingOf(adrId, caller))
     }
 
-    private suspend fun usersOf(ids: Collection<UInt>): Map<UInt, DiscussionUser> {
+    private suspend fun usersOf(ids: Collection<UInt>): Map<UInt, PersonRef> {
         if (ids.isEmpty()) return emptyMap()
         val users = UserService.Users
         return users.select(users.id, users.name, users.markedAsDeleted).where { users.id inList ids.distinct() }
-            .map { it[users.id].value to DiscussionUser(it[users.id].value, it[users.name], it[users.markedAsDeleted]) }
+            .map { it[users.id].value to PersonRef(it[users.name], it[users.markedAsDeleted]) }
             .toList().toMap()
     }
 
     private fun ResultRow.toResponse(
-        names: Map<UInt, DiscussionUser>,
+        names: Map<UInt, PersonRef>,
         standing: AdrStanding,
         adrStatus: AdrStatus,
     ): DiscussionEntryResponse {
@@ -130,14 +133,18 @@ class AdrDiscussionService(
             id = this[entries.id].value,
             adrId = this[entries.adrId].value,
             kind = kind,
-            status = this[entries.status]?.let(DiscussionStatus::valueOf),
+            state = this[entries.status]?.let(DiscussionState::valueOf),
             body = if (deleted) null else this[entries.body],
             deleted = deleted,
-            author = names.getValue(authorId),
+            authorId = authorId,
+            authorName = names.getValue(authorId).name,
+            authorDeleted = names.getValue(authorId).deleted,
             createdAt = this[entries.createdAt],
             editedAt = this[entries.editedAt].takeUnless { deleted },
             resolution = if (deleted) null else this[entries.resolution].takeIf { it.isNotEmpty() },
-            stateChangedBy = stateBy?.let(names::getValue),
+            stateChangedById = stateBy,
+            stateChangedByName = stateBy?.let { names.getValue(it).name },
+            stateChangedByDeleted = stateBy?.let { names.getValue(it).deleted } ?: false,
             stateChangedAt = this[entries.stateChangedAt].takeUnless { deleted },
             canEdit = open && isAuthor(standing.caller, authorId),
             canDelete = !deleted && mayDeleteEntry(standing.caller, authorId),
@@ -161,7 +168,7 @@ class AdrDiscussionService(
             val standing = standingOf(adrId, caller)
             val predicate = (entries.adrId eq adrId)
                 .let { op -> if (filter.kinds.isEmpty()) op else op and (entries.kind inList filter.kinds.map { it.name }) }
-                .let { op -> filter.status?.let { op and (entries.status eq it.name) } ?: op }
+                .let { op -> filter.state?.let { op and (entries.status eq it.name) } ?: op }
             val total = entries.selectAll().where { predicate }.count()
             val rows = entries.selectAll().where { predicate }.applyPaging(paging, sortColumns).toList()
             DiscussionListResult(toResponses(rows, standing, adrStatus), total)
@@ -187,7 +194,7 @@ class AdrDiscussionService(
             // Literals, not bind parameters: a generic prepared plan cannot prove a parameter implies the partial index's predicate.
             .where {
                 (entries.adrId inList adrIds) and
-                    (entries.status eq stringLiteral(DiscussionStatus.OPEN.name)) and
+                    (entries.status eq stringLiteral(DiscussionState.OPEN.name)) and
                     (entries.markedAsDeleted eq booleanLiteral(false))
             }
             .groupBy(entries.adrId, entries.kind)
@@ -212,7 +219,7 @@ class AdrDiscussionService(
             val id = entries.insert {
                 it[entries.adrId] = adrId
                 it[kind] = request.kind.name
-                it[entries.status] = request.kind.initialStatus?.name
+                it[entries.status] = request.kind.initialState?.name
                 it[body] = request.body
                 it[authorId] = caller.userId
                 it[createdAt] = stamp
@@ -278,11 +285,11 @@ class AdrDiscussionService(
             val kind = DiscussionKind.valueOf(row[entries.kind])
             requireMayChangeEntryState(standingOf(adrId, caller), kind, row[entries.authorId].value)
             validateDiscussionState(kind, request)
-            val from = DiscussionStatus.valueOf(checkNotNull(row[entries.status]) { "A live ${kind.name} has a state" })
+            val from = DiscussionState.valueOf(checkNotNull(row[entries.status]) { "A live ${kind.name} has a state" })
             val stamp = nowMillis()
-            if (from == request.status) {
+            if (from == request.state) {
                 val note = request.resolution.orEmpty()
-                if (request.status != DiscussionStatus.RESOLVED || note == row[entries.resolution]) return@suspendTransaction null
+                if (request.state != DiscussionState.RESOLVED || note == row[entries.resolution]) return@suspendTransaction null
                 entries.update({ entries.id eq entryId }) {
                     it[resolution] = note
                     it[stateChangedBy] = caller.userId
@@ -291,13 +298,13 @@ class AdrDiscussionService(
                 return@suspendTransaction DiscussionStateChanged(number, kind, from, from)
             }
             entries.update({ entries.id eq entryId }) {
-                it[entries.status] = request.status.name
+                it[entries.status] = request.state.name
                 it[resolution] = request.resolution.orEmpty()
                 it[stateChangedBy] = caller.userId
                 it[stateChangedAt] = stamp
             }
-            events.record(adrId, caller.userId, adrDiscussionStateEvent(entryId, kind, request.status), stamp)
-            DiscussionStateChanged(number, kind, from, request.status)
+            events.record(adrId, caller.userId, adrDiscussionStateEvent(entryId, kind, request.state), stamp)
+            DiscussionStateChanged(number, kind, from, request.state)
         }
     }
 }

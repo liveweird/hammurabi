@@ -5,18 +5,18 @@ import { isValidIsoDate } from "./isoDate";
 
 /**
  * The URL filters as a lens document (what "Save current filters as lens" stores): the list's own parameter names, every absent filter
- * omitted. "My ADRs" travels as the signed-in user's `participant` id - a lens holds no `mine` - and a role only with a participant.
+ * omitted. "My ADRs" travels as the signed-in user's `participantId` - a lens holds no `mine` - and a role only with a participant.
  */
 export function filtersFromParams(params: AdrListParams, userId: number | null): LensFilters {
-  const participant = params.participant ?? (params.mine && userId !== null ? userId : null);
+  const participant = params.participantId ?? (params.mine && userId !== null ? userId : null);
   const filters: LensFilters = {};
   if (params.q.trim() !== "") filters.q = params.q.trim();
   if (params.text !== "") filters.text = params.text;
   if (params.status.length > 0) filters.status = params.status;
   if (params.tag.length > 0) filters.tag = params.tag;
   if (participant !== null) {
-    filters.participant = participant;
-    if (params.role) filters.role = params.role;
+    filters.participantId = participant;
+    if (params.participantRole) filters.participantRole = params.participantRole;
   }
   for (const key of DATE_KEYS) if (params[key] !== "") filters[key] = params[key];
   for (const key of TRI_STATE_KEYS) if (params[key] !== null) filters[key] = params[key];
@@ -28,7 +28,7 @@ export function filtersFromParams(params: AdrListParams, userId: number | null):
  * participant is the signed-in user's `mine` when it is that user's id. Values the list would refuse are dropped as the URL reader does.
  */
 export function paramsFromFilters(filters: LensFilters, userId: number | null): AdrListParams {
-  const participant = filters.participant ?? null;
+  const participant = filters.participantId ?? null;
   const mine = participant !== null && participant === userId;
   return {
     ...NO_ADR_FILTERS,
@@ -37,16 +37,16 @@ export function paramsFromFilters(filters: LensFilters, userId: number | null): 
     status: [...new Set((filters.status ?? []).filter(isAdrStatus))],
     tag: [...new Set((filters.tag ?? []).filter((name) => name !== ""))],
     mine,
-    participant: participant !== null && !mine ? participant : null,
-    role: participant !== null && isAdrRole(filters.role) ? filters.role : null,
+    participantId: participant !== null && !mine ? participant : null,
+    participantRole: participant !== null && isAdrRole(filters.participantRole) ? filters.participantRole : null,
     createdFrom: validDay(filters.createdFrom),
     createdTo: validDay(filters.createdTo),
     updatedFrom: validDay(filters.updatedFrom),
     updatedTo: validDay(filters.updatedTo),
     expiresBefore: validDay(filters.expiresBefore),
     hasOpenIssues: filters.hasOpenIssues ?? null,
-    supersedes: filters.supersedes ?? null,
-    supersededBy: filters.supersededBy ?? null,
+    hasPredecessor: filters.hasPredecessor ?? null,
+    hasSuccessor: filters.hasSuccessor ?? null,
   };
 }
 
@@ -60,22 +60,22 @@ export function sameFilters(a: LensFilters, b: LensFilters): boolean {
 }
 
 function canonical(filters: LensFilters): string {
-  const participant = filters.participant ?? null;
+  const participant = filters.participantId ?? null;
   return JSON.stringify({
     q: (filters.q ?? "").trim(),
     text: (filters.text ?? "").trim(),
     status: [...new Set(filters.status ?? [])].sort(),
     tag: [...new Set(filters.tag ?? [])].sort(),
-    participant,
-    role: participant === null ? null : (filters.role ?? null),
+    participantId: participant,
+    participantRole: participant === null ? null : (filters.participantRole ?? null),
     createdFrom: filters.createdFrom ?? "",
     createdTo: filters.createdTo ?? "",
     updatedFrom: filters.updatedFrom ?? "",
     updatedTo: filters.updatedTo ?? "",
     expiresBefore: filters.expiresBefore ?? "",
     hasOpenIssues: filters.hasOpenIssues ?? null,
-    supersedes: filters.supersedes ?? null,
-    supersededBy: filters.supersededBy ?? null,
+    hasPredecessor: filters.hasPredecessor ?? null,
+    hasSuccessor: filters.hasSuccessor ?? null,
   });
 }
 

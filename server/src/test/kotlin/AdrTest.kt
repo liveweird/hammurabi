@@ -56,7 +56,7 @@ class AdrTest {
         assertEquals(1L, adr.revision)
         assertEquals("ADR-" + adr.number.toString().padStart(4, '0'), adr.key)
         assertEquals(listOf(AdrParticipant(creator.id, "Creator", AdrRole.DRIVER)), adr.participants)
-        assertEquals(creator.id, adr.createdBy)
+        assertEquals(creator.id, adr.createdById)
         assertEquals(null, adr.expiresOn)
         assertEquals("", adr.context)
         assertEquals(adr, creator.client.getAdr(adr.id))

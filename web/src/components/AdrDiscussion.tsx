@@ -24,7 +24,7 @@ export default function AdrDiscussion({ adr, variant }: { adr: AdrResponse; vari
   const [onlyOpen, setOnlyOpen] = useState(false);
   const { data, isLoading, isError, error, isPlaceholderData, refetch } = useQuery({
     queryKey: ["adrs", "discussion", adr.id, variant, page, onlyOpen],
-    queryFn: () => listDiscussion(adr.id, { page, pageSize: DISCUSSION_PAGE_SIZE, kind: kinds, status: onlyOpen ? "OPEN" : undefined }),
+    queryFn: () => listDiscussion(adr.id, { page, pageSize: DISCUSSION_PAGE_SIZE, kind: kinds, state: onlyOpen ? "OPEN" : undefined }),
     placeholderData: keepPreviousData,
   });
 

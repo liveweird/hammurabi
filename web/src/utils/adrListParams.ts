@@ -14,7 +14,8 @@ export type TriState = boolean | null;
 
 /**
  * The ADR list's filters as the URL spells them. The keys ARE the list endpoint's parameter names, except `mine=1` (the signed-in user's own
- * `participant`, the shortcut the panel's switch writes) - `participant` itself is only ever another user's id, which a shared lens can carry.
+ * `participantId`, the shortcut the panel's switch writes) - `participantId` itself is only ever another user's id, which a shared lens can carry.
+ * Links written before 1.0.0 spell four keys the old way ([LEGACY_KEYS]): they are still READ, never written again.
  */
 export type AdrListParams = {
   /** The name-or-key substring. */
@@ -26,9 +27,9 @@ export type AdrListParams = {
   tag: string[];
   mine: boolean;
   /** Another user's id (from an applied lens); `mine` is the signed-in user's. */
-  participant: number | null;
-  /** Only meaningful with `mine` or `participant`. */
-  role: AdrRole | null;
+  participantId: number | null;
+  /** Only meaningful with `mine` or `participantId`. */
+  participantRole: AdrRole | null;
   /** `YYYY-MM-DD` UTC days, "" = none. */
   createdFrom: string;
   createdTo: string;
@@ -36,15 +37,32 @@ export type AdrListParams = {
   updatedTo: string;
   expiresBefore: string;
   hasOpenIssues: TriState;
-  supersedes: TriState;
-  supersededBy: TriState;
+  hasPredecessor: TriState;
+  hasSuccessor: TriState;
 };
 
 export const DATE_KEYS = ["createdFrom", "createdTo", "updatedFrom", "updatedTo", "expiresBefore"] as const;
-export const TRI_STATE_KEYS = ["hasOpenIssues", "supersedes", "supersededBy"] as const;
+export const TRI_STATE_KEYS = ["hasOpenIssues", "hasPredecessor", "hasSuccessor"] as const;
+
+/**
+ * The four keys 1.0.0 renamed (current -> old spelling), READ-ONLY: a bookmark or a shared link from 0.9.x still filters, and the first
+ * write of the filters drops the old spelling (it is in [OWNED_KEYS]). When both spellings are present the current one wins.
+ */
+const LEGACY_KEYS: Readonly<Record<string, string | undefined>> = {
+  participantId: "participant",
+  participantRole: "role",
+  hasPredecessor: "supersedes",
+  hasSuccessor: "supersededBy",
+};
+
+/** The value of `key`, or of its pre-1.0.0 spelling when the current one is absent. */
+function readKey(search: URLSearchParams, key: string): string | null {
+  const legacy = LEGACY_KEYS[key];
+  return search.get(key) ?? (legacy === undefined ? null : search.get(legacy));
+}
 
 /** Every key this module owns in the query string; anything else (foreign keys) is left alone. */
-const OWNED_KEYS = ["q", "text", "status", "tag", "mine", "participant", "role", ...DATE_KEYS, ...TRI_STATE_KEYS];
+const OWNED_KEYS = ["q", "text", "status", "tag", "mine", "participantId", "participantRole", ...DATE_KEYS, ...TRI_STATE_KEYS, ...Object.values(LEGACY_KEYS).filter((key) => key !== undefined)];
 
 /** No filter at all - what "clear all" and a lens without a key write. */
 export const NO_ADR_FILTERS: AdrListParams = {
@@ -53,20 +71,20 @@ export const NO_ADR_FILTERS: AdrListParams = {
   status: [],
   tag: [],
   mine: false,
-  participant: null,
-  role: null,
+  participantId: null,
+  participantRole: null,
   createdFrom: "",
   createdTo: "",
   updatedFrom: "",
   updatedTo: "",
   expiresBefore: "",
   hasOpenIssues: null,
-  supersedes: null,
-  supersededBy: null,
+  hasPredecessor: null,
+  hasSuccessor: null,
 };
 
 function readTriState(search: URLSearchParams, key: string): TriState {
-  const value = search.get(key);
+  const value = readKey(search, key);
   return value === "true" ? true : value === "false" ? false : null;
 }
 
@@ -96,31 +114,31 @@ export function isUnsearchable(raw: string): boolean {
 }
 
 function readParticipant(search: URLSearchParams): number | null {
-  const raw = search.get("participant") ?? "";
+  const raw = readKey(search, "participantId") ?? "";
   return /^\d+$/.test(raw) && Number(raw) > 0 ? Number(raw) : null;
 }
 
 /** Reads the filters, ignoring anything the list does not know (a stale or hand-edited link falls back to "no filter"). */
 export function parseAdrListParams(search: URLSearchParams): AdrListParams {
   const mine = search.get("mine") === "1";
-  const participant = readParticipant(search);
-  const role = search.get("role");
+  const participantId = readParticipant(search);
+  const role = readKey(search, "participantRole");
   return {
     q: search.get("q") ?? "",
     text: searchTermOf(search.get("text")),
     status: [...new Set(search.getAll("status").filter(isAdrStatus))],
     tag: [...new Set(search.getAll("tag").filter((name) => name !== ""))],
     mine,
-    participant: mine ? null : participant,
-    role: (mine || participant !== null) && isAdrRole(role) ? role : null,
+    participantId: mine ? null : participantId,
+    participantRole: (mine || participantId !== null) && isAdrRole(role) ? role : null,
     createdFrom: readDate(search, "createdFrom"),
     createdTo: readDate(search, "createdTo"),
     updatedFrom: readDate(search, "updatedFrom"),
     updatedTo: readDate(search, "updatedTo"),
     expiresBefore: readDate(search, "expiresBefore"),
     hasOpenIssues: readTriState(search, "hasOpenIssues"),
-    supersedes: readTriState(search, "supersedes"),
-    supersededBy: readTriState(search, "supersededBy"),
+    hasPredecessor: readTriState(search, "hasPredecessor"),
+    hasSuccessor: readTriState(search, "hasSuccessor"),
   };
 }
 
@@ -134,10 +152,10 @@ export function writeAdrListParams(prev: URLSearchParams, patch: Partial<AdrList
   if (text !== "") search.set("text", text);
   for (const status of next.status) search.append("status", status);
   for (const tag of next.tag) search.append("tag", tag);
-  const hasParticipant = next.mine || next.participant !== null;
+  const hasParticipant = next.mine || next.participantId !== null;
   if (next.mine) search.set("mine", "1");
-  else if (next.participant !== null) search.set("participant", String(next.participant));
-  if (hasParticipant && next.role) search.set("role", next.role);
+  else if (next.participantId !== null) search.set("participantId", String(next.participantId));
+  if (hasParticipant && next.participantRole) search.set("participantRole", next.participantRole);
   for (const key of DATE_KEYS) if (isValidIsoDate(next[key])) search.set(key, next[key]);
   for (const key of TRI_STATE_KEYS) if (next[key] !== null) search.set(key, String(next[key]));
   return search;
@@ -154,7 +172,7 @@ export function activeAdrFilterCount(params: AdrListParams): number {
     params.q.trim() !== "",
     params.status.length > 0,
     params.tag.length > 0,
-    params.mine || params.participant !== null,
+    params.mine || params.participantId !== null,
     params.createdFrom !== "" || params.createdTo !== "",
     params.updatedFrom !== "" || params.updatedTo !== "",
     params.expiresBefore !== "",

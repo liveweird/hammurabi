@@ -58,7 +58,7 @@ class TeamService(private val database: R2dbcDatabase) {
                     id = id,
                     name = row[Teams.name],
                     description = row[Teams.description],
-                    managerUserId = managerId,
+                    managerId = managerId,
                     managerName = managerId?.let(managers::get),
                     createdAt = row[Teams.createdAt],
                     updatedAt = row[Teams.updatedAt],
@@ -78,7 +78,7 @@ class TeamService(private val database: R2dbcDatabase) {
             id = id,
             name = row[Teams.name],
             description = row[Teams.description],
-            managerUserId = managerId.takeIf { managerName != null },
+            managerId = managerId.takeIf { managerName != null },
             managerName = managerName,
             createdAt = row[Teams.createdAt],
             updatedAt = row[Teams.updatedAt],
@@ -92,12 +92,12 @@ class TeamService(private val database: R2dbcDatabase) {
      */
     suspend fun create(request: TeamCreateRequest): UInt = suspendTransaction(database) {
         validateTeamCreate(request) // re-checked service-side so direct callers stay guarded
-        requireActiveManager(request.managerUserId)
+        requireActiveManager(request.managerId)
         val stamp = nowMillis()
         Teams.insert {
             it[name] = request.name
             it[description] = request.description
-            it[managerUserId] = request.managerUserId
+            it[managerUserId] = request.managerId
             it[createdAt] = stamp
             it[updatedAt] = stamp
         }[Teams.id].value
@@ -114,11 +114,11 @@ class TeamService(private val database: R2dbcDatabase) {
         val before = Teams.selectAll().where { (Teams.id eq id) and Teams.active() }
             .forUpdate(ForUpdateOption.PostgreSQL.ForNoKeyUpdate).toList().singleOrNull()
             ?: return@suspendTransaction TeamUpdateOutcome(0, null)
-        requireActiveManager(request.managerUserId)
+        requireActiveManager(request.managerId)
         val affected = Teams.update({ (Teams.id eq id) and Teams.active() }) {
             it[name] = request.name
             it[description] = request.description
-            it[managerUserId] = request.managerUserId
+            it[managerUserId] = request.managerId
             it[updatedAt] = nowMillis()
         }
         TeamUpdateOutcome(affected, before[Teams.managerUserId]?.value)

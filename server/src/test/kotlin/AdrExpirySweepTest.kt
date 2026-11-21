@@ -71,8 +71,8 @@ class AdrExpirySweepTest {
             assertEquals(expired.revision, cast.stranger.client.getAdr(adr.id).revision)
         }
         val system = cast.stranger.client.adrEvents(adr.id).items.single { it.type == AdrEventType.EXPIRED }
-        assertNull(system.userId, "the system is the actor")
-        assertNull(system.userName)
+        assertNull(system.actorId, "the system is the actor")
+        assertNull(system.actorName)
         assertEquals(mapOf("expiresOn" to last.toString()), system.params)
         assertEquals(1, cast.stranger.client.adrEvents(adr.id).items.count { it.type == AdrEventType.EXPIRED })
     }

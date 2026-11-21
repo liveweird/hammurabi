@@ -17,7 +17,7 @@ export function adrFixture(overrides: Partial<AdrResponse> = {}): AdrResponse {
     expiresOn: null,
     revision: 3,
     createdAt: Date.UTC(2026, 10, 1, 9, 30),
-    createdBy: 5,
+    createdById: 5,
     updatedAt: Date.UTC(2026, 10, 2, 10, 15),
     statusChangedAt: Date.UTC(2026, 10, 1, 9, 30),
     participants: [{ userId: 5, name: "Dana Driver", role: "DRIVER" }],
@@ -48,7 +48,7 @@ export function adrPageFixture(items: AdrPage["items"] = []): AdrPage {
 }
 
 export function eventFixture(overrides: Partial<AdrEventResponse> = {}): AdrEventResponse {
-  return { id: 1, userId: 5, userName: "Dana Driver", userDeleted: false, type: "CREATED", params: {}, createdAt: Date.UTC(2026, 10, 1, 9, 30), ...overrides };
+  return { id: 1, actorId: 5, actorName: "Dana Driver", actorDeleted: false, type: "CREATED", params: {}, createdAt: Date.UTC(2026, 10, 1, 9, 30), ...overrides };
 }
 
 /** A discussion entry as `GET /adrs/{id}/discussion` serves it (a live open question by Cora, no verdicts), with `overrides` laid over it. */
@@ -57,14 +57,18 @@ export function entryFixture(overrides: Partial<DiscussionEntry> = {}): Discussi
     id: 11,
     adrId: 1,
     kind: "QUESTION",
-    status: "OPEN",
+    state: "OPEN",
     body: "Why not MySQL?",
     deleted: false,
-    author: { id: 7, name: "Cora Contributor", deleted: false },
+    authorId: 7,
+    authorName: "Cora Contributor",
+    authorDeleted: false,
     createdAt: Date.UTC(2026, 10, 3, 9, 5),
     editedAt: null,
     resolution: null,
-    stateChangedBy: null,
+    stateChangedById: null,
+    stateChangedByName: null,
+    stateChangedByDeleted: false,
     stateChangedAt: null,
     canEdit: false,
     canDelete: false,

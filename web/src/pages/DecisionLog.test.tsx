@@ -74,7 +74,7 @@ describe("DecisionLog", () => {
     expect(within(item).getByText("Approver: Alex Approver")).toBeInTheDocument();
     expect(within(card).getByRole("link", { name: "1 ADR is waiting for your decision" })).toHaveAttribute(
       "href",
-      "/adrs?status=IN_REVIEW&mine=1&role=APPROVER",
+      "/adrs?status=IN_REVIEW&mine=1&participantRole=APPROVER",
     );
   });
 

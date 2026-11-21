@@ -1,7 +1,7 @@
 package ch.nokillswit
 
 import ch.nokillswit.adrs.DiscussionKind
-import ch.nokillswit.adrs.DiscussionStatus
+import ch.nokillswit.adrs.DiscussionState
 import io.ktor.client.request.delete
 import io.ktor.http.HttpStatusCode
 import io.ktor.server.testing.testApplication
@@ -35,7 +35,7 @@ class AdrDiscussionAuditTest {
             val edited = capture.awaitEvent { it.message == "adr.discussion_edited" && it.hasKeyValue("entryId", entryId) }
             assertNotNull(edited, "an edit audits")
 
-            cast.driver.client.setEntryState(adr.id, entry.id, DiscussionStatus.ANSWERED)
+            cast.driver.client.setEntryState(adr.id, entry.id, DiscussionState.ANSWERED)
             val state = capture.awaitEvent { it.message == "adr.discussion_state_changed" && it.hasKeyValue("entryId", entryId) }
             assertNotNull(state, "a state change audits")
             assertTrue(state.hasKeyValue("from", "OPEN") && state.hasKeyValue("to", "ANSWERED"))
@@ -66,9 +66,9 @@ class AdrDiscussionAuditTest {
 
             // An unchanged edit, an already-answered question, a refused kind and a blank body are no mutations.
             cast.contributor.client.editEntry(adr.id, entry.id, entry.body.orEmpty())
-            cast.driver.client.setEntryState(adr.id, entry.id, DiscussionStatus.ANSWERED)
+            cast.driver.client.setEntryState(adr.id, entry.id, DiscussionState.ANSWERED)
             capture.awaitEvent { it.message == "adr.discussion_state_changed" && it.hasKeyValue("entryId", entry.id.toLong()) }
-            cast.driver.client.setEntryState(adr.id, entry.id, DiscussionStatus.ANSWERED)
+            cast.driver.client.setEntryState(adr.id, entry.id, DiscussionState.ANSWERED)
             cast.stranger.client.postEntry(adr.id, DiscussionKind.ISSUE)
             cast.stranger.client.postEntry(adr.id, DiscussionKind.COMMENT, "")
             delay(300)

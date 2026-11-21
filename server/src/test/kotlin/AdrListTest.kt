@@ -81,13 +81,17 @@ class AdrListTest {
         )
         suspend fun ids(query: String) =
             cast.admin.client.get("/api/v1/adrs?pageSize=100&$query").body<AdrPageResponse>().items.map { it.id }
-        val informed = ids("participant=${cast.informed.id}")
+        val informed = ids("participantId=${cast.informed.id}")
         assertEquals(setOf(mine.id, asInformed.id), informed.toSet())
-        assertEquals(listOf(mine.id), ids("participant=${cast.informed.id}&role=INFORMED"))
-        assertEquals(listOf(asInformed.id), ids("participant=${cast.informed.id}&role=CONTRIBUTOR"))
-        assertEquals(emptyList(), ids("participant=${cast.informed.id}&role=DRIVER"))
-        assertTrue(theirs.id in ids("participant=${cast.driver.id}&role=DRIVER"))
-        assertEquals(HttpStatusCode.BadRequest, cast.admin.client.get("/api/v1/adrs?role=DRIVER").status, "role needs participant")
+        assertEquals(listOf(mine.id), ids("participantId=${cast.informed.id}&participantRole=INFORMED"))
+        assertEquals(listOf(asInformed.id), ids("participantId=${cast.informed.id}&participantRole=CONTRIBUTOR"))
+        assertEquals(emptyList(), ids("participantId=${cast.informed.id}&participantRole=DRIVER"))
+        assertTrue(theirs.id in ids("participantId=${cast.driver.id}&participantRole=DRIVER"))
+        assertEquals(
+            HttpStatusCode.BadRequest,
+            cast.admin.client.get("/api/v1/adrs?participantRole=DRIVER").status,
+            "participantRole needs participantId",
+        )
     }
 
     @Test
@@ -96,7 +100,7 @@ class AdrListTest {
         val cast = adrCast()
         val a = cast.raise()
         val b = cast.driver.client.createAdr()
-        val query = "participant=${cast.driver.id}&role=DRIVER&pageSize=1&sort=-number"
+        val query = "participantId=${cast.driver.id}&participantRole=DRIVER&pageSize=1&sort=-number"
         val page = cast.stranger.client.get("/api/v1/adrs?$query").body<AdrPageResponse>()
         assertEquals(1, page.pageSize)
         assertTrue(page.total >= 2)
@@ -132,7 +136,7 @@ class AdrListTest {
         assertEquals(listOf("B", "A", "C"), names("-updatedAt"))
         assertEquals(listOf("C", "A", "B"), names("updatedAt"))
         assertEquals(AdrStatus.PROBLEM_RAISED, c.status)
-        for (bad in listOf("sort=problem", "sort=name,name", "sort=nope", "status=NOPE", "participant=x", "pageSize=0", "page=0")) {
+        for (bad in listOf("sort=problem", "sort=name,name", "sort=nope", "status=NOPE", "participantId=x", "pageSize=0", "page=0")) {
             assertEquals(HttpStatusCode.BadRequest, cast.stranger.client.get("/api/v1/adrs?$bad").status, bad)
         }
         assertEquals(HttpStatusCode.BadRequest, cast.stranger.client.get("/api/v1/adrs?q=${"x".repeat(101)}").status)

@@ -47,8 +47,8 @@
     "expiresBefore": "Expires before",
     "rangeInverted": "The start date is after the end date.",
     "hasOpenIssues": "Has open issues",
-    "supersedes": "Replaces another ADR",
-    "supersededBy": "Has a successor",
+    "hasPredecessor": "Replaces another ADR",
+    "hasSuccessor": "Has a successor",
     "any": "Any",
     "yes": "Yes",
     "no": "No",
@@ -180,7 +180,7 @@
   "history": {
     "empty": "No history yet.",
     "system": "System",
-    "userDeleted": "{{name}} (deleted account)",
+    "deletedAccount": "{{name}} (deleted account)",
     "event": {
       "CREATED": "ADR raised",
       "UPDATED": "Edited",
@@ -302,7 +302,7 @@
       "ESCALATION": "Raise what needs the Approver's attention now; the Driver or the Approver resolves it."
     },
     "kindAria": "Kind of entry",
-    "status": {
+    "state": {
       "OPEN": "Open",
       "ANSWERED": "Answered",
       "RESOLVED": "Resolved"

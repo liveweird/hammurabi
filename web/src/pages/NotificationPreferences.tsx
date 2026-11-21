@@ -5,7 +5,6 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   getNotificationPreferences,
   setNotificationPreferences,
-  type DisabledNotificationPreference,
   type NotificationPreferences as Preferences,
   type NotificationType,
 } from "../api/notifications";
@@ -40,7 +39,7 @@ type Overrides = Partial<Record<NotificationType, boolean>>;
 /**
  * The caller's own notification preferences (`GET`/`PUT /users/{id}/notification-preferences`): one row per kind of notice with two switches,
  * the bell and the email. Email needs the bell (a row whose bell is off has its email switch off and disabled), and a deployment with no outbound
- * email says so and disables every email switch. Save is a wholesale replace of the SWITCHED-OFF `(type, channel)` pairs; the email choice of a
+ * email says so and disables every email switch. Save is a wholesale replace in the shape the GET answered (every kind with its two switches); the email choice of a
  * row whose bell is off is stored as it was, so it comes back when the bell does.
  */
 export default function NotificationPreferences() {
@@ -65,11 +64,11 @@ export default function NotificationPreferences() {
 
   const save = useMutation({
     mutationFn: () => {
-      const disabled: DisabledNotificationPreference[] = all.flatMap((k) => [
-        ...(bellOn(k) ? [] : [{ type: k.type, channel: "IN_APP" as const }]),
-        ...(emailOn(k) ? [] : [{ type: k.type, channel: "EMAIL" as const }]),
-      ]);
-      return setNotificationPreferences(userId as number, disabled);
+      // Every kind the server listed goes back (one a newer build words but this one does not keeps its read switches).
+      return setNotificationPreferences(
+        userId as number,
+        all.map((k) => ({ type: k.type, inApp: bellOn(k), email: emailOn(k) })),
+      );
     },
     onMutate: () => setError(null),
     onSuccess: async () => {

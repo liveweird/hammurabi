@@ -78,9 +78,9 @@ export default function TeamEditorModal({
             descriptionInputProps={form.getInputProps("description")}
           />
           <TeamManagerSelect
-            picked={form.values.managerUserId !== null && form.values.managerLabel !== null ? { value: form.values.managerUserId, label: form.values.managerLabel } : null}
+            picked={form.values.managerId !== null && form.values.managerLabel !== null ? { value: form.values.managerId, label: form.values.managerLabel } : null}
             onPick={(picked) => {
-              form.setFieldValue("managerUserId", picked?.value ?? null);
+              form.setFieldValue("managerId", picked?.value ?? null);
               form.setFieldValue("managerLabel", picked?.label ?? null);
             }}
           />

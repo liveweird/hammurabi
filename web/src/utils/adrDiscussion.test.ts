@@ -1,5 +1,5 @@
 import { describe, expect, test } from "vitest";
-import { DISCUSSION_KIND_COLOR, DISCUSSION_PAGE_SIZE, DISCUSSION_STATUS_COLOR, DISCUSSION_VARIANT_KINDS, lastDiscussionPage } from "./adrDiscussion";
+import { DISCUSSION_KIND_COLOR, DISCUSSION_PAGE_SIZE, DISCUSSION_STATE_COLOR, DISCUSSION_VARIANT_KINDS, lastDiscussionPage } from "./adrDiscussion";
 
 describe("the discussion colour maps", () => {
   test("the kinds follow the app's vocabulary: an escalation is red, an issue orange, a question grape, a comment gray", () => {
@@ -7,11 +7,11 @@ describe("the discussion colour maps", () => {
   });
 
   test("a settled entry is teal and an open one neutral", () => {
-    expect(DISCUSSION_STATUS_COLOR).toEqual({ OPEN: "gray", ANSWERED: "teal", RESOLVED: "teal" });
+    expect(DISCUSSION_STATE_COLOR).toEqual({ OPEN: "gray", ANSWERED: "teal", RESOLVED: "teal" });
   });
 
   test("never stock blue, indigo or violet, which sit beside the lapis brand", () => {
-    for (const color of [...Object.values(DISCUSSION_KIND_COLOR), ...Object.values(DISCUSSION_STATUS_COLOR)]) {
+    for (const color of [...Object.values(DISCUSSION_KIND_COLOR), ...Object.values(DISCUSSION_STATE_COLOR)]) {
       expect(["blue", "indigo", "violet"]).not.toContain(color);
     }
   });

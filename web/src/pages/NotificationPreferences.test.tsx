@@ -32,18 +32,17 @@ function prefs(off: string[] = [], emailAvailable = true): Preferences {
   };
 }
 
-type Disabled = { type: string; channel: string }[];
+type Kinds = Preferences["kinds"];
 
-/** GET answers `stored`; a PUT answers `putStatus` and, on a 204, the next GET answers what the PUT disabled. */
+/** GET answers `stored`; a PUT answers `putStatus` and, on a 204, the next GET answers what the PUT sent (a kind it leaves out is on). */
 function stubApi(stored: Preferences, putStatus = 204) {
   let current = stored;
   const fetchMock = vi.fn((url: string, init?: RequestInit) => {
     if (url !== PATH) return Promise.resolve(jsonResponse(404, {}));
     if (init?.method === "PUT") {
       if (putStatus !== 204) return Promise.resolve(jsonResponse(putStatus, { title: "x", status: putStatus }));
-      const off = (JSON.parse(init.body as string) as { disabled: Disabled }).disabled;
-      const has = (type: string, channel: string) => off.some((d) => d.type === type && d.channel === channel);
-      current = { ...current, kinds: current.kinds.map((k) => ({ ...k, inApp: !has(k.type, "IN_APP"), email: !has(k.type, "EMAIL") })) };
+      const sent = (JSON.parse(init.body as string) as { kinds: Kinds }).kinds;
+      current = { ...current, kinds: current.kinds.map((k) => sent.find((s) => s.type === k.type) ?? { ...k, inApp: true, email: true }) };
       return Promise.resolve(new Response(null, { status: 204 }));
     }
     return Promise.resolve(jsonResponse(200, current));
@@ -53,7 +52,7 @@ function stubApi(stored: Preferences, putStatus = 204) {
 }
 
 function putBodies(fetchMock: ReturnType<typeof stubApi>) {
-  return fetchMock.mock.calls.filter(([, init]) => init?.method === "PUT").map(([, init]) => JSON.parse(init?.body as string) as { disabled: Disabled });
+  return fetchMock.mock.calls.filter(([, init]) => init?.method === "PUT").map(([, init]) => JSON.parse(init?.body as string) as { kinds: Kinds });
 }
 
 const bell = (kind: string) => screen.getByRole("switch", { name: `Bell: ${kind}` });
@@ -96,7 +95,7 @@ describe("NotificationPreferences page", () => {
     expect(save()).toBeDisabled();
   });
 
-  test("a change saves the whole set of switched-off pairs, toasts and re-reads", async () => {
+  test("a change saves every kind with its two switches, toasts and re-reads", async () => {
     const toast = vi.spyOn(notifications, "show").mockReturnValue("id");
     const fetchMock = stubApi(prefs(["ADR_EXPIRED:email"]));
     const user = userEvent.setup();
@@ -105,15 +104,8 @@ describe("NotificationPreferences page", () => {
     await user.click(bell("An ADR is superseded"));
     await user.click(save());
     await waitFor(() => expect(toast).toHaveBeenCalledWith(expect.objectContaining({ message: "Notification preferences saved", color: "teal" })));
-    expect(putBodies(fetchMock)).toEqual([
-      {
-        disabled: [
-          { type: "ROLE_REMOVED", channel: "EMAIL" },
-          { type: "ADR_EXPIRED", channel: "EMAIL" },
-          { type: "ADR_SUPERSEDED", channel: "IN_APP" },
-        ],
-      },
-    ]);
+    // What the GET answered, edited: the same twelve kinds, three of them switched off.
+    expect(putBodies(fetchMock)).toEqual([{ kinds: prefs(["ROLE_REMOVED:email", "ADR_EXPIRED:email", "ADR_SUPERSEDED:inApp"]).kinds }]);
     await waitFor(() => expect(email(REMOVED)).not.toBeChecked());
     expect(bell("An ADR is superseded")).not.toBeChecked();
     expect(bell(ASSIGNED)).toBeChecked();
@@ -144,14 +136,10 @@ describe("NotificationPreferences page", () => {
     await user.click(bell(ASSIGNED));
     await user.click(save());
     await waitFor(() => expect(putBodies(fetchMock)).toHaveLength(1));
-    expect(putBodies(fetchMock)[0].disabled).toEqual([
-      { type: "ROLE_ASSIGNED", channel: "IN_APP" },
-      { type: "ROLE_REMOVED", channel: "IN_APP" },
-      { type: "ROLE_REMOVED", channel: "EMAIL" },
-    ]);
+    expect(putBodies(fetchMock)[0].kinds).toEqual(prefs(["ROLE_ASSIGNED:inApp", "ROLE_REMOVED:inApp", "ROLE_REMOVED:email"]).kinds);
   });
 
-  test("switching everything back on saves an empty disabled list", async () => {
+  test("switching everything back on saves every kind on", async () => {
     vi.spyOn(notifications, "show").mockReturnValue("id");
     const fetchMock = stubApi(prefs(["ROLE_ASSIGNED:inApp", "ROLE_REMOVED:email"]));
     const user = userEvent.setup();
@@ -159,7 +147,7 @@ describe("NotificationPreferences page", () => {
     await user.click(await screen.findByRole("switch", { name: `Bell: ${ASSIGNED}` }));
     await user.click(email(REMOVED));
     await user.click(save());
-    await waitFor(() => expect(putBodies(fetchMock)).toEqual([{ disabled: [] }]));
+    await waitFor(() => expect(putBodies(fetchMock)).toEqual([{ kinds: prefs().kinds }]));
   });
 
   test("with no email on the deployment it says so and disables every email switch, the bell stays usable", async () => {
@@ -185,10 +173,7 @@ describe("NotificationPreferences page", () => {
     expect(screen.queryByText("FROM_THE_FUTURE")).not.toBeInTheDocument();
     await user.click(save());
     await waitFor(() => expect(putBodies(fetchMock)).toHaveLength(1));
-    expect(putBodies(fetchMock)[0].disabled).toEqual([
-      { type: "ROLE_ASSIGNED", channel: "EMAIL" },
-      { type: "FROM_THE_FUTURE", channel: "EMAIL" },
-    ]);
+    expect(putBodies(fetchMock)[0].kinds).toEqual([...prefs(["ROLE_ASSIGNED:email"]).kinds, { type: "FROM_THE_FUTURE", inApp: true, email: false }]);
   });
 
   test("a failed load shows an inline alert and no switches", async () => {

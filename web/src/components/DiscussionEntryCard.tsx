@@ -3,7 +3,7 @@ import { useTranslation } from "react-i18next";
 import { ActionIcon, Button, Group, Paper, Stack, Text } from "@mantine/core";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { IconPencil, IconTrash } from "@tabler/icons-react";
-import { deleteDiscussionEntry, setDiscussionEntryState, type DiscussionEntry, type DiscussionStatus } from "../api/adrDiscussion";
+import { deleteDiscussionEntry, setDiscussionEntryState, type DiscussionEntry, type DiscussionState } from "../api/adrDiscussion";
 import { browserTimeZone, formatDate, formatDateTime } from "../utils/formatDate";
 import { refreshQueriesAfterMutation } from "../utils/queryRefresh";
 import { showSuccessToast } from "../utils/toast";
@@ -12,7 +12,7 @@ import ConfirmActionModal from "./ConfirmActionModal";
 import DiscussionEntryEditor from "./DiscussionEntryEditor";
 import DiscussionKindBadge from "./DiscussionKindBadge";
 import DiscussionResolveModal from "./DiscussionResolveModal";
-import DiscussionStatusBadge from "./DiscussionStatusBadge";
+import DiscussionStateBadge from "./DiscussionStateBadge";
 import MarkdownView from "./MarkdownView";
 
 /**
@@ -38,35 +38,35 @@ export default function DiscussionEntryCard({ entry }: { entry: DiscussionEntry 
     onError: () => setConfirmingDelete(false),
   });
   const move = useMutation({
-    mutationFn: (input: { status: DiscussionStatus; note?: string }) => setDiscussionEntryState(entry.adrId, entry.id, input.status, input.note),
+    mutationFn: (input: { state: DiscussionState; note?: string }) => setDiscussionEntryState(entry.adrId, entry.id, input.state, input.note),
     onSuccess: async (_entry, input) => {
       setResolving(false);
       await refresh();
-      showSuccessToast(t(`adrs.discussion.toast.${input.status}`));
+      showSuccessToast(t(`adrs.discussion.toast.${input.state}`));
     },
     // A failed resolve keeps the dialog and the note open (the error shows inside it); only a success closes it.
   });
 
-  const open = entry.status === "OPEN";
+  const open = entry.state === "OPEN";
   const question = entry.kind === "QUESTION";
   const stateLabel = open ? (question ? "markAnswered" : "resolve") : question ? "reopenQuestion" : "reopenIssue";
   // A question is answered at once; an issue or escalation is resolved through the note dialog; either reopens at once.
   const changeState = () => {
-    if (!open) move.mutate({ status: "OPEN" });
-    else if (question) move.mutate({ status: "ANSWERED" });
+    if (!open) move.mutate({ state: "OPEN" });
+    else if (question) move.mutate({ state: "ANSWERED" });
     else setResolving(true);
   };
-  const settledBy = entry.stateChangedBy && entry.stateChangedAt != null ? { name: entry.stateChangedBy.name, date: formatDate(entry.stateChangedAt, "—", browserTimeZone()) } : null;
+  const settledBy = entry.stateChangedByName != null && entry.stateChangedAt != null ? { name: entry.stateChangedByName, date: formatDate(entry.stateChangedAt, "—", browserTimeZone()) } : null;
 
   return (
-    <Paper withBorder p="md" component="article" aria-label={t("adrs.discussion.entryAria", { kind: t(`adrs.discussion.kind.${entry.kind}`), name: entry.author.name })}>
+    <Paper withBorder p="md" component="article" aria-label={t("adrs.discussion.entryAria", { kind: t(`adrs.discussion.kind.${entry.kind}`), name: entry.authorName })}>
       <Stack gap="xs">
         <Group justify="space-between" align="flex-start" wrap="nowrap">
           <Group gap="xs" align="center">
             <DiscussionKindBadge kind={entry.kind} />
-            {entry.status && <DiscussionStatusBadge status={entry.status} />}
+            {entry.state && <DiscussionStateBadge state={entry.state} />}
             <Text size="sm" fw={500}>
-              {entry.author.deleted ? t("adrs.history.userDeleted", { name: entry.author.name }) : entry.author.name}
+              {entry.authorDeleted ? t("adrs.history.deletedAccount", { name: entry.authorName }) : entry.authorName}
             </Text>
             <Text size="xs" c="dimmed">
               {formatDateTime(entry.createdAt, browserTimeZone())}
@@ -75,12 +75,12 @@ export default function DiscussionEntryCard({ entry }: { entry: DiscussionEntry 
           </Group>
           <Group gap={4} wrap="nowrap">
             {entry.canEdit && !editing && (
-              <ActionIcon aria-label={t("adrs.discussion.action.editAria", { name: entry.author.name })} onClick={() => setEditing(true)}>
+              <ActionIcon aria-label={t("adrs.discussion.action.editAria", { name: entry.authorName })} onClick={() => setEditing(true)}>
                 <IconPencil size={16} />
               </ActionIcon>
             )}
             {entry.canDelete && (
-              <ActionIcon color="red" aria-label={t("adrs.discussion.action.deleteAria", { name: entry.author.name })} onClick={() => setConfirmingDelete(true)}>
+              <ActionIcon color="red" aria-label={t("adrs.discussion.action.deleteAria", { name: entry.authorName })} onClick={() => setConfirmingDelete(true)}>
                 <IconTrash size={16} />
               </ActionIcon>
             )}
@@ -109,7 +109,7 @@ export default function DiscussionEntryCard({ entry }: { entry: DiscussionEntry 
             </MarkdownView>
           </Paper>
         )}
-        {settledBy && entry.status && !open && (
+        {settledBy && entry.state && !open && (
           <Text size="xs" c="dimmed">
             {t(question ? "adrs.discussion.answeredBy" : "adrs.discussion.resolvedBy", settledBy)}
           </Text>
@@ -132,7 +132,7 @@ export default function DiscussionEntryCard({ entry }: { entry: DiscussionEntry 
             setResolving(false);
             move.reset();
           }}
-          onResolve={(note) => move.mutate({ status: "RESOLVED", note: note || undefined })}
+          onResolve={(note) => move.mutate({ state: "RESOLVED", note: note || undefined })}
           loading={move.isPending}
         />
       )}

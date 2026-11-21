@@ -15,7 +15,7 @@ const TEAM = {
   id: 1,
   name: "Payments",
   description: "Money movers",
-  managerUserId: 12,
+  managerId: 12,
   managerName: "Cara New",
   createdAt: 1,
   updatedAt: 2,
@@ -80,7 +80,7 @@ describe("TeamDetails page", () => {
     await user.click(within(modal).getByRole("button", { name: /^save$/i }));
     await waitFor(() => expect(findCall(mockFetch, "PUT", "/api/v1/teams/1")).toBeDefined());
     const body = JSON.parse((findCall(mockFetch, "PUT", "/api/v1/teams/1")![1] as RequestInit).body as string);
-    expect(body).toEqual({ name: "Payments EU", description: "Money movers", managerUserId: 12 });
+    expect(body).toEqual({ name: "Payments EU", description: "Money movers", managerId: 12 });
   });
 
   test("cancelling the Edit modal closes it without a request", async () => {
@@ -94,7 +94,7 @@ describe("TeamDetails page", () => {
   });
 
   test("a team without a manager says so", async () => {
-    serve(mockFetch, {}, { ...TEAM, managerUserId: null, managerName: null });
+    serve(mockFetch, {}, { ...TEAM, managerId: null, managerName: null });
     renderPage();
     expect(await screen.findByText("No manager")).toBeInTheDocument();
     expect(screen.queryByText(/^Manager:/)).not.toBeInTheDocument();

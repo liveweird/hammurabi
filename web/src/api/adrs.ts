@@ -30,9 +30,9 @@ export type AdrFilterQuery = {
   status?: readonly AdrStatus[];
   q?: string;
   /** A user id: only the ADRs this user holds a role on. */
-  participant?: number;
-  /** Narrows `participant` to one DACI role (the server 400s a lone role). */
-  role?: AdrRole;
+  participantId?: number;
+  /** Narrows `participantId` to one DACI role (the server 400s a lone role). */
+  participantRole?: AdrRole;
   /** Any-of; each tag name travels as its own repeated key. */
   tag?: readonly string[];
   /** FULL-TEXT search (2 to 100 characters trimmed; the server caps `pageSize` at 20 with it and ranks by relevance unless a sort is sent). */
@@ -46,8 +46,8 @@ export type AdrFilterQuery = {
   expiresBefore?: string;
   /** `true`/`false` each narrow; absent is "any" (so `false` IS sent). */
   hasOpenIssues?: boolean;
-  supersedes?: boolean;
-  supersededBy?: boolean;
+  hasPredecessor?: boolean;
+  hasSuccessor?: boolean;
 };
 
 type AdrListQuery = AdrFilterQuery & { page: number; pageSize: number; sort?: string };
@@ -57,8 +57,8 @@ function filterParams(q: AdrFilterQuery) {
   return {
     status: q.status,
     q: q.q,
-    participant: q.participant,
-    role: q.role,
+    participantId: q.participantId,
+    participantRole: q.participantRole,
     tag: q.tag,
     text: q.text,
     createdFrom: q.createdFrom,
@@ -67,8 +67,8 @@ function filterParams(q: AdrFilterQuery) {
     updatedTo: q.updatedTo,
     expiresBefore: q.expiresBefore,
     hasOpenIssues: q.hasOpenIssues,
-    supersedes: q.supersedes,
-    supersededBy: q.supersededBy,
+    hasPredecessor: q.hasPredecessor,
+    hasSuccessor: q.hasSuccessor,
   };
 }
 

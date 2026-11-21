@@ -47,7 +47,7 @@ export default function Adrs() {
   const { t } = useTranslation();
   const { params, update, search } = useAdrListParams();
   const [debouncedQ] = useDebouncedValue(params.q, FILTER_DEBOUNCE_MS);
-  const participant = params.mine ? (getUserId() ?? undefined) : (params.participant ?? undefined);
+  const participantId = params.mine ? (getUserId() ?? undefined) : (params.participantId ?? undefined);
   const textActive = params.text !== "";
   const categories = useTagCategories();
   // The server's relevance order is the default while searching; picking a column (while searching) takes it over until the search ends.
@@ -59,16 +59,16 @@ export default function Adrs() {
     text: params.text || undefined,
     status: params.status,
     tag: params.tag,
-    participant,
-    role: params.role ?? undefined,
+    participantId,
+    participantRole: params.participantRole ?? undefined,
     createdFrom: params.createdFrom || undefined,
     createdTo: params.createdTo || undefined,
     updatedFrom: params.updatedFrom || undefined,
     updatedTo: params.updatedTo || undefined,
     expiresBefore: params.expiresBefore || undefined,
     hasOpenIssues: params.hasOpenIssues ?? undefined,
-    supersedes: params.supersedes ?? undefined,
-    supersededBy: params.supersededBy ?? undefined,
+    hasPredecessor: params.hasPredecessor ?? undefined,
+    hasSuccessor: params.hasSuccessor ?? undefined,
   };
   const { page, setPage, pageSize, setPageSize, sortField, sortDir, sortParam, toggleSort } = usePagedSort<SortField>(
     "number",
@@ -110,7 +110,7 @@ export default function Adrs() {
       error={error}
     />
   );
-  const triState = (key: "hasOpenIssues" | "supersedes" | "supersededBy") => (
+  const triState = (key: "hasOpenIssues" | "hasPredecessor" | "hasSuccessor") => (
     <TriStateSelect label={t(`adrs.filter.${key}`)} value={params[key]} onChange={(value) => update({ [key]: value })} />
   );
 
@@ -188,24 +188,24 @@ export default function Adrs() {
           onChange={(e) => update({ mine: e.currentTarget.checked })}
           mb={6}
         />
-        {params.participant !== null && (
+        {params.participantId !== null && (
           <Badge
             variant="light"
             color="gray"
             mb={6}
             style={{ textTransform: "none" }}
-            rightSection={<CloseButton size="xs" aria-label={t("adrs.filter.clearParticipant")} onClick={() => update({ participant: null, role: null })} />}
+            rightSection={<CloseButton size="xs" aria-label={t("adrs.filter.clearParticipant")} onClick={() => update({ participantId: null, participantRole: null })} />}
           >
-            {t("adrs.filter.participant", { id: params.participant })}
+            {t("adrs.filter.participant", { id: params.participantId })}
           </Badge>
         )}
         <Select
           label={t("adrs.filter.role")}
           placeholder={t("common.state.any")}
           data={ADR_ROLES.map((role) => ({ value: role, label: t(`adrs.role.${role}`) }))}
-          value={params.role}
-          onChange={(value) => update({ role: isAdrRole(value) ? value : null })}
-          disabled={!params.mine && params.participant === null}
+          value={params.participantRole}
+          onChange={(value) => update({ participantRole: isAdrRole(value) ? value : null })}
+          disabled={!params.mine && params.participantId === null}
           clearable
           clearButtonProps={{ "aria-label": t("adrs.filter.clearRole") }}
         />
@@ -215,8 +215,8 @@ export default function Adrs() {
         {dateField("updatedTo", updatedInverted ? t("adrs.filter.rangeInverted") : undefined)}
         {dateField("expiresBefore")}
         {triState("hasOpenIssues")}
-        {triState("supersedes")}
-        {triState("supersededBy")}
+        {triState("hasPredecessor")}
+        {triState("hasSuccessor")}
       </FilterPanel>
 
       {relevanceOrder && (

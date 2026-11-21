@@ -21,8 +21,8 @@ function deferred<T>() {
 
 const PAGE = {
   items: [
-    { id: 1, name: "Payments", description: "Money movers", managerUserId: 7, managerName: "Mia Manager", createdAt: 1, updatedAt: 2 },
-    { id: 2, name: "Identity", description: null, managerUserId: null, managerName: null, createdAt: 1, updatedAt: 2 },
+    { id: 1, name: "Payments", description: "Money movers", managerId: 7, managerName: "Mia Manager", createdAt: 1, updatedAt: 2 },
+    { id: 2, name: "Identity", description: null, managerId: null, managerName: null, createdAt: 1, updatedAt: 2 },
   ],
   page: 1,
   pageSize: 20,
@@ -32,7 +32,7 @@ const DETAIL = {
   id: 1,
   name: "Payments",
   description: "Money movers",
-  managerUserId: 7,
+  managerId: 7,
   managerName: "Mia Manager",
   createdAt: 1,
   updatedAt: 2,
@@ -130,7 +130,7 @@ describe("Teams page", () => {
     await user.click(within(modal).getByRole("button", { name: /^create$/i }));
     await waitFor(() => expect(findCall(mockFetch, "POST", "/api/v1/teams")).toBeDefined());
     const body = JSON.parse((findCall(mockFetch, "POST", "/api/v1/teams")![1] as RequestInit).body as string);
-    expect(body).toEqual({ name: "Ledger", description: "keeps the books", managerUserId: null });
+    expect(body).toEqual({ name: "Ledger", description: "keeps the books", managerId: null });
     expect(await screen.findByText("at /teams/9")).toBeInTheDocument();
   });
 
@@ -167,7 +167,7 @@ describe("Teams page", () => {
     await waitFor(() => expect(findCall(mockFetch, "PUT", "/api/v1/teams/1")).toBeDefined());
     const body = JSON.parse((findCall(mockFetch, "PUT", "/api/v1/teams/1")![1] as RequestInit).body as string);
     // Edit keeps the stored manager (a PUT is a full replace).
-    expect(body).toEqual({ name: "Payments", description: null, managerUserId: 7 });
+    expect(body).toEqual({ name: "Payments", description: null, managerId: 7 });
   });
 
   test("the manager picker searches users, sends the picked id, and clearing sends null", async () => {
@@ -190,11 +190,11 @@ describe("Teams page", () => {
     expect(JSON.parse((findCall(mockFetch, "PUT", "/api/v1/teams/1")![1] as RequestInit).body as string)).toEqual({
       name: "Payments",
       description: "Money movers",
-      managerUserId: 12,
+      managerId: 12,
     });
   });
 
-  test("clearing the manager sends managerUserId null", async () => {
+  test("clearing the manager sends managerId null", async () => {
     serve(mockFetch, { "PUT /api/v1/teams/1": { status: 204 } });
     const user = userEvent.setup();
     renderPage();
@@ -205,7 +205,7 @@ describe("Teams page", () => {
     await user.click(within(modal).getByLabelText("Clear the manager"));
     await user.click(within(modal).getByRole("button", { name: /^save$/i }));
     await waitFor(() => expect(findCall(mockFetch, "PUT", "/api/v1/teams/1")).toBeDefined());
-    expect(JSON.parse((findCall(mockFetch, "PUT", "/api/v1/teams/1")![1] as RequestInit).body as string)).toMatchObject({ managerUserId: null });
+    expect(JSON.parse((findCall(mockFetch, "PUT", "/api/v1/teams/1")![1] as RequestInit).body as string)).toMatchObject({ managerId: null });
   });
 
   test("a 409 on save marks the name field", async () => {

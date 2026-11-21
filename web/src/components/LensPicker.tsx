@@ -37,7 +37,7 @@ export default function LensPicker({ filters, onApply }: { filters: LensFilters;
   const userId = getUserId();
   const option = (lens: Lens) => ({
     value: String(lens.id),
-    label: lens.createdBy === userId ? lens.name : `${lens.name} — ${lens.creatorName}`,
+    label: lens.createdById === userId ? lens.name : `${lens.name} — ${lens.createdByName}`,
   });
   const data = [
     { group: t("lenses.group.mine"), items: mine.map(option) },

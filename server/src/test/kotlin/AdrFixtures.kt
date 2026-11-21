@@ -8,7 +8,7 @@ import ch.nokillswit.adrs.DiscussionEntryResponse
 import ch.nokillswit.adrs.DiscussionKind
 import ch.nokillswit.adrs.DiscussionPageResponse
 import ch.nokillswit.adrs.DiscussionStateRequest
-import ch.nokillswit.adrs.DiscussionStatus
+import ch.nokillswit.adrs.DiscussionState
 import ch.nokillswit.adrs.AdrEventPageResponse
 import ch.nokillswit.adrs.AdrEventResponse
 import ch.nokillswit.adrs.AdrParticipantRequest
@@ -211,8 +211,8 @@ suspend fun HttpClient.postEntryOk(adrId: UInt, kind: DiscussionKind, body: Stri
 suspend fun HttpClient.editEntry(adrId: UInt, entryId: UInt, body: String): HttpResponse =
     putJson("/api/v1/adrs/$adrId/discussion/$entryId", DiscussionEditRequest(body))
 
-suspend fun HttpClient.setEntryState(adrId: UInt, entryId: UInt, status: DiscussionStatus, resolution: String? = null): HttpResponse =
-    putJson("/api/v1/adrs/$adrId/discussion/$entryId/state", DiscussionStateRequest(status, resolution))
+suspend fun HttpClient.setEntryState(adrId: UInt, entryId: UInt, state: DiscussionState, resolution: String? = null): HttpResponse =
+    putJson("/api/v1/adrs/$adrId/discussion/$entryId/state", DiscussionStateRequest(state, resolution))
 
 suspend fun HttpClient.discussion(adrId: UInt, query: String = ""): DiscussionPageResponse =
     get("/api/v1/adrs/$adrId/discussion$query").body()

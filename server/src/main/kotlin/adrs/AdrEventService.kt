@@ -182,24 +182,24 @@ fun adrDiscussionPostedEvent(entryId: UInt, kind: DiscussionKind) = discussionEv
 )
 
 /** An entry moved to [to] (`ANSWERED` / `RESOLVED` settle it, `OPEN` reopens it): the type follows the kind and the direction. */
-fun adrDiscussionStateEvent(entryId: UInt, kind: DiscussionKind, to: DiscussionStatus) = discussionEvent(
+fun adrDiscussionStateEvent(entryId: UInt, kind: DiscussionKind, to: DiscussionState) = discussionEvent(
     when {
-        kind == DiscussionKind.QUESTION && to == DiscussionStatus.OPEN -> AdrEventType.QUESTION_REOPENED
+        kind == DiscussionKind.QUESTION && to == DiscussionState.OPEN -> AdrEventType.QUESTION_REOPENED
         kind == DiscussionKind.QUESTION -> AdrEventType.QUESTION_ANSWERED
-        to == DiscussionStatus.OPEN -> AdrEventType.ISSUE_REOPENED
+        to == DiscussionState.OPEN -> AdrEventType.ISSUE_REOPENED
         else -> AdrEventType.ISSUE_RESOLVED
     },
     entryId,
     kind,
 )
 
-/** One history entry: a null `userId` is the system; `userDeleted` marks an actor soft-deleted since (the recorded name stays). */
+/** One history entry: a null `actorId` is the system; `actorDeleted` marks an actor soft-deleted since (the recorded name stays). */
 @Serializable
 data class AdrEventResponse(
     val id: UInt,
-    val userId: UInt?,
-    val userName: String?,
-    val userDeleted: Boolean,
+    val actorId: UInt?,
+    val actorName: String?,
+    val actorDeleted: Boolean,
     val type: AdrEventType,
     val params: Map<String, String>,
     val createdAt: Long,
@@ -301,9 +301,9 @@ class AdrEventService(database: R2dbcDatabase, private val notices: AdrNotices =
             items = page.items.map {
                 AdrEventResponse(
                     id = it.id,
-                    userId = it.userId,
-                    userName = it.userName,
-                    userDeleted = it.userDeleted,
+                    actorId = it.userId,
+                    actorName = it.userName,
+                    actorDeleted = it.userDeleted,
                     type = AdrEventType.valueOf(it.type),
                     params = it.params,
                     createdAt = it.createdAt,

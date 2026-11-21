@@ -199,9 +199,9 @@ describe("Adrs list page", () => {
 
   test("a URL with filters reproduces them in the request: q, repeated status, my ADRs and my role", async () => {
     const stub = serve(page);
-    renderList("/adrs?q=db&status=ACTIVE&status=IN_REVIEW&mine=1&role=DRIVER");
+    renderList("/adrs?q=db&status=ACTIVE&status=IN_REVIEW&mine=1&participantRole=DRIVER");
     await screen.findByRole("link", { name: "Open ADR-0007: Use PostgreSQL" });
-    await waitFor(() => expect(listUrls(stub)).toContain("/api/v1/adrs?page=1&pageSize=20&sort=-number&status=ACTIVE&status=IN_REVIEW&q=db&participant=5&role=DRIVER"));
+    await waitFor(() => expect(listUrls(stub)).toContain("/api/v1/adrs?page=1&pageSize=20&sort=-number&status=ACTIVE&status=IN_REVIEW&q=db&participantId=5&participantRole=DRIVER"));
   });
 
   test("the panel writes the filters into the URL and the list follows", async () => {
@@ -222,12 +222,12 @@ describe("Adrs list page", () => {
 
     await user.click(screen.getByRole("switch", { name: "Only ADRs I take part in" }));
     expect(screen.getAllByTestId("at").at(-1)).toHaveTextContent("mine=1");
-    await waitFor(() => expect(listUrls(stub).some((url) => url.includes("participant=5") && !url.includes("role="))).toBe(true));
+    await waitFor(() => expect(listUrls(stub).some((url) => url.includes("participantId=5") && !url.includes("participantRole="))).toBe(true));
 
     await user.click(screen.getByRole("combobox", { name: "My role" }));
     await user.click(await screen.findByRole("option", { name: "Approver" }));
-    expect(screen.getAllByTestId("at").at(-1)).toHaveTextContent("role=APPROVER");
-    await waitFor(() => expect(listUrls(stub).some((url) => url.includes("participant=5&role=APPROVER"))).toBe(true));
+    expect(screen.getAllByTestId("at").at(-1)).toHaveTextContent("participantRole=APPROVER");
+    await waitFor(() => expect(listUrls(stub).some((url) => url.includes("participantId=5&participantRole=APPROVER"))).toBe(true));
 
     // Switching "mine" off drops the role with it.
     await user.click(screen.getByRole("switch", { name: "Only ADRs I take part in" }));
@@ -398,11 +398,11 @@ describe("Adrs list page", () => {
     test("a URL with the new filters reproduces them in the request", async () => {
       const stub = serve(page);
       renderList(
-        "/adrs?createdFrom=2026-01-01&createdTo=2026-02-01&updatedFrom=2026-03-01&updatedTo=2026-04-01&expiresBefore=2027-01-01&hasOpenIssues=true&supersedes=false&supersededBy=false",
+        "/adrs?createdFrom=2026-01-01&createdTo=2026-02-01&updatedFrom=2026-03-01&updatedTo=2026-04-01&expiresBefore=2027-01-01&hasOpenIssues=true&hasPredecessor=false&hasSuccessor=false",
       );
       await screen.findByRole("link", { name: "Open ADR-0007: Use PostgreSQL" });
       expect(listUrls(stub)).toEqual([
-        "/api/v1/adrs?page=1&pageSize=20&sort=-number&createdFrom=2026-01-01&createdTo=2026-02-01&updatedFrom=2026-03-01&updatedTo=2026-04-01&expiresBefore=2027-01-01&hasOpenIssues=true&supersedes=false&supersededBy=false",
+        "/api/v1/adrs?page=1&pageSize=20&sort=-number&createdFrom=2026-01-01&createdTo=2026-02-01&updatedFrom=2026-03-01&updatedTo=2026-04-01&expiresBefore=2027-01-01&hasOpenIssues=true&hasPredecessor=false&hasSuccessor=false",
       ]);
       // Six panel filters are active: the created range, the updated range, the expiry bound and the three yes/no ones.
       expect(screen.getByRole("button", { name: /^Filters/ })).toHaveTextContent("6");
@@ -422,11 +422,11 @@ describe("Adrs list page", () => {
       await user.click(screen.getByRole("combobox", { name: "Has a successor" }));
       await user.click(await screen.findByRole("option", { name: "Yes" }));
       expect(screen.getAllByTestId("at").at(-1)).toHaveTextContent(
-        "/adrs?createdFrom=2026-05-01&createdTo=2026-05-31&updatedFrom=2026-06-01&updatedTo=2026-06-30&expiresBefore=2027-01-01&hasOpenIssues=true&supersedes=false&supersededBy=true",
+        "/adrs?createdFrom=2026-05-01&createdTo=2026-05-31&updatedFrom=2026-06-01&updatedTo=2026-06-30&expiresBefore=2027-01-01&hasOpenIssues=true&hasPredecessor=false&hasSuccessor=true",
       );
       await waitFor(() =>
         expect(listUrls(stub).at(-1)).toBe(
-          "/api/v1/adrs?page=1&pageSize=20&sort=-number&createdFrom=2026-05-01&createdTo=2026-05-31&updatedFrom=2026-06-01&updatedTo=2026-06-30&expiresBefore=2027-01-01&hasOpenIssues=true&supersedes=false&supersededBy=true",
+          "/api/v1/adrs?page=1&pageSize=20&sort=-number&createdFrom=2026-05-01&createdTo=2026-05-31&updatedFrom=2026-06-01&updatedTo=2026-06-30&expiresBefore=2027-01-01&hasOpenIssues=true&hasPredecessor=false&hasSuccessor=true",
         ),
       );
       // "Any" removes the key again.
@@ -447,7 +447,7 @@ describe("Adrs list page", () => {
     });
 
     test("a participant carried by an applied lens shows as a removable chip, and the role stays selectable", async () => {
-      const { user } = await openPanel("/adrs?participant=9&role=DRIVER");
+      const { user } = await openPanel("/adrs?participantId=9&participantRole=DRIVER");
       expect(screen.getByText("Participant: user 9")).toBeInTheDocument();
       expect(screen.getByRole("combobox", { name: "My role" })).toBeEnabled();
       await user.click(screen.getByRole("button", { name: "Clear participant filter" }));

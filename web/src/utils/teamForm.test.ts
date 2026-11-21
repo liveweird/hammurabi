@@ -17,36 +17,36 @@ describe("teamForm", () => {
   });
 
   test("the body trims and sends a blank description as null; values round-trip from a response", () => {
-    const none = { managerUserId: null, managerLabel: null };
-    expect(toTeamBody({ name: "  Payments ", description: "   ", ...none })).toEqual({ name: "Payments", description: null, managerUserId: null });
-    expect(toTeamBody({ name: "A", description: " movers ", ...none })).toEqual({ name: "A", description: "movers", managerUserId: null });
-    expect(toTeamBody({ name: "A", description: "", managerUserId: "7", managerLabel: "Ann (a@x.io)" })).toEqual({
+    const none = { managerId: null, managerLabel: null };
+    expect(toTeamBody({ name: "  Payments ", description: "   ", ...none })).toEqual({ name: "Payments", description: null, managerId: null });
+    expect(toTeamBody({ name: "A", description: " movers ", ...none })).toEqual({ name: "A", description: "movers", managerId: null });
+    expect(toTeamBody({ name: "A", description: "", managerId: "7", managerLabel: "Ann (a@x.io)" })).toEqual({
       name: "A",
       description: null,
-      managerUserId: 7,
+      managerId: 7,
     });
     expect(
       toTeamFormValues({
         id: 1,
         name: "A",
         description: null,
-        managerUserId: null,
+        managerId: null,
         managerName: null,
         createdAt: 0,
         updatedAt: 0,
       }),
-    ).toEqual({ name: "A", description: "", managerUserId: null, managerLabel: null });
+    ).toEqual({ name: "A", description: "", managerId: null, managerLabel: null });
     expect(
       toTeamFormValues({
         id: 1,
         name: "A",
         description: null,
-        managerUserId: 7,
+        managerId: 7,
         managerName: "Ann Manager",
         createdAt: 0,
         updatedAt: 0,
       }),
-    ).toEqual({ name: "A", description: "", managerUserId: "7", managerLabel: "Ann Manager" });
+    ).toEqual({ name: "A", description: "", managerId: "7", managerLabel: "Ann Manager" });
   });
 
   test("save errors map to the fixed vocabulary", () => {

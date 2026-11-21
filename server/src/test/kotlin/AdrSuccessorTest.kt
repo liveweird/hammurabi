@@ -57,7 +57,7 @@ class AdrSuccessorTest {
         assertEquals(old.revision, predecessor.revision, "the predecessor's document is untouched by a link")
         val event = cast.driver.client.adrEventsOldestFirst(draft.id).last { it.type == AdrEventType.SUCCESSOR_LINKED }
         assertEquals(mapOf("predecessorId" to old.id.toString(), "key" to old.key, "name" to old.name), event.params)
-        assertEquals(cast.driver.id, event.userId)
+        assertEquals(cast.driver.id, event.actorId)
     }
 
     @Test
@@ -82,7 +82,7 @@ class AdrSuccessorTest {
             val superseded = cast.driver.client.adrEventsOldestFirst(old.id).last()
             assertEquals(AdrEventType.SUPERSEDED, superseded.type)
             assertEquals(mapOf("successorId" to next.id.toString(), "key" to next.key, "name" to next.name), superseded.params)
-            assertEquals(cast.approver.id, superseded.userId, "the activator is the actor")
+            assertEquals(cast.approver.id, superseded.actorId, "the activator is the actor")
             val successorEvents = cast.driver.client.adrEventsOldestFirst(next.id).takeLast(2)
             assertEquals(listOf(AdrEventType.TRANSITIONED, AdrEventType.SUCCESSOR_ACTIVATED), successorEvents.map { it.type })
             assertEquals(mapOf("predecessorId" to old.id.toString(), "key" to old.key, "name" to old.name), successorEvents.last().params)

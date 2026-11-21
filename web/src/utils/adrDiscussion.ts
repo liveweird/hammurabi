@@ -1,5 +1,5 @@
 import type { MantineColor } from "@mantine/core";
-import type { DiscussionKind, DiscussionStatus } from "../api/adrDiscussion";
+import type { DiscussionKind, DiscussionState } from "../api/adrDiscussion";
 
 /** Comments and questions, then issues and escalations: the two sections of the ADR page, in the order the kinds are offered. */
 export type DiscussionVariant = "discussion" | "issues";
@@ -32,7 +32,7 @@ export const DISCUSSION_KIND_COLOR: Record<DiscussionKind, MantineColor> = {
 };
 
 /** The state colour map: settled is teal (success), open stays neutral so the kind badge carries the urgency. */
-export const DISCUSSION_STATUS_COLOR: Record<DiscussionStatus, MantineColor> = {
+export const DISCUSSION_STATE_COLOR: Record<DiscussionState, MantineColor> = {
   OPEN: "gray",
   ANSWERED: "teal",
   RESOLVED: "teal",

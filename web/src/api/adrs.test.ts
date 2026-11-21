@@ -23,8 +23,8 @@ describe("ADR API wrappers", () => {
 
   test("listAdrs repeats the status key and sends participant and role", async () => {
     mockFetch.mockResolvedValue(jsonResponse(200, { items: [], page: 1, pageSize: 20, total: 0 }));
-    await listAdrs({ page: 2, pageSize: 40, sort: "-number", status: ["ACTIVE", "IN_REVIEW"], q: "adr-1", participant: 7, role: "DRIVER" });
-    expect(lastCall()[0]).toBe("/api/v1/adrs?page=2&pageSize=40&sort=-number&status=ACTIVE&status=IN_REVIEW&q=adr-1&participant=7&role=DRIVER");
+    await listAdrs({ page: 2, pageSize: 40, sort: "-number", status: ["ACTIVE", "IN_REVIEW"], q: "adr-1", participantId: 7, participantRole: "DRIVER" });
+    expect(lastCall()[0]).toBe("/api/v1/adrs?page=2&pageSize=40&sort=-number&status=ACTIVE&status=IN_REVIEW&q=adr-1&participantId=7&participantRole=DRIVER");
   });
 
   test("getAdrOverview reads the decision log in one parameterless GET", async () => {
@@ -44,8 +44,8 @@ describe("ADR API wrappers", () => {
 
   test("exportAdrs sends the list's filters under the list's names, and no paging or sort", async () => {
     mockFetch.mockImplementation(() => Promise.resolve(new Response("zip")));
-    const download = await exportAdrs({ status: ["ACTIVE", "IN_REVIEW"], q: "pg", text: "queue", tag: ["data"], hasOpenIssues: false, participant: 5, role: "DRIVER" });
-    expect(lastCall()[0]).toBe("/api/v1/adrs/export?status=ACTIVE&status=IN_REVIEW&q=pg&participant=5&role=DRIVER&tag=data&text=queue&hasOpenIssues=false");
+    const download = await exportAdrs({ status: ["ACTIVE", "IN_REVIEW"], q: "pg", text: "queue", tag: ["data"], hasOpenIssues: false, participantId: 5, participantRole: "DRIVER" });
+    expect(lastCall()[0]).toBe("/api/v1/adrs/export?status=ACTIVE&status=IN_REVIEW&q=pg&participantId=5&participantRole=DRIVER&tag=data&text=queue&hasOpenIssues=false");
     expect(download.fileName).toBe("adr-export.zip");
     await exportAdrs({});
     expect(lastCall()[0]).toBe("/api/v1/adrs/export?");
@@ -69,11 +69,11 @@ describe("ADR API wrappers", () => {
       updatedTo: "2026-04-01",
       expiresBefore: "2027-01-01",
       hasOpenIssues: true,
-      supersedes: false,
-      supersededBy: false,
+      hasPredecessor: false,
+      hasSuccessor: false,
     });
     expect(lastCall()[0]).toBe(
-      "/api/v1/adrs?page=1&pageSize=20&text=message+queue&createdFrom=2026-01-01&createdTo=2026-02-01&updatedFrom=2026-03-01&updatedTo=2026-04-01&expiresBefore=2027-01-01&hasOpenIssues=true&supersedes=false&supersededBy=false",
+      "/api/v1/adrs?page=1&pageSize=20&text=message+queue&createdFrom=2026-01-01&createdTo=2026-02-01&updatedFrom=2026-03-01&updatedTo=2026-04-01&expiresBefore=2027-01-01&hasOpenIssues=true&hasPredecessor=false&hasSuccessor=false",
     );
   });
 

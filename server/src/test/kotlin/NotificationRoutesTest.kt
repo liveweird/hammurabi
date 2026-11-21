@@ -1,9 +1,8 @@
 package ch.nokillswit
 
 import ch.nokillswit.adrs.AdrStatus
-import ch.nokillswit.notifications.DisabledNotificationPreference
 import ch.nokillswit.notifications.MAX_COUNTED_NOTICES
-import ch.nokillswit.notifications.NotificationChannel
+import ch.nokillswit.notifications.NotificationPreferenceKind
 import ch.nokillswit.notifications.NotificationPreferencesResponse
 import ch.nokillswit.notifications.NotificationPreferencesUpdateRequest
 import ch.nokillswit.notifications.NotificationService
@@ -25,8 +24,8 @@ import kotlin.test.assertTrue
  */
 class NotificationRoutesTest {
 
-    private fun off(type: NotificationType, channel: NotificationChannel) =
-        NotificationPreferencesUpdateRequest(listOf(DisabledNotificationPreference(type, channel)))
+    private fun off(type: NotificationType, inApp: Boolean = true, email: Boolean = true) =
+        NotificationPreferencesUpdateRequest(listOf(NotificationPreferenceKind(type, inApp, email)))
 
     @Test
     fun `the list is the caller's own, newest first, filterable by seen and sortable`() = testApplication {
@@ -148,8 +147,8 @@ class NotificationRoutesTest {
         withAuditCapture { capture ->
             val body = NotificationPreferencesUpdateRequest(
                 listOf(
-                    DisabledNotificationPreference(NotificationType.ROLE_ASSIGNED, NotificationChannel.EMAIL),
-                    DisabledNotificationPreference(NotificationType.STATUS_CHANGED, NotificationChannel.IN_APP),
+                    NotificationPreferenceKind(NotificationType.ROLE_ASSIGNED, inApp = true, email = false),
+                    NotificationPreferenceKind(NotificationType.STATUS_CHANGED, inApp = false, email = true),
                 ),
             )
             assertEquals(HttpStatusCode.NoContent, me.client.putJson(path, body).status)
@@ -172,6 +171,32 @@ class NotificationRoutesTest {
     }
 
     @Test
+    fun `what the GET answers is what the PUT takes - a round trip is a no-op, and a kind left out is on`() = testApplication {
+        usePostgresTestcontainer()
+        val me = adrActor("roundtrip")
+        val path = "/api/v1/users/${me.id}/notification-preferences"
+        assertEquals(HttpStatusCode.NoContent, me.client.putJson(path, off(NotificationType.ROLE_ASSIGNED, email = false)).status)
+        val read = me.client.get(path).body<NotificationPreferencesResponse>()
+        withAuditCapture { capture ->
+            // The answer's own kinds, sent back unchanged: nothing moves and nothing is audited.
+            assertEquals(HttpStatusCode.NoContent, me.client.putJson(path, NotificationPreferencesUpdateRequest(read.kinds)).status)
+            assertEquals(read, me.client.get(path).body<NotificationPreferencesResponse>())
+            assertEquals(0, capture.events.count { it.message == "user.notification_preferences_changed" }, "a round trip audits nothing")
+        }
+        // A wholesale replace naming one kind: every kind it leaves out reads as on again.
+        assertEquals(HttpStatusCode.NoContent, me.client.putJson(path, off(NotificationType.STATUS_CHANGED, inApp = false)).status)
+        val after = me.client.get(path).body<NotificationPreferencesResponse>().kinds.associateBy { it.type }
+        assertEquals(false, after.getValue(NotificationType.STATUS_CHANGED).inApp)
+        assertTrue(after.getValue(NotificationType.ROLE_ASSIGNED).let { it.inApp && it.email }, "an omitted kind is on")
+    }
+
+    @Test
+    fun `the spec bounds the PUT body at one entry per kind`() {
+        val kinds = OpenApiSpec.parsed.components.schemas.getValue("NotificationPreferencesUpdateRequest").properties.getValue("kinds")
+        assertEquals(NotificationType.entries.size, kinds.maxItems)
+    }
+
+    @Test
     fun `the switches are the target's or an ADMIN's - 403 before the body, 400 for a repeat, 404 for an unknown user`() = testApplication {
         usePostgresTestcontainer()
         val owner = adrActor("owner")
@@ -182,17 +207,17 @@ class NotificationRoutesTest {
         assertEquals(HttpStatusCode.Forbidden, other.client.putJson(path, NotificationPreferencesUpdateRequest(emptyList())).status)
         assertEquals(HttpStatusCode.OK, admin.client.get(path).status)
         assertEquals(HttpStatusCode.NoContent, admin.client.putJson(path, off(NotificationType.EXPIRY_REMINDER,
-            NotificationChannel.EMAIL)).status)
+            email = false)).status)
         val twice = NotificationPreferencesUpdateRequest(
             listOf(
-                DisabledNotificationPreference(NotificationType.ADR_EXPIRED, NotificationChannel.EMAIL),
-                DisabledNotificationPreference(NotificationType.ADR_EXPIRED, NotificationChannel.EMAIL),
+                NotificationPreferenceKind(NotificationType.ADR_EXPIRED, inApp = true, email = false),
+                NotificationPreferenceKind(NotificationType.ADR_EXPIRED, inApp = false, email = true),
             ),
         )
         assertEquals(HttpStatusCode.BadRequest, owner.client.putJson(path, twice).status)
         assertEquals(HttpStatusCode.NotFound, admin.client.get("/api/v1/users/2000000000/notification-preferences").status)
         assertEquals(HttpStatusCode.NotFound, admin.client.putJson("/api/v1/users/2000000000/notification-preferences",
-            twice.copy(disabled = emptyList())).status)
+            twice.copy(kinds = emptyList())).status)
         val ghost = adrActor("ghost")
         TestUsers.softDelete(ghost.id)
         assertEquals(HttpStatusCode.NotFound, admin.client.get("/api/v1/users/${ghost.id}/notification-preferences").status)

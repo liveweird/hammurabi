@@ -25,22 +25,22 @@ enum class DiscussionKind { COMMENT, QUESTION, ISSUE, ESCALATION }
  * ESCALATION is `OPEN` or `RESOLVED`; a COMMENT and a deleted entry have none (null).
  */
 @Serializable
-enum class DiscussionStatus { OPEN, ANSWERED, RESOLVED }
+enum class DiscussionState { OPEN, ANSWERED, RESOLVED }
 
 /** Whether entries of this kind carry a state at all (a comment is just said). */
 val DiscussionKind.hasState: Boolean
     get() = this != DiscussionKind.COMMENT
 
 /** The state a new entry of this kind starts in; null for a comment. */
-val DiscussionKind.initialStatus: DiscussionStatus?
-    get() = if (hasState) DiscussionStatus.OPEN else null
+val DiscussionKind.initialState: DiscussionState?
+    get() = if (hasState) DiscussionState.OPEN else null
 
 /** The state that closes an entry of this kind: `ANSWERED` for a question, `RESOLVED` for an issue or escalation. */
-val DiscussionKind.settledStatus: DiscussionStatus?
+val DiscussionKind.settledState: DiscussionState?
     get() = when (this) {
         DiscussionKind.COMMENT -> null
-        DiscussionKind.QUESTION -> DiscussionStatus.ANSWERED
-        DiscussionKind.ISSUE, DiscussionKind.ESCALATION -> DiscussionStatus.RESOLVED
+        DiscussionKind.QUESTION -> DiscussionState.ANSWERED
+        DiscussionKind.ISSUE, DiscussionKind.ESCALATION -> DiscussionState.RESOLVED
     }
 
 @Serializable
@@ -51,14 +51,10 @@ data class DiscussionEditRequest(val body: String)
 
 /** The target state of an entry; the optional [resolution] note travels only with `RESOLVED`. */
 @Serializable
-data class DiscussionStateRequest(val status: DiscussionStatus, val resolution: String? = null)
-
-/** A person on an entry: the display name as it is now (kept for a soft-deleted account) and whether the account is deleted. */
-@Serializable
-data class DiscussionUser(val id: UInt, val name: String, val deleted: Boolean)
+data class DiscussionStateRequest(val state: DiscussionState, val resolution: String? = null)
 
 /**
- * One entry as the API shows it. A deleted entry is a TOMBSTONE: `deleted` true, `body`, `status` and `resolution` null (the text is gone
+ * One entry as the API shows it. A deleted entry is a TOMBSTONE: `deleted` true, `body`, `state` and `resolution` null (the text is gone
  * from the wire and from the table), the kind, author and creation time kept. `canEdit` / `canDelete` / `canChangeState` are THIS caller's
  * verdicts now (the SPA never re-derives them).
  */
@@ -74,14 +70,20 @@ data class DiscussionEntryResponse(
      * `NEVER` encodes its default.
      */
     @EncodeDefault(EncodeDefault.Mode.NEVER)
-    val status: DiscussionStatus? = null,
+    val state: DiscussionState? = null,
     val body: String?,
     val deleted: Boolean,
-    val author: DiscussionUser,
+    val authorId: UInt,
+    /** The author's display name as it is now (kept for a soft-deleted account); [authorDeleted] marks the account as deleted. */
+    val authorName: String,
+    val authorDeleted: Boolean,
     val createdAt: Long,
     val editedAt: Long?,
     val resolution: String?,
-    val stateChangedBy: DiscussionUser?,
+    val stateChangedById: UInt?,
+    val stateChangedByName: String?,
+    /** False when nobody changed the state (and for a tombstone). */
+    val stateChangedByDeleted: Boolean,
     val stateChangedAt: Long?,
     val canEdit: Boolean,
     val canDelete: Boolean,
@@ -92,8 +94,8 @@ typealias DiscussionPageResponse = PageResponse<DiscussionEntryResponse>
 
 data class DiscussionListResult(val items: List<DiscussionEntryResponse>, val total: Long)
 
-/** The list filters: any-of kinds and one status (both optional, whitelisted by the route). */
-data class DiscussionFilter(val kinds: List<DiscussionKind> = emptyList(), val status: DiscussionStatus? = null)
+/** The list filters: any-of kinds and one state (both optional, whitelisted by the route). */
+data class DiscussionFilter(val kinds: List<DiscussionKind> = emptyList(), val state: DiscussionState? = null)
 
 /** What an ADR carries of its discussion: the OPEN issues + escalations and the OPEN (unanswered) questions, deleted entries excluded. */
 data class DiscussionCounts(val openIssues: Int = 0, val unansweredQuestions: Int = 0)
@@ -105,7 +107,7 @@ fun sanitizedDiscussionCreate(request: DiscussionCreateRequest) =
 fun sanitizedDiscussionEdit(request: DiscussionEditRequest) = DiscussionEditRequest(sanitizeMultiLine(request.body, "Body"))
 
 fun sanitizedDiscussionState(request: DiscussionStateRequest) =
-    DiscussionStateRequest(request.status, request.resolution?.let { sanitizeMultiLine(it, "Resolution") }?.takeIf { it.isNotEmpty() })
+    DiscussionStateRequest(request.state, request.resolution?.let { sanitizeMultiLine(it, "Resolution") }?.takeIf { it.isNotEmpty() })
 
 /** The body rules - enforced by the route AND re-checked by the service. */
 fun validateDiscussionBody(body: String) {
@@ -120,12 +122,12 @@ fun validateDiscussionBody(body: String) {
  */
 fun validateDiscussionState(kind: DiscussionKind, request: DiscussionStateRequest) {
     if (!kind.hasState) throw BadRequestException("A comment has no state")
-    if (request.status != DiscussionStatus.OPEN && request.status != kind.settledStatus) {
-        throw BadRequestException("A $kind is ${DiscussionStatus.OPEN} or ${kind.settledStatus}, not ${request.status}")
+    if (request.state != DiscussionState.OPEN && request.state != kind.settledState) {
+        throw BadRequestException("A $kind is ${DiscussionState.OPEN} or ${kind.settledState}, not ${request.state}")
     }
     val resolution = request.resolution
     if (resolution != null) {
-        if (request.status != DiscussionStatus.RESOLVED) throw BadRequestException("Only a resolution carries a note")
+        if (request.state != DiscussionState.RESOLVED) throw BadRequestException("Only a resolution carries a note")
         if (resolution.length > MAX_DISCUSSION_RESOLUTION_LENGTH) {
             throw BadRequestException("Resolution must be at most $MAX_DISCUSSION_RESOLUTION_LENGTH characters")
         }

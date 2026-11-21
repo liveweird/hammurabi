@@ -134,7 +134,7 @@ with `hasKeyValue` from `TestEnvironment.kt`). Emitted today:
   additional-roles set) / `user.updated` (name/email deltas, only when changed) /
   `user.roles_changed` (rolesFrom/rolesTo, both as stored) / `user.deleted`
   (byUserId/targetUserId) — the user events (`/api/v1/users`),
-- `team.created` (byUserId/teamId/name/managerUserId, nullable) / `team.updated`
+- `team.created` (byUserId/teamId/name/managerUserId, nullable; the audit key keeps its name, the wire says `managerId`) / `team.updated`
   (byUserId/teamId/name) / `team.manager_changed` (byUserId/teamId/managerFrom/managerTo, nullable ids as STORED —
   only when a PUT actually changes the manager; a manager assignment can grant team-scoped rights, so it is its own
   trail line, the `user.roles_changed` precedent) / `team.deleted` (byUserId/teamId) — every team mutation; a rejected save

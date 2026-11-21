@@ -7,7 +7,7 @@ import ch.nokillswit.adrs.AdrRef
 import ch.nokillswit.adrs.AdrResponse
 import ch.nokillswit.adrs.AdrStatus
 import ch.nokillswit.adrs.DiscussionKind
-import ch.nokillswit.adrs.DiscussionStatus
+import ch.nokillswit.adrs.DiscussionState
 import ch.nokillswit.infra.ProblemTypes
 import ch.nokillswit.notifications.NotificationType
 import ch.nokillswit.plugins.ProblemDetail
@@ -194,7 +194,7 @@ class AdrSendBackWithdrawTest {
         val issue = cast.stranger.client.postEntryOk(adr.id, DiscussionKind.ISSUE)
         cast.approver.client.moveAdrNow(adr.id, AdrStatus.WITHDRAWN, "Revoked")
         assertEquals(1, cast.stranger.client.getAdr(adr.id).openIssueCount)
-        assertEquals(HttpStatusCode.OK, cast.driver.client.setEntryState(adr.id, issue.id, DiscussionStatus.RESOLVED, "Moot now").status)
+        assertEquals(HttpStatusCode.OK, cast.driver.client.setEntryState(adr.id, issue.id, DiscussionState.RESOLVED, "Moot now").status)
         assertEquals(0, cast.stranger.client.getAdr(adr.id).openIssueCount)
         // New issues are not accepted: the window is the ACTIVE status.
         assertEquals(HttpStatusCode.Conflict, cast.stranger.client.postEntry(adr.id, DiscussionKind.ISSUE).status)
@@ -238,7 +238,7 @@ class AdrSendBackWithdrawTest {
         assertEquals(AdrStatus.SUPERSEDED, predecessor.status, "withdrawing does not resurrect what it replaced")
         assertEquals(AdrRef(next.id, next.key, next.name, AdrStatus.WITHDRAWN), predecessor.supersededBy)
         assertEquals(old.key, withdrawn.supersedes?.key)
-        assertTrue(cast.stranger.client.listed(old, "supersededBy=true"), "the list filter still finds the superseded predecessor")
+        assertTrue(cast.stranger.client.listed(old, "hasSuccessor=true"), "the list filter still finds the superseded predecessor")
     }
 
     @Test
@@ -252,8 +252,8 @@ class AdrSendBackWithdrawTest {
         cast.driver.client.moveAdrNow(next.id, AdrStatus.IN_REVIEW)
         cast.approver.client.moveAdrNow(next.id, AdrStatus.WITHDRAWN)
         assertNull(cast.stranger.client.getAdr(old.id).supersededBy)
-        assertFalse(cast.stranger.client.listed(old, "supersededBy=true"))
-        assertTrue(cast.stranger.client.listed(old, "supersededBy=false"))
+        assertFalse(cast.stranger.client.listed(old, "hasSuccessor=true"))
+        assertTrue(cast.stranger.client.listed(old, "hasSuccessor=false"))
     }
 
     @Test

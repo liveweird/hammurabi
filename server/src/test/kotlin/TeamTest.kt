@@ -164,35 +164,35 @@ class TeamTest {
         val bob = TestUsers.seed(email = uniqueEmail("mgr-b"), password = "pw", role = UserRole.USER, name = "Bob Manager")
         val teamName = name("managed")
 
-        val created = admin.postJson("/api/v1/teams", TeamCreateRequest(name = teamName, managerUserId = ann))
+        val created = admin.postJson("/api/v1/teams", TeamCreateRequest(name = teamName, managerId = ann))
             .body<TeamResponse>()
-        assertEquals(ann, created.managerUserId)
+        assertEquals(ann, created.managerId)
         assertEquals("Ann Manager", created.managerName)
         assertEquals(created, admin.get("/api/v1/teams/${created.id}").body<TeamResponse>())
         val listed = admin.get("/api/v1/teams?name=$teamName").body<TeamPageResponse>().items.single()
-        assertEquals(ann, listed.managerUserId)
+        assertEquals(ann, listed.managerId)
         assertEquals("Ann Manager", listed.managerName)
 
         // One user may manage several teams.
-        val second = admin.postJson("/api/v1/teams", TeamCreateRequest(name = name("managed2"), managerUserId = ann))
+        val second = admin.postJson("/api/v1/teams", TeamCreateRequest(name = name("managed2"), managerId = ann))
             .body<TeamResponse>()
-        assertEquals(ann, second.managerUserId)
+        assertEquals(ann, second.managerId)
 
         assertEquals(
             HttpStatusCode.NoContent,
-            admin.putJson("/api/v1/teams/${created.id}", TeamUpdateRequest(name = teamName, managerUserId = bob)).status,
+            admin.putJson("/api/v1/teams/${created.id}", TeamUpdateRequest(name = teamName, managerId = bob)).status,
         )
         val replaced = admin.get("/api/v1/teams/${created.id}").body<TeamResponse>()
-        assertEquals(bob, replaced.managerUserId)
+        assertEquals(bob, replaced.managerId)
         assertEquals("Bob Manager", replaced.managerName)
 
-        // PUT is a full replace: an omitted managerUserId clears it.
+        // PUT is a full replace: an omitted managerId clears it.
         assertEquals(HttpStatusCode.NoContent, admin.putJson("/api/v1/teams/${created.id}", TeamUpdateRequest(name = teamName)).status)
         val cleared = admin.get("/api/v1/teams/${created.id}").body<TeamResponse>()
-        assertEquals(null, cleared.managerUserId)
+        assertEquals(null, cleared.managerId)
         assertEquals(null, cleared.managerName)
         val clearedListed = admin.get("/api/v1/teams?name=$teamName").body<TeamPageResponse>().items.single()
-        assertEquals(null, clearedListed.managerUserId)
+        assertEquals(null, clearedListed.managerId)
     }
 
     @Test
@@ -205,22 +205,22 @@ class TeamTest {
         val teamName = name("mgrbad")
 
         for (bad in listOf(999999u, gone)) {
-            val create = admin.postJson("/api/v1/teams", TeamCreateRequest(name = teamName, managerUserId = bad))
+            val create = admin.postJson("/api/v1/teams", TeamCreateRequest(name = teamName, managerId = bad))
             assertEquals(HttpStatusCode.BadRequest, create.status, "create with manager $bad")
             assertTrue(create.body<ProblemDetail>().detail!!.contains("manager"))
         }
         assertTrue(TestTeams.rawRows().none { it.name == teamName }, "a rejected create leaves no team behind")
 
-        val id = admin.postJson("/api/v1/teams", TeamCreateRequest(name = teamName, managerUserId = good)).body<TeamResponse>().id
+        val id = admin.postJson("/api/v1/teams", TeamCreateRequest(name = teamName, managerId = good)).body<TeamResponse>().id
         for (bad in listOf(999999u, gone)) {
             assertEquals(
                 HttpStatusCode.BadRequest,
-                admin.putJson("/api/v1/teams/$id", TeamUpdateRequest(name = name("renamed"), managerUserId = bad)).status,
+                admin.putJson("/api/v1/teams/$id", TeamUpdateRequest(name = name("renamed"), managerId = bad)).status,
                 "update with manager $bad",
             )
         }
         val after = admin.get("/api/v1/teams/$id").body<TeamResponse>()
-        assertEquals(good, after.managerUserId, "a rejected update changes nothing")
+        assertEquals(good, after.managerId, "a rejected update changes nothing")
         assertEquals(teamName, after.name)
     }
 
@@ -230,16 +230,16 @@ class TeamTest {
         val admin = seededClient("teammgrdel", UserRole.ADMIN)
         val manager = TestUsers.seed(email = uniqueEmail("mgr-del"), password = "pw", role = UserRole.USER, name = "Soon Gone")
         val teamName = name("mgrdel")
-        val id = admin.postJson("/api/v1/teams", TeamCreateRequest(name = teamName, managerUserId = manager))
+        val id = admin.postJson("/api/v1/teams", TeamCreateRequest(name = teamName, managerId = manager))
             .body<TeamResponse>().id
 
         TestUsers.softDelete(manager)
 
         val read = admin.get("/api/v1/teams/$id").body<TeamResponse>()
-        assertEquals(null, read.managerUserId)
+        assertEquals(null, read.managerId)
         assertEquals(null, read.managerName)
         val listed = admin.get("/api/v1/teams?name=$teamName").body<TeamPageResponse>().items.single()
-        assertEquals(null, listed.managerUserId)
+        assertEquals(null, listed.managerId)
         assertEquals(null, listed.managerName)
     }
 
@@ -249,13 +249,13 @@ class TeamTest {
         val admin = seededClient("teammgrrw", UserRole.ADMIN)
         val email = uniqueEmail("mgr-rw")
         val manager = TestUsers.seed(email = email, password = "pw", role = UserRole.USER)
-        val id = admin.postJson("/api/v1/teams", TeamCreateRequest(name = name("rw"), managerUserId = manager))
+        val id = admin.postJson("/api/v1/teams", TeamCreateRequest(name = name("rw"), managerId = manager))
             .body<TeamResponse>().id
         val client = authedClient(email, "pw")
         assertEquals(HttpStatusCode.OK, client.get("/api/v1/teams/$id").status)
         assertEquals(
             HttpStatusCode.Forbidden,
-            client.putJson("/api/v1/teams/$id", TeamUpdateRequest(name = name("hijack"), managerUserId = manager)).status,
+            client.putJson("/api/v1/teams/$id", TeamUpdateRequest(name = name("hijack"), managerId = manager)).status,
         )
         assertEquals(HttpStatusCode.Forbidden, client.delete("/api/v1/teams/$id").status)
     }
@@ -269,7 +269,7 @@ class TeamTest {
         val ann = TestUsers.seed(email = uniqueEmail("mgr-au"), password = "pw", role = UserRole.USER)
         withAuditCapture { capture ->
             val teamName = name("mgraudit")
-            val created = admin.postJson("/api/v1/teams", TeamCreateRequest(name = teamName, managerUserId = ann))
+            val created = admin.postJson("/api/v1/teams", TeamCreateRequest(name = teamName, managerId = ann))
                 .body<TeamResponse>()
             val teamId = created.id.toLong()
             val createdEvent = capture.awaitEvent { it.message == "team.created" && it.hasKeyValue("teamId", teamId) }
@@ -277,7 +277,7 @@ class TeamTest {
             assertTrue(createdEvent.hasKeyValue("managerUserId", ann.toLong()))
 
             // Same manager again: team.updated fires, team.manager_changed does not.
-            admin.putJson("/api/v1/teams/${created.id}", TeamUpdateRequest(name = teamName, managerUserId = ann))
+            admin.putJson("/api/v1/teams/${created.id}", TeamUpdateRequest(name = teamName, managerId = ann))
             assertNotNull(capture.awaitEvent { it.message == "team.updated" && it.hasKeyValue("teamId", teamId) })
 
             // A real change (clear) — and only now does the trail carry a manager line.

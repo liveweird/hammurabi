@@ -52,15 +52,15 @@ describe("notification API wrappers", () => {
     await expect(markNotificationSeen(9)).rejects.toBeInstanceOf(ApiError);
   });
 
-  test("the preferences are read for a user and replaced wholesale with the disabled pairs", async () => {
+  test("the preferences are read for a user and replaced wholesale in the shape it is read", async () => {
     mockFetch.mockResolvedValue(jsonResponse(200, { emailAvailable: true, kinds: [{ type: "ROLE_ASSIGNED", inApp: true, email: false }] }));
     const prefs = await getNotificationPreferences(7);
     expect(prefs.kinds).toEqual([{ type: "ROLE_ASSIGNED", inApp: true, email: false }]);
     expect(lastCall()[0]).toBe("/api/v1/users/7/notification-preferences");
     mockFetch.mockResolvedValue(new Response(null, { status: 204 }));
-    await setNotificationPreferences(7, [{ type: "ROLE_ASSIGNED", channel: "EMAIL" }]);
+    await setNotificationPreferences(7, prefs.kinds);
     expect(lastCall()[0]).toBe("/api/v1/users/7/notification-preferences");
     expect(lastCall()[1].method).toBe("PUT");
-    expect(JSON.parse(lastCall()[1].body as string)).toEqual({ disabled: [{ type: "ROLE_ASSIGNED", channel: "EMAIL" }] });
+    expect(JSON.parse(lastCall()[1].body as string)).toEqual({ kinds: [{ type: "ROLE_ASSIGNED", inApp: true, email: false }] });
   });
 });

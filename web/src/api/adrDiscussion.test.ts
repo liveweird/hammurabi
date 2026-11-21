@@ -20,10 +20,10 @@ describe("ADR discussion API wrappers", () => {
 
   const lastCall = () => mockFetch.mock.calls.at(-1) as [string, RequestInit];
 
-  test("listDiscussion repeats the kind key and sends the status", async () => {
+  test("listDiscussion repeats the kind key and sends the state", async () => {
     mockFetch.mockResolvedValue(jsonResponse(200, { items: [], page: 1, pageSize: 20, total: 0 }));
-    await listDiscussion(4, { page: 2, pageSize: 10, sort: "-createdAt", kind: ["ISSUE", "ESCALATION"], status: "OPEN" });
-    expect(lastCall()[0]).toBe("/api/v1/adrs/4/discussion?page=2&pageSize=10&sort=-createdAt&kind=ISSUE&kind=ESCALATION&status=OPEN");
+    await listDiscussion(4, { page: 2, pageSize: 10, sort: "-createdAt", kind: ["ISSUE", "ESCALATION"], state: "OPEN" });
+    expect(lastCall()[0]).toBe("/api/v1/adrs/4/discussion?page=2&pageSize=10&sort=-createdAt&kind=ISSUE&kind=ESCALATION&state=OPEN");
   });
 
   test("listDiscussion omits absent filters", async () => {
@@ -52,8 +52,8 @@ describe("ADR discussion API wrappers", () => {
     mockFetch.mockImplementation(() => Promise.resolve(jsonResponse(200, { id: 9 })));
     await setDiscussionEntryState(4, 9, "RESOLVED", "Fixed");
     expect(lastCall()[0]).toBe("/api/v1/adrs/4/discussion/9/state");
-    expect(JSON.parse(lastCall()[1].body as string)).toEqual({ status: "RESOLVED", resolution: "Fixed" });
+    expect(JSON.parse(lastCall()[1].body as string)).toEqual({ state: "RESOLVED", resolution: "Fixed" });
     await setDiscussionEntryState(4, 9, "OPEN");
-    expect(JSON.parse(lastCall()[1].body as string)).toEqual({ status: "OPEN" });
+    expect(JSON.parse(lastCall()[1].body as string)).toEqual({ state: "OPEN" });
   });
 });

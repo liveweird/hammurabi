@@ -6,7 +6,7 @@ import { buildQuery, jsonRequest, voidRequest } from "./http";
 import type { components } from "./schema";
 
 export type DiscussionKind = components["schemas"]["DiscussionKind"];
-export type DiscussionStatus = components["schemas"]["DiscussionStatus"];
+export type DiscussionState = components["schemas"]["DiscussionState"];
 export type DiscussionEntry = components["schemas"]["DiscussionEntry"];
 export type DiscussionPage = components["schemas"]["DiscussionPage"];
 
@@ -16,14 +16,14 @@ type DiscussionQuery = {
   sort?: string;
   /** Any-of; each kind travels as its own repeated key. */
   kind?: readonly DiscussionKind[];
-  status?: DiscussionStatus;
+  state?: DiscussionState;
 };
 
 const base = (adrId: number) => `/api/v1/adrs/${adrId}/discussion`;
 
 /** One page of an ADR's entries, oldest first unless `sort` says otherwise; a deleted entry is a tombstone. */
 export async function listDiscussion(adrId: number, q: DiscussionQuery): Promise<DiscussionPage> {
-  const params = buildQuery({ page: q.page, pageSize: q.pageSize, sort: q.sort, kind: q.kind, status: q.status });
+  const params = buildQuery({ page: q.page, pageSize: q.pageSize, sort: q.sort, kind: q.kind, state: q.state });
   return jsonRequest<DiscussionPage>(`${base(adrId)}?${params}`);
 }
 
@@ -44,11 +44,11 @@ export async function deleteDiscussionEntry(adrId: number, entryId: number): Pro
 export async function setDiscussionEntryState(
   adrId: number,
   entryId: number,
-  status: DiscussionStatus,
+  state: DiscussionState,
   resolution?: string,
 ): Promise<DiscussionEntry> {
   return jsonRequest<DiscussionEntry>(`${base(adrId)}/${entryId}/state`, {
     method: "PUT",
-    body: JSON.stringify(resolution ? { status, resolution } : { status }),
+    body: JSON.stringify(resolution ? { state, resolution } : { state }),
   });
 }

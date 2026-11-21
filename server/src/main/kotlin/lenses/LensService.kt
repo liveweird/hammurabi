@@ -103,9 +103,9 @@ class LensService(private val database: R2dbcDatabase) {
             name = this[Lenses.name],
             visibility = LensVisibility.valueOf(this[Lenses.visibility]),
             filters = decodeStoredFilters(this[Lenses.filters]),
-            createdBy = this[Lenses.createdBy].value,
-            creatorName = this[UserService.Users.name],
-            creatorDeleted = this[UserService.Users.markedAsDeleted],
+            createdById = this[Lenses.createdBy].value,
+            createdByName = this[UserService.Users.name],
+            createdByDeleted = this[UserService.Users.markedAsDeleted],
             createdAt = this[Lenses.createdAt],
             updatedAt = this[Lenses.updatedAt],
             canEdit = mine,
@@ -114,10 +114,11 @@ class LensService(private val database: R2dbcDatabase) {
     }
 
     /**
-     * The stored document as THIS release reads it: a key it no longer knows is ignored, and a `status` or `role` value that is no longer
-     * in its enum is dropped (a list the drop empties, or a role that goes, stops filtering on that key), so a lens written by an older
-     * release is listable instead of a `500`; it is rewritten whole (and so cleaned) on its next save. A persisted enum rename or removal
-     * therefore needs a migration that rewrites `lenses.filters` (`persistence.md`).
+     * The stored document as THIS release reads it: a key it no longer knows is ignored, and a `status` or `participantRole` value that is
+     * no longer in its enum is dropped (a list the drop empties, or a participant role that goes, stops filtering on that key), so a lens
+     * written by an older release is listable instead of a `500`; it is rewritten whole (and so cleaned) on its next save. A persisted enum
+     * rename or removal, and a rename of a filter key, therefore need a migration that rewrites `lenses.filters` (`persistence.md`; V20 did
+     * the four key renames of 1.0.0, so there is no alias for the old keys here).
      */
     private fun decodeStoredFilters(text: String): AdrFilterDocument {
         val known = JsonObject(
@@ -128,7 +129,7 @@ class LensService(private val database: R2dbcDatabase) {
                             val kept = value.jsonArray.filter { (it as? JsonPrimitive)?.contentOrNull in STATUS_NAMES }
                             if (kept.isNotEmpty()) put(key, JsonArray(kept))
                         }
-                        "role" -> if ((value as? JsonPrimitive)?.contentOrNull in ROLE_NAMES) put(key, value)
+                        "participantRole" -> if ((value as? JsonPrimitive)?.contentOrNull in ROLE_NAMES) put(key, value)
                         else -> put(key, value)
                     }
                 }

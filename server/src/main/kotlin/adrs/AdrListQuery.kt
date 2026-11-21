@@ -82,7 +82,7 @@ private fun keyExpression(): Expression<String> {
 /** The live ADRs (`NOT marked_as_deleted`) as a sub-select of ids, for the link presence filters. */
 private fun liveAdrIds() = AdrService.Adrs.select(AdrService.Adrs.id).where { AdrService.Adrs.active() }
 
-/** The ids that have a successor in play or in effect: the wire's `supersededBy` (never one cancelled or withdrawn before it activated). */
+/** The ids that have a successor in play or in effect: the wire's `hasSuccessor` (never one cancelled or withdrawn before it activated). */
 private fun predecessorIds() = AdrService.Adrs.select(AdrService.Adrs.supersedesId).where {
     AdrService.Adrs.supersedesId.isNotNull() and AdrService.Adrs.active() and successorInPlayOrInEffect()
 }
@@ -91,7 +91,7 @@ private fun predecessorIds() = AdrService.Adrs.select(AdrService.Adrs.supersedes
 private fun adrIdsWithOpenIssues(): AbstractQuery<*> {
     val entries = AdrDiscussionService.AdrDiscussion
     return entries.select(entries.adrId).where {
-        (entries.status eq stringLiteral(DiscussionStatus.OPEN.name)) and (entries.markedAsDeleted eq booleanLiteral(false)) and
+        (entries.status eq stringLiteral(DiscussionState.OPEN.name)) and (entries.markedAsDeleted eq booleanLiteral(false)) and
             (entries.kind inList listOf(DiscussionKind.ISSUE.name, DiscussionKind.ESCALATION.name))
     }
 }
@@ -105,9 +105,9 @@ private fun Op<Boolean>.andDay(column: Column<Long>, from: LocalDate?, toInclusi
 
 /**
  * The list's ONE predicate for the count and the rows (the caller adds `active()`): `status` is any-of, `q` matches the name OR the key
- * (case- and accent-insensitive substring), `participant` keeps the ADRs the user holds a role on (`participantRole` narrows the role),
+ * (case- and accent-insensitive substring), `participantId` keeps the ADRs the user holds a role on (`participantRole` narrows the role),
  * `tags` keeps the ADRs carrying at least one of the named tags, the created and updated ranges are inclusive UTC days, `expiresBefore`
- * keeps the ADRs whose expiry date is strictly earlier, `hasOpenIssues`, `supersedes` and `supersededBy` are presence tests, and
+ * keeps the ADRs whose expiry date is strictly earlier, `hasOpenIssues`, `hasPredecessor` and `hasSuccessor` are presence tests, and
  * [textQuery] (the tsquery text of the validated `text`, built by `ftsQueryText` in the caller's transaction) keeps the ADRs the
  * full-text vector matches. Every filter is an AND.
  */
@@ -117,7 +117,7 @@ internal fun adrListPredicate(filter: AdrListFilter, textQuery: String? = null):
     if (filter.statuses.isNotEmpty()) op = op and (adrs.status inList filter.statuses.map { it.name })
     filter.q?.takeIf { it.isNotBlank() }?.let { op = op and (adrs.name.containsNormalized(it) or keyExpression().containsNormalized(it)) }
     textQuery?.let { op = op and adrs.ftsVector().ftsMatches(it) }
-    filter.participantUserId?.let { userId ->
+    filter.participantId?.let { userId ->
         val roles = AdrParticipantService.AdrParticipants
         val held = roles.select(roles.adrId).where {
             val user = roles.userId eq userId
@@ -135,8 +135,8 @@ internal fun adrListPredicate(filter: AdrListFilter, textQuery: String? = null):
     filter.expiresBefore?.let { op = op and adrs.expiresOn.isNotNull() and (adrs.expiresOn less it.toString()) }
     // An absence is the complement; the sub-selects never hold a NULL, so NOT IN is safe, and a NULL `supersedes_id` is absent by hand.
     filter.hasOpenIssues?.let { op = op and adrs.id.within(adrIdsWithOpenIssues(), it) }
-    filter.supersededBy?.let { op = op and adrs.id.within(predecessorIds(), it) }
-    filter.supersedes?.let { op = op and (adrs.supersedesId.within(liveAdrIds(), it)) }
+    filter.hasSuccessor?.let { op = op and adrs.id.within(predecessorIds(), it) }
+    filter.hasPredecessor?.let { op = op and (adrs.supersedesId.within(liveAdrIds(), it)) }
     return op
 }
 

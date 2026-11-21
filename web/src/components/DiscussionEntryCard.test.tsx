@@ -33,7 +33,7 @@ describe("DiscussionEntryCard", () => {
     stubFetch(() => null);
     renderWithProviders(
       <DiscussionEntryCard
-        entry={entryFixture({ kind: "COMMENT", status: undefined, editedAt: Date.UTC(2026, 10, 4), author: { id: 7, name: "Cora", deleted: true } })}
+        entry={entryFixture({ kind: "COMMENT", state: undefined, editedAt: Date.UTC(2026, 10, 4), authorName: "Cora", authorDeleted: true })}
       />,
     );
     expect(screen.queryByText("Open")).not.toBeInTheDocument();
@@ -43,7 +43,7 @@ describe("DiscussionEntryCard", () => {
 
   test("a tombstone is a placeholder: no text, no actions", () => {
     stubFetch(() => null);
-    renderWithProviders(<DiscussionEntryCard entry={entryFixture({ deleted: true, body: null, status: undefined, ...ALL, canDelete: false, canEdit: false, canChangeState: false })} />);
+    renderWithProviders(<DiscussionEntryCard entry={entryFixture({ deleted: true, body: null, state: undefined, ...ALL, canDelete: false, canEdit: false, canChangeState: false })} />);
     expect(screen.getByText("This entry was deleted.")).toBeInTheDocument();
     expect(screen.queryByText("Why not MySQL?")).not.toBeInTheDocument();
     expect(screen.queryByRole("button")).not.toBeInTheDocument();
@@ -78,16 +78,16 @@ describe("DiscussionEntryCard", () => {
     const user = userEvent.setup();
     const { unmount } = renderWithProviders(<DiscussionEntryCard entry={entryFixture({ canChangeState: true })} />);
     await user.click(screen.getByRole("button", { name: "Mark answered" }));
-    await waitFor(() => expect(stub.find("PUT", "/api/v1/adrs/1/discussion/11/state")?.body).toEqual({ status: "ANSWERED" }));
+    await waitFor(() => expect(stub.find("PUT", "/api/v1/adrs/1/discussion/11/state")?.body).toEqual({ state: "ANSWERED" }));
     unmount();
     renderWithProviders(
       <DiscussionEntryCard
-        entry={entryFixture({ canChangeState: true, status: "ANSWERED", stateChangedBy: { id: 5, name: "Dana Driver", deleted: false }, stateChangedAt: Date.UTC(2026, 10, 5) })}
+        entry={entryFixture({ canChangeState: true, state: "ANSWERED", stateChangedById: 5, stateChangedByName: "Dana Driver", stateChangedAt: Date.UTC(2026, 10, 5) })}
       />,
     );
     expect(screen.getByText("Answered by Dana Driver on 2026-11-04")).toBeInTheDocument();
     await user.click(screen.getByRole("button", { name: "Reopen question" }));
-    await waitFor(() => expect(stub.requests.filter((r) => r.method === "PUT").map((r) => r.body)).toContainEqual({ status: "OPEN" }));
+    await waitFor(() => expect(stub.requests.filter((r) => r.method === "PUT").map((r) => r.body)).toContainEqual({ state: "OPEN" }));
   });
 
   test("an issue is resolved through a dialog with an optional note; a resolved one shows who, when and the note, and reopens at once", async () => {
@@ -98,16 +98,17 @@ describe("DiscussionEntryCard", () => {
     const dialog = await screen.findByRole("dialog", { name: "Resolve this entry" });
     await user.type(within(dialog).getByRole("textbox", { name: /Resolution note/ }), "Fixed in 2.1");
     await user.click(within(dialog).getByRole("button", { name: "Resolve" }));
-    await waitFor(() => expect(stub.find("PUT", "/api/v1/adrs/1/discussion/11/state")?.body).toEqual({ status: "RESOLVED", resolution: "Fixed in 2.1" }));
+    await waitFor(() => expect(stub.find("PUT", "/api/v1/adrs/1/discussion/11/state")?.body).toEqual({ state: "RESOLVED", resolution: "Fixed in 2.1" }));
     unmount();
     renderWithProviders(
       <DiscussionEntryCard
         entry={entryFixture({
           kind: "ISSUE",
-          status: "RESOLVED",
+          state: "RESOLVED",
           resolution: "Fixed in 2.1",
           canChangeState: true,
-          stateChangedBy: { id: 6, name: "Alex Approver", deleted: false },
+          stateChangedById: 6,
+          stateChangedByName: "Alex Approver",
           stateChangedAt: Date.UTC(2026, 10, 6),
         })}
       />,
@@ -115,7 +116,7 @@ describe("DiscussionEntryCard", () => {
     expect(screen.getByText("Fixed in 2.1")).toBeInTheDocument();
     expect(screen.getByText("Resolved by Alex Approver on 2026-11-05")).toBeInTheDocument();
     await user.click(screen.getByRole("button", { name: "Reopen" }));
-    await waitFor(() => expect(stub.requests.filter((r) => r.method === "PUT").map((r) => r.body)).toContainEqual({ status: "OPEN" }));
+    await waitFor(() => expect(stub.requests.filter((r) => r.method === "PUT").map((r) => r.body)).toContainEqual({ state: "OPEN" }));
   });
 
   test("resolving without a note sends none; cancelling the dialog sends nothing", async () => {
@@ -127,7 +128,7 @@ describe("DiscussionEntryCard", () => {
     expect(stub.count("PUT", "/api/v1")).toBe(0);
     await user.click(screen.getByRole("button", { name: "Resolve" }));
     await user.click(within(await screen.findByRole("dialog")).getByRole("button", { name: "Resolve" }));
-    await waitFor(() => expect(stub.find("PUT", "/api/v1/adrs/1/discussion/11/state")?.body).toEqual({ status: "RESOLVED" }));
+    await waitFor(() => expect(stub.find("PUT", "/api/v1/adrs/1/discussion/11/state")?.body).toEqual({ state: "RESOLVED" }));
   });
 
   test("a failed resolve keeps the dialog and the typed note open, with the error inside it", async () => {

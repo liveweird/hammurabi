@@ -96,7 +96,7 @@ class AdrParticipantsTest {
         val change = mapOf("userId" to cast.contributor.id.toString(), "name" to "Con", "from" to "CONTRIBUTOR", "to" to "INFORMED")
         assertEquals(change, changed.params)
         assertEquals(mapOf("userId" to newcomer.id.toString(), "name" to "Newcomer", "role" to "CONTRIBUTOR"), added.params)
-        assertEquals(cast.driver.id, added.userId)
+        assertEquals(cast.driver.id, added.actorId)
     }
 
     @Test

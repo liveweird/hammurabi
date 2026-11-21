@@ -30,7 +30,7 @@
    - *Expected*: **Awaiting decision** lists the ADR with the "Needs your decision" badge and "Approver: <their name>", and a link "1 ADR is
      waiting for your decision" stands above the list.
 3. They click that link.
-   - *Expected*: the ADR list opens filtered to in review and the Approver role (`?status=IN_REVIEW&mine=1&role=APPROVER`) and shows the ADR.
+   - *Expected*: the ADR list opens filtered to in review and the Approver role (`?status=IN_REVIEW&mine=1&participantRole=APPROVER`) and shows the ADR.
 4. The Driver signs in and opens `/decision-log`.
    - *Expected*: the same ADR is listed in **Awaiting decision**, without the badge, and no "waiting for your decision" link is offered.
 

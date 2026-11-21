@@ -39,6 +39,7 @@ class MigrationChecksumTest {
         "V17__create_notifications.sql" to 1594305134,
         "V18__create_adr_expiry_reminders.sql" to -2001171098,
         "V19__adr_successor_acceptance.sql" to -1699773670,
+        "V20__lens_filter_names.sql" to -2106910431,
     )
 
     @Test

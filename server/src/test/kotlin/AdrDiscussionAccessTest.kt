@@ -1,7 +1,7 @@
 package ch.nokillswit
 
 import ch.nokillswit.adrs.DiscussionKind
-import ch.nokillswit.adrs.DiscussionStatus
+import ch.nokillswit.adrs.DiscussionState
 import io.ktor.client.request.delete
 import io.ktor.client.request.get
 import io.ktor.client.request.put
@@ -72,9 +72,9 @@ class AdrDiscussionAccessTest {
             val adr = cast.raise(complete = true)
             val question = cast.stranger.client.postEntryOk(adr.id, DiscussionKind.QUESTION)
             val expected = if (who in allowed) HttpStatusCode.OK else HttpStatusCode.Forbidden
-            assertEquals(expected, actor.client.setEntryState(adr.id, question.id, DiscussionStatus.ANSWERED).status, "$who answers")
+            assertEquals(expected, actor.client.setEntryState(adr.id, question.id, DiscussionState.ANSWERED).status, "$who answers")
             assertEquals(who in allowed, actor.client.entry(adr.id, question.id).canChangeState, "$who verdict")
-            val answered = cast.informed.client.entry(adr.id, question.id).status == DiscussionStatus.ANSWERED
+            val answered = cast.informed.client.entry(adr.id, question.id).state == DiscussionState.ANSWERED
             assertEquals(who in allowed, answered, "$who outcome")
         }
     }
@@ -91,8 +91,8 @@ class AdrDiscussionAccessTest {
             val issue = cast.stranger.client.postEntryOk(adr.id, DiscussionKind.ISSUE)
             assertEquals(issue.canChangeState, false, "the author of an issue cannot resolve it")
             val expected = if (who in allowed) HttpStatusCode.OK else HttpStatusCode.Forbidden
-            assertEquals(expected, actor.client.setEntryState(adr.id, issue.id, DiscussionStatus.RESOLVED).status, "$who resolves")
-            assertEquals(who in allowed, cast.informed.client.entry(adr.id, issue.id).status == DiscussionStatus.RESOLVED, "$who outcome")
+            assertEquals(expected, actor.client.setEntryState(adr.id, issue.id, DiscussionState.RESOLVED).status, "$who resolves")
+            assertEquals(who in allowed, cast.informed.client.entry(adr.id, issue.id).state == DiscussionState.RESOLVED, "$who outcome")
             // The verdict served with the entry agrees with the guard.
             val fresh = cast.stranger.client.postEntryOk(adr.id, DiscussionKind.ESCALATION)
             assertEquals(who in allowed, actor.client.entry(adr.id, fresh.id).canChangeState, "$who canChangeState")

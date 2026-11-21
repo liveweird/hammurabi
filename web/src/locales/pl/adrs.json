@@ -47,8 +47,8 @@
     "expiresBefore": "Wygasa przed",
     "rangeInverted": "Data początkowa jest późniejsza niż końcowa.",
     "hasOpenIssues": "Ma otwarte zgłoszenia",
-    "supersedes": "Zastępuje inny ADR",
-    "supersededBy": "Ma następcę",
+    "hasPredecessor": "Zastępuje inny ADR",
+    "hasSuccessor": "Ma następcę",
     "any": "Dowolnie",
     "yes": "Tak",
     "no": "Nie",
@@ -180,7 +180,7 @@
   "history": {
     "empty": "Brak historii.",
     "system": "System",
-    "userDeleted": "{{name}} (usunięte konto)",
+    "deletedAccount": "{{name}} (usunięte konto)",
     "event": {
       "CREATED": "Zgłoszono ADR",
       "UPDATED": "Edytowano",
@@ -302,7 +302,7 @@
       "ESCALATION": "Zgłoś to, co wymaga uwagi Zatwierdzającego/ej od razu; rozwiązuje to Prowadzący/a albo Zatwierdzający/a."
     },
     "kindAria": "Rodzaj wpisu",
-    "status": {
+    "state": {
       "OPEN": "Otwarte",
       "ANSWERED": "Z odpowiedzią",
       "RESOLVED": "Rozwiązane"

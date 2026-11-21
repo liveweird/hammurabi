@@ -85,13 +85,13 @@ class LensTest {
             status = listOf(AdrStatus.ACTIVE, AdrStatus.ACTIVE, AdrStatus.IN_REVIEW),
             q = "  budget  ",
             text = "  Żółw  ",
-            participant = 7u,
-            role = AdrRole.DRIVER,
+            participantId = 7u,
+            participantRole = AdrRole.DRIVER,
             tag = listOf("  Data ", "data", "SECURITY"),
             createdFrom = "2024-01-01",
             expiresBefore = "2030-12-31",
             hasOpenIssues = true,
-            supersededBy = false,
+            hasSuccessor = false,
         )
         val response = owner.postJson(path, request(filters = filters))
         assertEquals(HttpStatusCode.Created, response.status)
@@ -102,13 +102,13 @@ class LensTest {
                 status = listOf(AdrStatus.ACTIVE, AdrStatus.IN_REVIEW),
                 q = "budget",
                 text = "Żółw",
-                participant = 7u,
-                role = AdrRole.DRIVER,
+                participantId = 7u,
+                participantRole = AdrRole.DRIVER,
                 tag = listOf("data", "security"),
                 createdFrom = "2024-01-01",
                 expiresBefore = "2030-12-31",
                 hasOpenIssues = true,
-                supersededBy = false,
+                hasSuccessor = false,
             ),
             saved.filters,
         )
@@ -126,12 +126,12 @@ class LensTest {
         val public = owner.client.save(request(visibility = LensVisibility.PUBLIC))
 
         assertEquals(setOf(private.id, public.id), owner.client.lenses("mine=true").items.map { it.id }.toSet())
-        assertEquals(listOf(public.id), other.client.lenses("mine=false").items.filter { it.createdBy == owner.id }.map { it.id })
+        assertEquals(listOf(public.id), other.client.lenses("mine=false").items.filter { it.createdById == owner.id }.map { it.id })
         assertEquals(HttpStatusCode.NotFound, other.client.get("$path/${private.id}").status)
         val seen = other.client.get("$path/${public.id}").body<LensResponse>()
-        assertEquals(owner.id, seen.createdBy)
+        assertEquals(owner.id, seen.createdById)
         assertTrue(!seen.canEdit && !seen.canDelete)
-        assertEquals("Lens-vis-o", seen.creatorName)
+        assertEquals("Lens-vis-o", seen.createdByName)
     }
 
     @Test
@@ -145,17 +145,17 @@ class LensTest {
         other.client.save(request(name = "hidden", visibility = LensVisibility.PRIVATE))
 
         assertEquals(listOf(mineA.id, mineB.id), owner.client.lenses("mine=true").items.map { it.id }, "case-insensitive name order")
-        assertEquals(listOf(sharedByOther.id), owner.client.lenses("mine=false").items.filter { it.createdBy == other.id }.map { it.id })
+        assertEquals(listOf(sharedByOther.id), owner.client.lenses("mine=false").items.filter { it.createdById == other.id }.map { it.id })
         assertEquals(listOf(mineA.id), owner.client.lenses("mine=true&visibility=PUBLIC").items.map { it.id })
         assertEquals(
             listOf(mineA.id, mineB.id, sharedByOther.id),
-            owner.client.lenses().items.filter { it.createdBy == owner.id || it.createdBy == other.id }.map { it.id },
+            owner.client.lenses().items.filter { it.createdById == owner.id || it.createdById == other.id }.map { it.id },
         )
         val page = owner.client.get("$path?pageSize=1&page=2&sort=-name&mine=true").body<LensPageResponse>()
         assertEquals(2, page.total)
         assertEquals(listOf(mineA.id), page.items.map { it.id })
         assertEquals(HttpStatusCode.BadRequest, owner.client.get("$path?mine=maybe").status)
-        assertEquals(HttpStatusCode.BadRequest, owner.client.get("$path?sort=creatorName").status)
+        assertEquals(HttpStatusCode.BadRequest, owner.client.get("$path?sort=createdByName").status)
     }
 
     @Test
@@ -172,7 +172,7 @@ class LensTest {
             request(name = "x".repeat(101)),
             request(name = "bad\u0001name"),
             request(filters = AdrFilterDocument(text = "a")),
-            request(filters = AdrFilterDocument(role = AdrRole.DRIVER)),
+            request(filters = AdrFilterDocument(participantRole = AdrRole.DRIVER)),
             request(filters = AdrFilterDocument(createdFrom = "2024-02-30")),
             request(filters = AdrFilterDocument(createdFrom = "2024-02-02", createdTo = "2024-02-01")),
             request(filters = AdrFilterDocument(q = "q".repeat(101))),
@@ -281,13 +281,13 @@ class LensTest {
         plantFilters(
             old.id,
             """{"status":["ACTIVE","RETIRED_BY_A_LATER_RELEASE"],"text":"queue","tag":["data"],"somethingNew":{"a":1},""" +
-                """"role":"EMPEROR","participant":7}""",
+                """"participantRole":"EMPEROR","participantId":7}""",
         )
         plantFilters(onlyGone.id, """{"status":["RETIRED_BY_A_LATER_RELEASE"],"q":"budget"}""")
 
         val listed = owner.client.lenses("mine=true").items.associateBy { it.id }
         assertEquals(
-            AdrFilterDocument(status = listOf(AdrStatus.ACTIVE), text = "queue", tag = listOf("data"), participant = 7u),
+            AdrFilterDocument(status = listOf(AdrStatus.ACTIVE), text = "queue", tag = listOf("data"), participantId = 7u),
             listed.getValue(old.id).filters,
         )
         assertEquals(AdrFilterDocument(q = "budget"), listed.getValue(onlyGone.id).filters)

@@ -48,7 +48,7 @@ function Awaiting({ awaiting }: { awaiting: AdrOverview["awaitingDecision"] }) {
   return (
     <DecisionLogCard icon={IconHourglass} title={t("decisionLog.awaiting.title")} hint={t("decisionLog.awaiting.hint")}>
       {awaiting.mineTotal > 0 && (
-        <Anchor component={RouterLink} to={adrListPath({ status: ["IN_REVIEW"], mine: true, role: "APPROVER" })} size="sm" fw={600}>
+        <Anchor component={RouterLink} to={adrListPath({ status: ["IN_REVIEW"], mine: true, participantRole: "APPROVER" })} size="sm" fw={600}>
           {t("decisionLog.awaiting.mineLink", { count: awaiting.mineTotal })}
         </Anchor>
       )}

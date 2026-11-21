@@ -8,7 +8,7 @@ import AdrDiscussion from "./AdrDiscussion";
 
 const THREAD = [
   entryFixture({ id: 11, kind: "QUESTION", body: "Why not MySQL?" }),
-  entryFixture({ id: 12, kind: "COMMENT", status: undefined, body: "Fine by me", author: { id: 8, name: "Ivan Informed", deleted: false } }),
+  entryFixture({ id: 12, kind: "COMMENT", state: undefined, body: "Fine by me", authorId: 8, authorName: "Ivan Informed", authorDeleted: false }),
 ];
 
 const listUrls = (stub: ReturnType<typeof stubFetch>) => stub.requests.filter((r) => r.method === "GET").map((r) => r.url);
@@ -109,13 +109,13 @@ describe("AdrDiscussion", () => {
   });
 
   test("the open-only switch narrows the issues to the OPEN ones and says so when none is", async () => {
-    const stub = stubFetch((r) => jsonResponse(200, discussionPageFixture(r.url.includes("status=OPEN") ? [] : [entryFixture({ kind: "ISSUE", status: "RESOLVED", body: "Old issue" })])));
+    const stub = stubFetch((r) => jsonResponse(200, discussionPageFixture(r.url.includes("state=OPEN") ? [] : [entryFixture({ kind: "ISSUE", state: "RESOLVED", body: "Old issue" })])));
     const user = userEvent.setup();
     renderWithProviders(<AdrDiscussion adr={adrFixture({ status: "ACTIVE", canRaiseIssue: true })} variant="issues" />);
     expect(await screen.findByText("Old issue")).toBeInTheDocument();
     await user.click(screen.getByRole("switch", { name: "Only open issues" }));
     expect(await screen.findByText("Nothing open.")).toBeInTheDocument();
-    expect(listUrls(stub)).toContain("/api/v1/adrs/1/discussion?page=1&pageSize=20&kind=ISSUE&kind=ESCALATION&status=OPEN");
+    expect(listUrls(stub)).toContain("/api/v1/adrs/1/discussion?page=1&pageSize=20&kind=ISSUE&kind=ESCALATION&state=OPEN");
   });
 
   test("a long thread pages, and a failed load is an alert with Retry that does not lose the thread's pager", async () => {

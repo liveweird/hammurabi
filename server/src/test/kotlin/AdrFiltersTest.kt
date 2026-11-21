@@ -5,7 +5,7 @@ import ch.nokillswit.adrs.AdrParticipantRequest
 import ch.nokillswit.adrs.AdrRole
 import ch.nokillswit.adrs.AdrStatus
 import ch.nokillswit.adrs.DiscussionKind
-import ch.nokillswit.adrs.DiscussionStatus
+import ch.nokillswit.adrs.DiscussionState
 import ch.nokillswit.tags.MAX_TAG_NAME_LENGTH
 import io.ktor.client.HttpClient
 import io.ktor.client.call.body
@@ -142,7 +142,7 @@ class AdrFiltersTest {
         val draft = cast.driver.client.createAdr(name = "Iss $m draft")
         cast.stranger.client.postEntryOk(withIssue.id, DiscussionKind.ISSUE)
         val done = cast.stranger.client.postEntryOk(resolved.id, DiscussionKind.ESCALATION)
-        cast.driver.client.setEntryState(resolved.id, done.id, DiscussionStatus.RESOLVED)
+        cast.driver.client.setEntryState(resolved.id, done.id, DiscussionState.RESOLVED)
 
         val reader = cast.informed.client
         assertEquals(setOf(withIssue.id), reader.ids(m, "hasOpenIssues=true"))
@@ -164,11 +164,11 @@ class AdrFiltersTest {
         cast.driver.client.moveAdrNow(dropped.id, AdrStatus.CANCELLED)
 
         val reader = cast.informed.client
-        assertEquals(setOf(next.id, dropped.id), reader.ids(m, "supersedes=true"))
-        assertEquals(setOf(old.id, alone.id), reader.ids(m, "supersedes=false"))
-        assertEquals(setOf(old.id), reader.ids(m, "supersededBy=true"), "a cancelled successor does not count")
-        assertEquals(setOf(next.id, alone.id, dropped.id), reader.ids(m, "supersededBy=false"))
-        assertEquals(setOf(next.id), reader.ids(m, "supersedes=true&supersededBy=false&status=PROBLEM_RAISED"))
+        assertEquals(setOf(next.id, dropped.id), reader.ids(m, "hasPredecessor=true"))
+        assertEquals(setOf(old.id, alone.id), reader.ids(m, "hasPredecessor=false"))
+        assertEquals(setOf(old.id), reader.ids(m, "hasSuccessor=true"), "a cancelled successor does not count")
+        assertEquals(setOf(next.id, alone.id, dropped.id), reader.ids(m, "hasSuccessor=false"))
+        assertEquals(setOf(next.id), reader.ids(m, "hasPredecessor=true&hasSuccessor=false&status=PROBLEM_RAISED"))
     }
 
     @Test
@@ -198,8 +198,8 @@ class AdrFiltersTest {
         val all = setOf(hit.id, wrongStatus.id, wrongDay.id, wrongDriver.id)
         assertEquals(all, reader.ids(m, "expiresBefore=2032-01-01"))
         val narrowed = "status=PROBLEM_RAISED&createdFrom=2024-05-05&createdTo=2024-05-05&expiresBefore=2032-01-01" +
-            "&participant=${cast.driver.id}&role=DRIVER&supersedes=false&hasOpenIssues=false&text=Combined%20$m"
+            "&participantId=${cast.driver.id}&participantRole=DRIVER&hasPredecessor=false&hasOpenIssues=false&text=Combined%20$m"
         assertEquals(setOf(hit.id), reader.ids(m, narrowed))
-        assertTrue(wrongDriver.id !in reader.ids(m, "participant=${cast.driver.id}"))
+        assertTrue(wrongDriver.id !in reader.ids(m, "participantId=${cast.driver.id}"))
     }
 }

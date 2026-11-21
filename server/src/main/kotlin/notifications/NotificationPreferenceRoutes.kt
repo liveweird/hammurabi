@@ -29,8 +29,8 @@ class UserNotificationPreferencesRoute(val id: UInt)
 
 /**
  * `GET` and `PUT /users/{id}/notification-preferences`, both on the per-USER `read-state` bucket (mounted before the guards, so a refused
- * call spends a token). Both: `requireSelfOrAdmin` FIRST (`403` before anything is read), then the body (`400`: an unknown kind or channel
- * fails to decode, a repeated pair), then the target (`404` for an unknown or soft-deleted user, so an ADMIN asking for an id learns the
+ * call spends a token). Both: `requireSelfOrAdmin` FIRST (`403` before anything is read), then the body (`400`: an unknown kind
+ * fails to decode, a repeated kind), then the target (`404` for an unknown or soft-deleted user, so an ADMIN asking for an id learns the
  * same as for any other). The PUT is a wholesale replace and a `204` whether or not it changed anything; it is audited only when the stored
  * set really changed, with the set before and after (`from` is the one read under the row lock). The in-app switch changes which notices
  * are MADE from then on, the email switch what the next digest does; neither deletes a notice already made.
@@ -50,7 +50,7 @@ fun Application.configureNotificationPreferenceRoutes() {
                 put<UserNotificationPreferencesRoute> { route ->
                     val caller = call.caller()
                     requireSelfOrAdmin(caller, route.id)
-                    val requested = call.receive<NotificationPreferencesUpdateRequest>().disabled
+                    val requested = call.receive<NotificationPreferencesUpdateRequest>().kinds
                     // Validated here (a 400 wins over the target's 404) and again by the service, which takes the raw list.
                     val wanted = validateNotificationPreferences(requested)
                     val before = preferences.replace(route.id, requested).orNotFound("User")

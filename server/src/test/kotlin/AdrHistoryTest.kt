@@ -31,9 +31,9 @@ class AdrHistoryTest {
         val event = driver.client.adrEvents(adr.id).items.single()
         assertEquals(AdrEventType.CREATED, event.type)
         assertEquals(mapOf("key" to adr.key, "name" to adr.name), event.params)
-        assertEquals(driver.id, event.userId)
-        assertEquals("Histdrv", event.userName)
-        assertFalse(event.userDeleted)
+        assertEquals(driver.id, event.actorId)
+        assertEquals("Histdrv", event.actorName)
+        assertFalse(event.actorDeleted)
         assertTrue(event.createdAt >= adr.createdAt)
     }
 
@@ -60,7 +60,7 @@ class AdrHistoryTest {
         assertEquals("2099-05-06", updated.params["expiresOn.to"])
         assertFalse(updated.params.keys.any { it.startsWith("context.") || it.startsWith("consequences.") }, "free text is never recorded")
         assertFalse(updated.params.values.any { "Sensitive" in it })
-        assertEquals(cast.driver.id, updated.userId)
+        assertEquals(cast.driver.id, updated.actorId)
         // The next save changes only the date: one more event, only that field.
         val after = cast.driver.client.getAdr(adr.id)
         cast.driver.client.saveAdr(adr.id, after.revision, after.asUpdate().copy(expiresOn = "2099-07-08"))
@@ -117,8 +117,8 @@ class AdrHistoryTest {
         val reader = adrActor("reader")
         TestUsers.softDelete(driver.id)
         val event = reader.client.adrEvents(adr.id).items.single()
-        assertTrue(event.userDeleted)
-        assertEquals("Histgone", event.userName)
+        assertTrue(event.actorDeleted)
+        assertEquals("Histgone", event.actorName)
     }
 
     @Test

@@ -14,9 +14,9 @@ const lens = (overrides: Partial<Lens>): Lens => ({
   name: "Lens",
   visibility: "PRIVATE",
   filters: {},
-  createdBy: 5,
-  creatorName: "Me",
-  creatorDeleted: false,
+  createdById: 5,
+  createdByName: "Me",
+  createdByDeleted: false,
   createdAt: 1,
   updatedAt: 1,
   canEdit: true,
@@ -26,8 +26,8 @@ const lens = (overrides: Partial<Lens>): Lens => ({
 
 const OPEN = lens({ id: 1, name: "Open ones", filters: { status: ["ACTIVE"], tag: ["data"] } });
 const SHARED_MINE = lens({ id: 2, name: "Team view", visibility: "PUBLIC", filters: { text: "queue", hasOpenIssues: true } });
-const THEIRS = lens({ id: 3, name: "Theirs", visibility: "PUBLIC", filters: { supersedes: true }, createdBy: 8, creatorName: "Alice", canEdit: false, canDelete: false });
-const MODERATED = lens({ id: 4, name: "Moderated", visibility: "PUBLIC", filters: { q: "x" }, createdBy: 9, creatorName: "Bob", canEdit: false, canDelete: true });
+const THEIRS = lens({ id: 3, name: "Theirs", visibility: "PUBLIC", filters: { hasPredecessor: true }, createdById: 8, createdByName: "Alice", canEdit: false, canDelete: false });
+const MODERATED = lens({ id: 4, name: "Moderated", visibility: "PUBLIC", filters: { q: "x" }, createdById: 9, createdByName: "Bob", canEdit: false, canDelete: true });
 
 function page(items: Lens[]) {
   return jsonResponse(200, { items, page: 1, pageSize: 100, total: items.length });
@@ -91,7 +91,7 @@ describe("LensPicker", () => {
   test("applying a lens replaces EVERY filter with its own and keeps the foreign keys", async () => {
     serve();
     const user = userEvent.setup();
-    renderWithProviders(<Harness />, { route: "/adrs?q=zzz&text=pg&supersedes=true&mine=1&foo=bar" });
+    renderWithProviders(<Harness />, { route: "/adrs?q=zzz&text=pg&hasPredecessor=true&mine=1&foo=bar" });
     await openPicker(user);
     await user.click(screen.getByRole("option", { name: "Open ones" }));
     expect(at()).toHaveTextContent("?foo=bar&status=ACTIVE&tag=data");
@@ -121,7 +121,7 @@ describe("LensPicker", () => {
     const user = userEvent.setup();
     function Changer() {
       const { update } = useAdrListParams();
-      return <button onClick={() => update({ supersedes: false })}>change</button>;
+      return <button onClick={() => update({ hasPredecessor: false })}>change</button>;
     }
     renderWithProviders(
       <>
@@ -182,11 +182,11 @@ describe("LensPicker", () => {
   });
 
   test("Save current filters stores exactly the URL filters under the chosen name and visibility, then picks the new lens", async () => {
-    const created = lens({ id: 9, name: "Fresh", visibility: "PUBLIC", filters: { q: "db", text: "queue", status: ["ACTIVE"], tag: ["data"], participant: 5, role: "DRIVER", createdFrom: "2026-01-01", expiresBefore: "2027-01-01", supersedes: false } });
+    const created = lens({ id: 9, name: "Fresh", visibility: "PUBLIC", filters: { q: "db", text: "queue", status: ["ACTIVE"], tag: ["data"], participantId: 5, participantRole: "DRIVER", createdFrom: "2026-01-01", expiresBefore: "2027-01-01", hasPredecessor: false } });
     const stub = serve((method) => (method === "POST" ? jsonResponse(201, created) : null));
     const user = userEvent.setup();
     renderWithProviders(<Harness />, {
-      route: "/adrs?q=db&text=queue&status=ACTIVE&tag=data&mine=1&role=DRIVER&createdFrom=2026-01-01&expiresBefore=2027-01-01&supersedes=false",
+      route: "/adrs?q=db&text=queue&status=ACTIVE&tag=data&mine=1&participantRole=DRIVER&createdFrom=2026-01-01&expiresBefore=2027-01-01&hasPredecessor=false",
     });
     await openMenu(user);
     await user.click(await screen.findByRole("menuitem", { name: "Save current filters as lens…" }));
@@ -197,7 +197,7 @@ describe("LensPicker", () => {
     expect(stub.find("POST", "/api/v1/lenses")?.body).toEqual({
       name: "Fresh",
       visibility: "PUBLIC",
-      filters: { q: "db", text: "queue", status: ["ACTIVE"], tag: ["data"], participant: 5, role: "DRIVER", createdFrom: "2026-01-01", expiresBefore: "2027-01-01", supersedes: false },
+      filters: { q: "db", text: "queue", status: ["ACTIVE"], tag: ["data"], participantId: 5, participantRole: "DRIVER", createdFrom: "2026-01-01", expiresBefore: "2027-01-01", hasPredecessor: false },
     });
     await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
   });
@@ -222,7 +222,7 @@ describe("LensPicker", () => {
   test("rename / visibility PUTs the whole lens with the filters it STORES, not the current ones", async () => {
     const stub = serve((method) => (method === "PUT" ? noContent() : null));
     const user = userEvent.setup();
-    renderWithProviders(<Harness />, { route: "/adrs?tag=data&status=ACTIVE&supersedes=false" });
+    renderWithProviders(<Harness />, { route: "/adrs?tag=data&status=ACTIVE&hasPredecessor=false" });
     await openMenu(user);
     // The filters differ from the lens (an extra supersedes), so it is picked rather than just equal.
     await user.keyboard("{Escape}");

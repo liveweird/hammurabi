@@ -48,7 +48,7 @@ class AdrTagsTest {
         val events = cast.driver.client.adrEventsOldestFirst(adr.id).filter { it.type == AdrEventType.TAGS_CHANGED }
         val expected = listOf(mapOf("added" to listOf(a, b).sorted().joinToString(",")), mapOf("added" to c, "removed" to a))
         assertEquals(expected, events.map { it.params })
-        assertEquals(cast.approver.id, events.last().userId)
+        assertEquals(cast.approver.id, events.last().actorId)
         val row = cast.stranger.client.get("/api/v1/adrs?pageSize=100&tag=$b").body<AdrPageResponse>().items.single { it.id == adr.id }
         assertEquals(live(b, c), row.tags)
         assertEquals(HttpStatusCode.NoContent, cast.driver.client.setTags(adr.id, emptyList()).status, "an empty set clears the tags")

@@ -11,18 +11,18 @@ export type TeamFormValues = {
   name: string;
   description: string;
   /** The picked manager's user id (a string, the Select's value type); null = no manager. */
-  managerUserId: string | null;
+  managerId: string | null;
   /** The picked manager's display label, kept beside the id so it survives later searches. */
   managerLabel: string | null;
 };
 
-export const EMPTY_TEAM_FORM: TeamFormValues = { name: "", description: "", managerUserId: null, managerLabel: null };
+export const EMPTY_TEAM_FORM: TeamFormValues = { name: "", description: "", managerId: null, managerLabel: null };
 
 export function toTeamFormValues(team: TeamResponse): TeamFormValues {
   return {
     name: team.name,
     description: team.description ?? "",
-    managerUserId: team.managerUserId === null ? null : String(team.managerUserId),
+    managerId: team.managerId === null ? null : String(team.managerId),
     managerLabel: team.managerName,
   };
 }
@@ -44,7 +44,7 @@ export function toTeamBody(values: TeamFormValues): TeamCreateBody & TeamUpdateB
   return {
     name: values.name.trim(),
     description: description === "" ? null : description,
-    managerUserId: values.managerUserId === null ? null : Number(values.managerUserId),
+    managerId: values.managerId === null ? null : Number(values.managerId),
   };
 }
 

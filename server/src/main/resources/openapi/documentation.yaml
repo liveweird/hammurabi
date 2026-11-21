@@ -22,6 +22,14 @@ info:
 
     List operations page with `page` / `pageSize` / `sort` into an `{items, page, pageSize, total}` envelope.
 
+    Concurrent writes: the documents several people edit carry a revision. The tag-category PUT and DELETE, the ADR document PUT, the ADR
+    transitions, and the ADR's participants, tags and successor PUTs require `X-Expected-Revision` (a stale one is a typed `409`). Every
+    other PUT is a whole-document replace where the last write wins, with no revision and no conflict detection: the user, feature-flag and
+    language PUTs, the team PUT, the lens PUT, the discussion edit and state PUTs, and the notification-preferences PUT.
+
+    A reference to a person is named `<role>Id` (`managerId`, `authorId`, `actorId`, `createdById`, `participantId`), its display text
+    `<role>Name`, and a flag that the person's account was deleted `<role>Deleted`; plain `userId` only where the row is the user itself.
+
     All error responses use RFC 7807 `application/problem+json` (`ProblemDetail`). Any endpoint may additionally
     return `500` (`InternalServerError`) on an unexpected server fault.
 servers:
@@ -747,7 +755,7 @@ paths:
       tags: [teams]
       operationId: updateTeam
       summary: Rename / re-describe a team, set its manager
-      description: "ADMIN only, guard before the id lookup (uniform 403). A full replace: an omitted `managerUserId` clears the manager; a set one must be an active user (`400` otherwise). A case-insensitive name clash with another active team is `409`."
+      description: "ADMIN only, guard before the id lookup (uniform 403). A full replace: an omitted `managerId` clears the manager; a set one must be an active user (`400` otherwise). A case-insensitive name clash with another active team is `409`. No `X-Expected-Revision`: the last write wins (two admins saving the same team at once is not detected, the later PUT replaces the earlier)."
       requestBody:
         required: true
         content:
@@ -904,15 +912,15 @@ paths:
             plain-text segments - never markup). A search runs under a deadline (`search.timeoutSeconds`) and a process cap: `429` of type
             `urn:hammurabi:problem:search-timeout` or `urn:hammurabi:problem:search-busy`, both with `Retry-After`. `pageSize` is at most 20
             with `text`. The term is never logged.
-          - `participant` - a user id: the ADRs that user holds a role on; `role` narrows it to one DACI role (`400` without `participant`).
+          - `participantId` - a user id: the ADRs that user holds a role on; `participantRole` narrows it to one DACI role (`400` without `participantId`).
           - `tag` - repeatable, any-of (`tag=data&tag=security`), a tag name (normalised: trimmed and lower-cased), at most 20, duplicates collapsed.
             An unregistered name simply matches nothing (a retired tag still matches the ADRs that kept it).
           - `createdFrom` / `createdTo` and `updatedFrom` / `updatedTo` - inclusive UTC days (`YYYY-MM-DD`) on the creation and last-change
             times; a malformed or impossible date, or a `...From` after its `...To`, is `400`.
           - `expiresBefore` - a day (`YYYY-MM-DD`): the ADRs with an expiry date strictly before it (any status; an ADR with no expiry date never matches).
           - `hasOpenIssues` - `true` keeps the ADRs with an open issue or escalation (`openIssueCount > 0`), `false` the others.
-          - `supersedes` - `true` keeps the ADRs that replace another (a live predecessor), `false` the others.
-          - `supersededBy` - `true` keeps the ADRs that have a successor (pending, or the one that replaced them; never one cancelled or withdrawn before it activated), `false` the others.
+          - `hasPredecessor` - `true` keeps the ADRs that replace another (a live predecessor), `false` the others.
+          - `hasSuccessor` - `true` keeps the ADRs that have a successor (pending, or the one that replaced them; never one cancelled or withdrawn before it activated), `false` the others.
           A saved combination of these is a lens (`/lenses`): the lens's `filters` use exactly these names.
       parameters:
         - $ref: '#/components/parameters/Page'
@@ -920,8 +928,8 @@ paths:
         - $ref: '#/components/parameters/Sort'
         - $ref: '#/components/parameters/AdrFilterStatus'
         - $ref: '#/components/parameters/OptionalQ'
-        - $ref: '#/components/parameters/AdrFilterParticipant'
-        - $ref: '#/components/parameters/AdrFilterRole'
+        - $ref: '#/components/parameters/AdrFilterParticipantId'
+        - $ref: '#/components/parameters/AdrFilterParticipantRole'
         - $ref: '#/components/parameters/AdrFilterTag'
         - $ref: '#/components/parameters/SearchText'
         - $ref: '#/components/parameters/AdrFilterCreatedFrom'
@@ -930,8 +938,8 @@ paths:
         - $ref: '#/components/parameters/AdrFilterUpdatedTo'
         - $ref: '#/components/parameters/AdrFilterExpiresBefore'
         - $ref: '#/components/parameters/AdrFilterHasOpenIssues'
-        - $ref: '#/components/parameters/AdrFilterSupersedes'
-        - $ref: '#/components/parameters/AdrFilterSupersededBy'
+        - $ref: '#/components/parameters/AdrFilterHasPredecessor'
+        - $ref: '#/components/parameters/AdrFilterHasSuccessor'
       responses:
         '200':
           description: A page of ADRs
@@ -993,8 +1001,8 @@ paths:
       description: |
         Any authenticated user (ADRs are an open decision log). A download, not a page: `application/zip` with one adr-tools Markdown file
         per matching ADR (`ADR-0042-use-postgresql.md`) and an `index.md` listing them in number order. It takes the list's FILTERS with the
-        same names and the same validation (`status`, `q`, `text`, `participant`, `role`, `tag`, the created/updated day ranges,
-        `expiresBefore`, `hasOpenIssues`, `supersedes`, `supersededBy`; every one an AND); `text` is allowed and runs under the search's deadline
+        same names and the same validation (`status`, `q`, `text`, `participantId`, `participantRole`, `tag`, the created/updated day ranges,
+        `expiresBefore`, `hasOpenIssues`, `hasPredecessor`, `hasSuccessor`; every one an AND); `text` is allowed and runs under the search's deadline
         and process cap like the list (`429`, `Retry-After`). It takes no `page`, `pageSize` or `sort` (the files are always in number order).
         A filter matching more than 500 ADRs (`adrs.export.maxAdrs`) is `400` - narrow it; nothing is truncated silently. At most
         `adrs.export.maxConcurrent` (2) bulk exports stream per process: the next is `429` `urn:hammurabi:problem:export-busy` with `Retry-After`. `HEAD` is `405`. No match is a `200` archive holding only
@@ -1005,8 +1013,8 @@ paths:
         - $ref: '#/components/parameters/AdrFilterStatus'
         - $ref: '#/components/parameters/OptionalQ'
         - $ref: '#/components/parameters/SearchText'
-        - $ref: '#/components/parameters/AdrFilterParticipant'
-        - $ref: '#/components/parameters/AdrFilterRole'
+        - $ref: '#/components/parameters/AdrFilterParticipantId'
+        - $ref: '#/components/parameters/AdrFilterParticipantRole'
         - $ref: '#/components/parameters/AdrFilterTag'
         - $ref: '#/components/parameters/AdrFilterCreatedFrom'
         - $ref: '#/components/parameters/AdrFilterCreatedTo'
@@ -1014,8 +1022,8 @@ paths:
         - $ref: '#/components/parameters/AdrFilterUpdatedTo'
         - $ref: '#/components/parameters/AdrFilterExpiresBefore'
         - $ref: '#/components/parameters/AdrFilterHasOpenIssues'
-        - $ref: '#/components/parameters/AdrFilterSupersedes'
-        - $ref: '#/components/parameters/AdrFilterSupersededBy'
+        - $ref: '#/components/parameters/AdrFilterHasPredecessor'
+        - $ref: '#/components/parameters/AdrFilterHasSuccessor'
       responses:
         '200':
           description: The archive
@@ -1062,7 +1070,7 @@ paths:
         - `expiringSoon`: ACTIVE ADRs whose expiry date (the LAST day in force) is within `days` days of today (UTC), soonest first, at most
           20; a date already past that the sweep has not acted on is included (it leads). `days` is `adrs.overview.expiringSoonDays` (30).
         - `awaitingDecision`: ADRs IN_REVIEW, the longest-waiting first, at most 20, each with its Approver and `mine` (the caller IS the
-          Approver); `mineTotal` counts ALL the caller's, including any beyond the cap (the list filters `status=IN_REVIEW&participant=<me>&role=APPROVER` show them).
+          Approver); `mineTotal` counts ALL the caller's, including any beyond the cap (the list filters `status=IN_REVIEW&participantId=<me>&participantRole=APPROVER` show them).
 
         Rows link to the ADR (`/adrs/{id}`); the sections' "more" links are the list's own filters (`status`, `tag`). No rate bucket (like
         `GET /adrs`: bounded, one call per page load); not audited (a read).
@@ -1391,7 +1399,7 @@ paths:
       summary: An ADR's history
       description: |
         Any authenticated user. The immutable structural events of the ADR (`type` + string `params` the client renders in the viewer's
-        language), committed with the write they describe. A null `userId` is the system (the expiry sweep).
+        language), committed with the write they describe. A null `actorId` is the system (the expiry sweep).
 
         - Sortable fields: `id`, `createdAt`. The default sort is `createdAt` descending, then `id` descending (newest first).
       parameters:
@@ -1455,7 +1463,7 @@ paths:
 
         - Sortable fields: `id`, `createdAt`. The default sort is `createdAt` ascending (oldest first); `id` ascending is always appended.
         - Filters (optional, whitelisted): `kind` - repeatable, any-of (`kind=COMMENT&kind=QUESTION`), at most one per kind, an unknown value
-          is `400`; `status` - one state (`OPEN`, `ANSWERED`, `RESOLVED`; a comment and a tombstone have none, so no status matches them).
+          is `400`; `state` - one state (`OPEN`, `ANSWERED`, `RESOLVED`; a comment and a tombstone have none, so no state matches them).
       parameters:
         - $ref: '#/components/parameters/Page'
         - $ref: '#/components/parameters/PageSize'
@@ -1471,10 +1479,10 @@ paths:
             maxItems: 4
             items: { $ref: '#/components/schemas/DiscussionKind' }
           description: Any-of filter on the kind; repeat the key for several.
-        - name: status
+        - name: state
           in: query
           required: false
-          schema: { $ref: '#/components/schemas/DiscussionStatus' }
+          schema: { $ref: '#/components/schemas/DiscussionState' }
           description: Only the entries in this state.
       responses:
         '200':
@@ -1711,7 +1719,8 @@ paths:
       description: |
         Whole-lens replace (rename, flip the visibility and overwrite the filters are all this one PUT), by its CREATOR only. Disclosure
         and order: a missing, deleted or someone else's PRIVATE lens is `404`; someone else's PUBLIC lens is `403` (an ADMIN's too); only then
-        is the body judged (`400`), so `403`/`404` win over `400`. A name clash among the caller's own lenses is `409`.
+        is the body judged (`400`), so `403`/`404` win over `400`. A name clash among the caller's own lenses is `409`. No `X-Expected-Revision`: the last write wins (the same lens saved
+        from two tabs is not detected, the later PUT replaces the earlier).
       requestBody:
         required: true
         content:
@@ -1838,11 +1847,12 @@ paths:
     put:
       tags: [notifications]
       operationId: setNotificationPreferences
-      summary: Replace a user's disabled notification switches (target user or ADMIN)
+      summary: Replace a user's notification switches (target user or ADMIN)
       description: |
-        A **wholesale replace** of the person's DISABLED `(type, channel)` pairs - an empty array switches everything on (idempotent, a
-        same-set re-PUT is `204` again). Order: `403` (target user or ADMIN) first, then the body (`400`: an unknown type or channel, a pair
-        listed twice), then the target (`404`). Audited as `user.notification_preferences_changed` on an actual change. It changes what is
+        A **wholesale replace** in the shape the GET answers: `kinds`, one `{type, inApp, email}` entry per kind. A kind left out is ON (both
+        switches), so an empty array switches everything on; the last write wins (no revision), and sending the GET's own `kinds` back changes
+        nothing (idempotent, a same-set re-PUT is `204` again). Order: `403` (target user or ADMIN) first, then the body (`400`: an unknown
+        type, a kind listed twice), then the target (`404`). Audited as `user.notification_preferences_changed` on an actual change. It changes what is
         made or mailed from then on and deletes nothing already made. Rides the per-user `read-state` bucket (`429`).
       requestBody:
         required: true
@@ -2015,18 +2025,18 @@ components:
         maxItems: 8
         items: { $ref: '#/components/schemas/AdrStatus' }
       description: Any-of filter on the lifecycle status; repeat the key for several.
-    AdrFilterParticipant:
-      name: participant
+    AdrFilterParticipantId:
+      name: participantId
       in: query
       required: false
       schema: { type: integer, format: int32, minimum: 0 }
       description: A user id - only the ADRs this user holds a DACI role on.
-    AdrFilterRole:
-      name: role
+    AdrFilterParticipantRole:
+      name: participantRole
       in: query
       required: false
       schema: { $ref: '#/components/schemas/AdrRole' }
-      description: Narrows `participant` to one role (`400` without `participant`).
+      description: Narrows `participantId` to one role (`400` without `participantId`).
     AdrFilterTag:
       name: tag
       in: query
@@ -2075,14 +2085,14 @@ components:
       required: false
       schema: { type: boolean }
       description: Has (`true`) or has no (`false`) open issue or escalation.
-    AdrFilterSupersedes:
-      name: supersedes
+    AdrFilterHasPredecessor:
+      name: hasPredecessor
       in: query
       required: false
       schema: { type: boolean }
       description: Replaces (`true`) or does not replace (`false`) another ADR.
-    AdrFilterSupersededBy:
-      name: supersededBy
+    AdrFilterHasSuccessor:
+      name: hasSuccessor
       in: query
       required: false
       schema: { type: boolean }
@@ -2417,7 +2427,7 @@ components:
       properties:
         name: { type: string, minLength: 1, maxLength: 100 }
         description: { type: string, maxLength: 500, nullable: true }
-        managerUserId:
+        managerId:
           type: integer
           format: int32
           minimum: 0
@@ -2430,7 +2440,7 @@ components:
       properties:
         name: { type: string, minLength: 1, maxLength: 100 }
         description: { type: string, maxLength: 500, nullable: true }
-        managerUserId:
+        managerId:
           type: integer
           format: int32
           minimum: 0
@@ -2439,34 +2449,34 @@ components:
             The team's manager, a user; must be active (`400` otherwise). Omitted on PUT (a full replace) = no manager.
     TeamResponse:
       type: object
-      required: [id, name, managerUserId, managerName, createdAt, updatedAt]
+      required: [id, name, managerId, managerName, createdAt, updatedAt]
       properties:
         id: { type: integer, format: int32, minimum: 0 }
         name: { type: string }
         description: { type: string, nullable: true }
-        managerUserId:
+        managerId:
           type: integer
           format: int32
           minimum: 0
           nullable: true
           description: The team's manager; null when unset or when the assigned user was soft-deleted.
-        managerName: { type: string, nullable: true, description: The manager's display name; null with `managerUserId`. }
+        managerName: { type: string, nullable: true, description: The manager's display name; null with `managerId`. }
         createdAt: { type: integer, format: int64, description: Epoch millis }
         updatedAt: { type: integer, format: int64, description: Epoch millis }
     TeamListItem:
       type: object
-      required: [id, name, managerUserId, managerName, createdAt, updatedAt]
+      required: [id, name, managerId, managerName, createdAt, updatedAt]
       properties:
         id: { type: integer, format: int32, minimum: 0 }
         name: { type: string }
         description: { type: string, nullable: true }
-        managerUserId:
+        managerId:
           type: integer
           format: int32
           minimum: 0
           nullable: true
           description: The team's manager; null when unset or when the assigned user was soft-deleted.
-        managerName: { type: string, nullable: true, description: The manager's display name; null with `managerUserId`. }
+        managerName: { type: string, nullable: true, description: The manager's display name; null with `managerId`. }
         createdAt: { type: integer, format: int64 }
         updatedAt: { type: integer, format: int64 }
     TeamPage:
@@ -2626,7 +2636,7 @@ components:
         - expiresOn
         - revision
         - createdAt
-        - createdBy
+        - createdById
         - updatedAt
         - statusChangedAt
         - participants
@@ -2662,7 +2672,7 @@ components:
         expiresOn: { type: string, format: date, nullable: true, description: "The last day the decision is in force; the sweep expires an `ACTIVE` ADR the day after." }
         revision: { type: integer, format: int64, minimum: 1, description: "Send it back as `X-Expected-Revision` on the document PUT, a transition and the participants PUT; every real change of any of them bumps it." }
         createdAt: { type: integer, format: int64, description: "Epoch millis" }
-        createdBy: { type: integer, format: int32, minimum: 0, description: "The creating user (the first Driver)." }
+        createdById: { type: integer, format: int32, minimum: 0, description: "The creating user (the first Driver)." }
         updatedAt: { type: integer, format: int64, description: "Epoch millis" }
         statusChangedAt: { type: integer, format: int64, description: "Epoch millis" }
         participants:
@@ -2915,12 +2925,12 @@ components:
         or a delete of an entry is not an event.
     AdrEventResponse:
       type: object
-      required: [id, userId, userName, userDeleted, type, params, createdAt]
+      required: [id, actorId, actorName, actorDeleted, type, params, createdAt]
       properties:
         id: { type: integer, format: int32, minimum: 0 }
-        userId: { type: integer, format: int32, minimum: 0, nullable: true, description: "The acting user; null = the system." }
-        userName: { type: string, nullable: true, description: "The actor's display name; null with `userId`." }
-        userDeleted: { type: boolean, description: "The acting account has since been soft-deleted (the name is still the one recorded)." }
+        actorId: { type: integer, format: int32, minimum: 0, nullable: true, description: "The acting user; null = the system." }
+        actorName: { type: string, nullable: true, description: "The actor's display name; null with `actorId`." }
+        actorDeleted: { type: boolean, description: "The acting account has since been soft-deleted (the name is still the one recorded)." }
         type: { $ref: '#/components/schemas/AdrEventType' }
         params:
           type: object
@@ -2988,8 +2998,8 @@ components:
           items: { $ref: '#/components/schemas/AdrStatus' }
         q: { type: string, maxLength: 100 }
         text: { type: string, maxLength: 100 }
-        participant: { type: integer, format: int32, minimum: 0 }
-        role: { $ref: '#/components/schemas/AdrRole' }
+        participantId: { type: integer, format: int32, minimum: 0 }
+        participantRole: { $ref: '#/components/schemas/AdrRole' }
         tag:
           type: array
           maxItems: 20
@@ -3000,8 +3010,8 @@ components:
         updatedTo: { type: string, format: date }
         expiresBefore: { type: string, format: date }
         hasOpenIssues: { type: boolean }
-        supersedes: { type: boolean }
-        supersededBy: { type: boolean }
+        hasPredecessor: { type: boolean }
+        hasSuccessor: { type: boolean }
     LensRequest:
       type: object
       required: [name, visibility, filters]
@@ -3011,15 +3021,15 @@ components:
         filters: { $ref: '#/components/schemas/AdrFilterDocument' }
     Lens:
       type: object
-      required: [id, name, visibility, filters, createdBy, creatorName, creatorDeleted, createdAt, updatedAt, canEdit, canDelete]
+      required: [id, name, visibility, filters, createdById, createdByName, createdByDeleted, createdAt, updatedAt, canEdit, canDelete]
       properties:
         id: { type: integer, format: int32, minimum: 0 }
         name: { type: string }
         visibility: { $ref: '#/components/schemas/LensVisibility' }
         filters: { $ref: '#/components/schemas/AdrFilterDocument' }
-        createdBy: { type: integer, format: int32, minimum: 0 }
-        creatorName: { type: string }
-        creatorDeleted: { type: boolean }
+        createdById: { type: integer, format: int32, minimum: 0 }
+        createdByName: { type: string }
+        createdByDeleted: { type: boolean }
         createdAt: { type: integer, format: int64 }
         updatedAt: { type: integer, format: int64 }
         canEdit: { type: boolean, description: "The caller is the creator: may rename, flip the visibility and replace the filters." }
@@ -3049,10 +3059,6 @@ components:
         (the expiry date of an `ACTIVE` ADR was changed or removed; `detail` = the new date, null = removed; every participant, the actor
         excepted) and `SUCCESSOR_ACCEPTED` (the predecessor's Approver accepted a successor: `adr` is the successor, `otherAdr` the predecessor it
         replaces; the successor's Driver and Approver). A client treats an unknown value as plain text.
-    NotificationChannel:
-      type: string
-      enum: [IN_APP, EMAIL]
-      description: "`IN_APP` is the bell, `EMAIL` the digest."
     Notification:
       type: object
       required: [id, type, seen, createdAt, actorId, actorName, adrId, adrKey, adrName, otherAdrId, otherAdrKey, detail]
@@ -3086,11 +3092,12 @@ components:
           description: The number of rows, CAPPED at 1000 (a count at the cap means "at least this many").
     NotificationPreferenceKind:
       type: object
+      description: "One kind and its two switches: an element of `kinds` in what the GET answers AND in what the PUT takes."
       required: [type, inApp, email]
       properties:
         type: { $ref: '#/components/schemas/NotificationType' }
-        inApp: { type: boolean }
-        email: { type: boolean }
+        inApp: { type: boolean, description: "The bell: false = no notice of this kind is made for the person from then on." }
+        email: { type: boolean, description: "The digest: false = a notice of this kind is never mailed; the bell is unchanged." }
     NotificationPreferences:
       type: object
       required: [emailAvailable, kinds]
@@ -3099,20 +3106,15 @@ components:
         kinds:
           type: array
           items: { $ref: '#/components/schemas/NotificationPreferenceKind' }
-    DisabledNotificationPreference:
-      type: object
-      required: [type, channel]
-      properties:
-        type: { $ref: '#/components/schemas/NotificationType' }
-        channel: { $ref: '#/components/schemas/NotificationChannel' }
     NotificationPreferencesUpdateRequest:
       type: object
-      required: [disabled]
+      required: [kinds]
       properties:
-        disabled:
+        kinds:
           type: array
-          maxItems: 24
-          items: { $ref: '#/components/schemas/DisabledNotificationPreference' }
+          maxItems: 12
+          description: "One entry per kind at most (the `kinds` of the GET, edited and sent back); a kind left out is on."
+          items: { $ref: '#/components/schemas/NotificationPreferenceKind' }
     LensPage:
       type: object
       required: [items, page, pageSize, total]
@@ -3133,7 +3135,7 @@ components:
       description: >-
         `COMMENT` and `QUESTION` are accepted while the ADR is pre-active (`PROBLEM_RAISED`, `SOLUTION_DRAFT`, `IN_REVIEW`); `ISSUE` and
         `ESCALATION` only while it is `ACTIVE`.
-    DiscussionStatus:
+    DiscussionState:
       type: string
       enum: [OPEN, ANSWERED, RESOLVED]
       description: >-
@@ -3151,21 +3153,14 @@ components:
         body: { type: string, minLength: 1, maxLength: 10000, description: "The new Markdown text; not blank." }
     DiscussionStateRequest:
       type: object
-      required: [status]
+      required: [state]
       properties:
-        status: { $ref: '#/components/schemas/DiscussionStatus' }
+        state: { $ref: '#/components/schemas/DiscussionState' }
         resolution:
           type: string
           maxLength: 2000
           nullable: true
-          description: An optional note, only with `RESOLVED` (`400` with any other status); blank = none.
-    DiscussionUser:
-      type: object
-      required: [id, name, deleted]
-      properties:
-        id: { type: integer, format: int32, minimum: 0 }
-        name: { type: string, description: "The display name as it is now (kept for a soft-deleted account)." }
-        deleted: { type: boolean, description: "The account has since been soft-deleted." }
+          description: An optional note, only with `RESOLVED` (`400` with any other state); blank = none.
     DiscussionEntry:
       type: object
       required:
@@ -3174,11 +3169,15 @@ components:
         - kind
         - body
         - deleted
-        - author
+        - authorId
+        - authorName
+        - authorDeleted
         - createdAt
         - editedAt
         - resolution
-        - stateChangedBy
+        - stateChangedById
+        - stateChangedByName
+        - stateChangedByDeleted
         - stateChangedAt
         - canEdit
         - canDelete
@@ -3187,21 +3186,21 @@ components:
         id: { type: integer, format: int32, minimum: 0 }
         adrId: { type: integer, format: int32, minimum: 0 }
         kind: { $ref: '#/components/schemas/DiscussionKind' }
-        status:
+        state:
           allOf:
-            - $ref: '#/components/schemas/DiscussionStatus'
+            - $ref: '#/components/schemas/DiscussionState'
           description: Absent for a comment and for a tombstone (neither has a state).
         body: { type: string, nullable: true, description: "Markdown; null for a tombstone (the text is gone)." }
         deleted: { type: boolean, description: "A tombstone: the entry was deleted; only its kind, author and creation time remain." }
-        author: { $ref: '#/components/schemas/DiscussionUser' }
+        authorId: { type: integer, format: int32, minimum: 0 }
+        authorName: { type: string, description: "The author's display name as it is now (kept for a soft-deleted account)." }
+        authorDeleted: { type: boolean, description: "The author's account has since been soft-deleted." }
         createdAt: { type: integer, format: int64, description: "Epoch millis" }
         editedAt: { type: integer, format: int64, nullable: true, description: "Epoch millis of the author's last edit." }
         resolution: { type: string, nullable: true, description: "The note of the last resolution, if it had one; cleared on a reopen." }
-        stateChangedBy:
-          allOf:
-            - $ref: '#/components/schemas/DiscussionUser'
-          nullable: true
-          description: Who last answered, resolved or reopened the entry.
+        stateChangedById: { type: integer, format: int32, minimum: 0, nullable: true, description: "Who last answered, resolved or reopened the entry; null when nobody did (and for a tombstone)." }
+        stateChangedByName: { type: string, nullable: true, description: "That user's display name as it is now; null with `stateChangedById`." }
+        stateChangedByDeleted: { type: boolean, description: "That user's account has since been soft-deleted (false when there is none)." }
         stateChangedAt: { type: integer, format: int64, nullable: true, description: "Epoch millis" }
         canEdit: { type: boolean, description: "This caller is the author and the ADR's status still takes the kind." }
         canDelete: { type: boolean, description: "This caller is the author or an ADMIN and the entry is not deleted yet." }

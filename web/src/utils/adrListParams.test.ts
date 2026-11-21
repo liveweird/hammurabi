@@ -9,20 +9,20 @@ describe("ADR list params", () => {
   });
 
   test("reads q, repeated status, repeated tag, mine and role", () => {
-    expect(parse("q=db&status=ACTIVE&status=IN_REVIEW&tag=data&tag=security&mine=1&role=APPROVER")).toEqual({
+    expect(parse("q=db&status=ACTIVE&status=IN_REVIEW&tag=data&tag=security&mine=1&participantRole=APPROVER")).toEqual({
       ...NO_ADR_FILTERS,
       q: "db",
       status: ["ACTIVE", "IN_REVIEW"],
       tag: ["data", "security"],
       mine: true,
-      role: "APPROVER",
+      participantRole: "APPROVER",
     });
   });
 
   test("reads the full-text term, the dates and the yes/no filters under the list's own parameter names", () => {
     expect(
       parse(
-        "text=message+queue&createdFrom=2026-01-01&createdTo=2026-02-01&updatedFrom=2026-03-01&updatedTo=2026-04-01&expiresBefore=2027-01-01&hasOpenIssues=true&supersedes=false&supersededBy=true",
+        "text=message+queue&createdFrom=2026-01-01&createdTo=2026-02-01&updatedFrom=2026-03-01&updatedTo=2026-04-01&expiresBefore=2027-01-01&hasOpenIssues=true&hasPredecessor=false&hasSuccessor=true",
       ),
     ).toEqual({
       ...NO_ADR_FILTERS,
@@ -33,24 +33,38 @@ describe("ADR list params", () => {
       updatedTo: "2026-04-01",
       expiresBefore: "2027-01-01",
       hasOpenIssues: true,
-      supersedes: false,
-      supersededBy: true,
+      hasPredecessor: false,
+      hasSuccessor: true,
     });
   });
 
   test("a participant (from a shared lens) is read, with its role; mine wins over it", () => {
-    expect(parse("participant=9&role=DRIVER")).toMatchObject({ mine: false, participant: 9, role: "DRIVER" });
-    expect(parse("participant=9&mine=1&role=DRIVER")).toMatchObject({ mine: true, participant: null, role: "DRIVER" });
-    expect(parse("participant=abc").participant).toBeNull();
-    expect(parse("participant=0").participant).toBeNull();
+    expect(parse("participantId=9&participantRole=DRIVER")).toMatchObject({ mine: false, participantId: 9, participantRole: "DRIVER" });
+    expect(parse("participantId=9&mine=1&participantRole=DRIVER")).toMatchObject({ mine: true, participantId: null, participantRole: "DRIVER" });
+    expect(parse("participantId=abc").participantId).toBeNull();
+    expect(parse("participantId=0").participantId).toBeNull();
+  });
+
+  test("the four keys 0.9.x spelled differently are still read, the current spelling wins, and a write never emits the old ones", () => {
+    expect(parse("participant=9&role=DRIVER&supersedes=true&supersededBy=false")).toMatchObject({
+      participantId: 9,
+      participantRole: "DRIVER",
+      hasPredecessor: true,
+      hasSuccessor: false,
+    });
+    expect(parse("participant=9&participantId=4&hasPredecessor=false&supersedes=true")).toMatchObject({ participantId: 4, hasPredecessor: false });
+    // Any write of the filters re-spells them and drops the old keys; foreign keys stay.
+    const written = writeAdrListParams(new URLSearchParams("foo=bar&participant=9&role=DRIVER&supersedes=true&supersededBy=false"), { q: "db" });
+    expect(written.toString()).toBe("foo=bar&q=db&participantId=9&participantRole=DRIVER&hasPredecessor=true&hasSuccessor=false");
+    expect(["participant", "role", "supersedes", "supersededBy"].some((key) => written.has(key))).toBe(false);
   });
 
   test("ignores unknown, repeated and misplaced values", () => {
-    expect(parse("status=NOPE&status=ACTIVE&status=ACTIVE&mine=yes&role=DRIVER")).toEqual({ ...NO_ADR_FILTERS, status: ["ACTIVE"] });
+    expect(parse("status=NOPE&status=ACTIVE&status=ACTIVE&mine=yes&participantRole=DRIVER")).toEqual({ ...NO_ADR_FILTERS, status: ["ACTIVE"] });
     expect(parse("tag=data&tag=data&tag=&tag=team").tag).toEqual(["data", "team"]);
-    expect(parse("mine=1&role=OWNER").role).toBeNull();
+    expect(parse("mine=1&participantRole=OWNER").participantRole).toBeNull();
     // Impossible dates and non-boolean words are no filter; a lone character is no search.
-    expect(parse("createdFrom=2026-02-30&updatedTo=yesterday&hasOpenIssues=1&supersedes=yes&text=a")).toEqual(NO_ADR_FILTERS);
+    expect(parse("createdFrom=2026-02-30&updatedTo=yesterday&hasOpenIssues=1&hasPredecessor=yes&text=a")).toEqual(NO_ADR_FILTERS);
   });
 
   test("the search term is trimmed and needs two characters", () => {
@@ -83,41 +97,41 @@ describe("ADR list params", () => {
   });
 
   test("writing lays a patch over the filters and keeps unrelated keys", () => {
-    const next = writeAdrListParams(new URLSearchParams("foo=bar&status=ACTIVE&tag=data"), { q: "db", tag: ["data", "team"], mine: true, role: "DRIVER" });
-    expect(next.toString()).toBe("foo=bar&q=db&status=ACTIVE&tag=data&tag=team&mine=1&role=DRIVER");
+    const next = writeAdrListParams(new URLSearchParams("foo=bar&status=ACTIVE&tag=data"), { q: "db", tag: ["data", "team"], mine: true, participantRole: "DRIVER" });
+    expect(next.toString()).toBe("foo=bar&q=db&status=ACTIVE&tag=data&tag=team&mine=1&participantRole=DRIVER");
   });
 
   test("writing round-trips every filter", () => {
-    const query = "q=db&text=queue&status=ACTIVE&tag=data&participant=9&role=INFORMED&createdFrom=2026-01-01&createdTo=2026-02-01&updatedFrom=2026-03-01&updatedTo=2026-04-01&expiresBefore=2027-01-01&hasOpenIssues=false&supersedes=true&supersededBy=false";
+    const query = "q=db&text=queue&status=ACTIVE&tag=data&participantId=9&participantRole=INFORMED&createdFrom=2026-01-01&createdTo=2026-02-01&updatedFrom=2026-03-01&updatedTo=2026-04-01&expiresBefore=2027-01-01&hasOpenIssues=false&hasPredecessor=true&hasSuccessor=false";
     const params = parse(query);
     expect(writeAdrListParams(new URLSearchParams(), params).toString()).toBe(query);
   });
 
   test("defaults leave no key behind, and a role without mine or participant is dropped", () => {
-    expect(writeAdrListParams(new URLSearchParams("q=db&text=ab&status=ACTIVE&tag=data&mine=1&role=DRIVER&createdFrom=2026-01-01&hasOpenIssues=true"), NO_ADR_FILTERS).toString()).toBe("");
-    expect(writeAdrListParams(new URLSearchParams(), { role: "DRIVER" }).toString()).toBe("");
+    expect(writeAdrListParams(new URLSearchParams("q=db&text=ab&status=ACTIVE&tag=data&mine=1&participantRole=DRIVER&createdFrom=2026-01-01&hasOpenIssues=true"), NO_ADR_FILTERS).toString()).toBe("");
+    expect(writeAdrListParams(new URLSearchParams(), { participantRole: "DRIVER" }).toString()).toBe("");
   });
 
   test("a patch can set one filter and clear another", () => {
-    expect(writeAdrListParams(new URLSearchParams("text=ab&supersedes=true"), { text: "", supersedes: null, hasOpenIssues: true }).toString()).toBe("hasOpenIssues=true");
+    expect(writeAdrListParams(new URLSearchParams("text=ab&hasPredecessor=true"), { text: "", hasPredecessor: null, hasOpenIssues: true }).toString()).toBe("hasOpenIssues=true");
     expect(writeAdrListParams(new URLSearchParams(), { text: "a" }).toString()).toBe("");
     expect(writeAdrListParams(new URLSearchParams(), { createdFrom: "nope" }).toString()).toBe("");
   });
 
   test("counts the active panel filters (a range counts once, the search box not at all)", () => {
     expect(activeAdrFilterCount(parse(""))).toBe(0);
-    expect(activeAdrFilterCount(parse("q=%20&status=ACTIVE&mine=1&role=DRIVER"))).toBe(2);
+    expect(activeAdrFilterCount(parse("q=%20&status=ACTIVE&mine=1&participantRole=DRIVER"))).toBe(2);
     expect(activeAdrFilterCount(parse("q=db&status=ACTIVE&mine=1"))).toBe(3);
     expect(activeAdrFilterCount(parse("tag=data&tag=team"))).toBe(1);
     expect(activeAdrFilterCount(parse("createdFrom=2026-01-01&createdTo=2026-02-01&updatedTo=2026-04-01&expiresBefore=2027-01-01"))).toBe(3);
-    expect(activeAdrFilterCount(parse("hasOpenIssues=false&supersedes=true&supersededBy=false&participant=4"))).toBe(4);
+    expect(activeAdrFilterCount(parse("hasOpenIssues=false&hasPredecessor=true&hasSuccessor=false&participantId=4"))).toBe(4);
     expect(activeAdrFilterCount(parse("text=queue"))).toBe(0);
   });
 
   test("anything narrowing the list, the search term included, is a filter", () => {
     expect(hasAdrFilters(parse(""))).toBe(false);
     expect(hasAdrFilters(parse("text=queue"))).toBe(true);
-    expect(hasAdrFilters(parse("supersedes=false"))).toBe(true);
+    expect(hasAdrFilters(parse("hasPredecessor=false"))).toBe(true);
   });
 
   test("a range is inverted only when both ends are set and the start is later", () => {

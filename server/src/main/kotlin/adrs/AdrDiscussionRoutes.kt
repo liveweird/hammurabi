@@ -61,7 +61,7 @@ private fun Route.discussionReads(discussion: AdrDiscussionService) {
         val params = call.request.queryParameters
         val filter = DiscussionFilter(
             kinds = params.repeatedStrings("kind", maxCount = DiscussionKind.entries.size).map(::parseKind),
-            status = params.optionalEnum<DiscussionStatus>("status"),
+            state = params.optionalEnum<DiscussionState>("state"),
         )
         val result = discussion.list(route.parent.id, caller, filter, paging) ?: throw NotFoundException("ADR not found")
         call.respond(HttpStatusCode.OK, paging.toPage(result.items, result.total))

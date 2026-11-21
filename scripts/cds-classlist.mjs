@@ -114,8 +114,8 @@ try {
 
   log("workload: user + team + feature flags + language");
   const user = must(await call("POST", "/api/v1/users", { name: "CDS Training", email: "cds-training@hammurabi.local", password: "cds-training-pass-1" }), "creating the user").id;
-  const team = must(await call("POST", "/api/v1/teams", { name: "cds-training-team", description: "trained", managerUserId: user }), "creating the team").id;
-  must(await call("PUT", `/api/v1/teams/${team}`, { name: "cds-training-team", description: "renamed", managerUserId: user }), "updating the team");
+  const team = must(await call("POST", "/api/v1/teams", { name: "cds-training-team", description: "trained", managerId: user }), "creating the team").id;
+  must(await call("PUT", `/api/v1/teams/${team}`, { name: "cds-training-team", description: "renamed", managerId: user }), "updating the team");
   must(await call("PUT", `/api/v1/users/${user}/features`, { disabledFeatures: ["MFA"] }), "setting the feature flags");
   must(await call("PUT", `/api/v1/users/${user}/language`, { language: "pl" }), "setting the language");
   must(await call("PUT", `/api/v1/users/${user}`, { name: "CDS Training 2", email: "cds-training@hammurabi.local", roles: ["USER"] }), "updating the user");

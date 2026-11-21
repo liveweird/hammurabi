@@ -90,7 +90,7 @@ stele of the Code of Hammurabi on a lapis disc — the sun disc of Shamash crown
 
 ## Roadmap
 
-Each increment is built and gated on its own. **Current version: 1.2.3** (a clearer Decision log).
+Each increment is built and gated on its own. **Current version: 1.2.4** (workspace refresh and ADR validity).
 
 | Ver | Scope |
 |---|---|
@@ -130,6 +130,10 @@ Left in Flow on purpose: `ingest/`, `fetch/`, `jira/`, `gitlab/`, `norm/`, `iden
 `infra/outbound/` (the SSRF guard — port it with the first server-initiated call other than SMTP), `plugins/Role.kt`, `EncryptedAtRest`/`Reencrypt`.
 
 ## Release history
+
+### v1.2.4 — workspace refresh and ADR validity (2026-11-22)
+
+Shared page headers, responsive tables, and clearer filter and form layouts bring the ADR and administration views in line with the Decision log. Home groups the main actions, and Changelog presents each release with version and date metadata. Expiring decisions and reminders link to Validity, where an Approver or administrator can extend the last day of an active ADR. The date flows through Lifecycle, History, notifications and the existing expiry filters. The extension reuses the revision-checked ADR write and ships without a database migration.
 
 ### v1.2.3 — a clearer Decision log (2026-11-21)
 

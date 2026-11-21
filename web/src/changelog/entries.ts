@@ -17,6 +17,20 @@ interface ChangelogEntry {
 
 export const CHANGELOG: readonly ChangelogEntry[] = [
   {
+    version: "1.2.4",
+    date: "2026-11-22",
+    en: `**Hammurabi 1.2.4 — workspace refresh and ADR validity.**
+
+- ADRs, Teams, Tags, Users, and Feature Flags share clearer headings and table layouts. Wide tables scroll independently on smaller screens. Home makes the main actions easier to find, and Changelog gives each release a consistent layout.
+- Open **Validity** directly from **Expiring soon** or an expiry reminder. On an active ADR with an expiry date, the Approver or an administrator can choose **Extend validity** and select a later last day.
+- The decision stays active. Lifecycle shows the new deadline, History records both dates, and expiry filters use the new date. Participants receive the existing expiry-change notice according to their preferences.`,
+    pl: `**Hammurabi 1.2.4 — odświeżony interfejs i ważność ADR-ów.**
+
+- Listy ADR-ów, zespołów, tagów, użytkowników i flag funkcji mają czytelniejsze nagłówki i układy tabel. Na mniejszych ekranach szerokie tabele można przewijać osobno. Na stronie głównej łatwiej znaleźć najważniejsze działania, a każde wydanie w Historii zmian ma spójny układ.
+- Otwórz sekcję **Ważność** bezpośrednio z listy **Wkrótce wygasają** lub z przypomnienia. Gdy obowiązujący ADR ma datę wygaśnięcia, osoba zatwierdzająca lub administrator/ka może wybrać **Przedłuż ważność** i ustawić późniejszy ostatni dzień obowiązywania.
+- Decyzja nadal obowiązuje. Cykl życia pokazuje nowy termin, Historia zapisuje obie daty, a filtry uwzględniają nową datę. Uczestnicy otrzymują powiadomienie o zmianie zgodnie ze swoimi preferencjami.`,
+  },
+  {
     version: "1.2.3",
     date: "2026-11-21",
     en: `**Hammurabi 1.2.3 — a clearer Decision log.**

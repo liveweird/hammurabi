@@ -7,7 +7,7 @@ the decision, the alternatives considered and the accepted consequences; every c
 they are active (comments and questions) and challenged after (issues and escalations). The name is Hammurabi of Babylon, whose stele carried one of the oldest written codes:
 decisions written down so that they bind and can be looked up.
 
-## What's here today (1.2.3 — a clearer Decision log)
+## What's here today (1.2.4 — workspace refresh and ADR validity)
 
 Hammurabi's repository started as an exact copy of [Flow](https://github.com/liveweird/flow) (1.57.1, `4e43e480`), trimmed to its generic foundation (0.1.0); 0.2.0 built the ADR core on it, 0.3.0 added the discussion, 0.4.0 the tags and successors, 0.5.0 the search, 0.6.0 the notifications, 0.7.0 the send back and the withdrawal of a decision, 0.8.0 the Markdown export, 0.9.0 the decision log page, 1.0.0 the checkup (the hardening, the frozen API names, a decision in force ends only by its Approver) and 1.1.0 the visual Markdown editor and the Lifecycle diagram:
 
@@ -34,6 +34,8 @@ Hammurabi's repository started as an exact copy of [Flow](https://github.com/liv
 - **Decision log** (`GET /api/v1/adrs/overview`; the Decision log page, between Home and the ADRs): a read-only overview for every signed-in user: the number of ADRs per status, **what waits for a
   decision** (ADRs in review, longest wait first, with the ones waiting for you highlighted), **what expires soon** (`ADRS_OVERVIEW_EXPIRING_SOON_DAYS`, 30 by default), **what was decided recently**
   and **what is in force by tag category and tag**; every row opens its ADR and every "+N more" opens the ADR list filtered to what the section covers.
+
+- **Validity**: open it from an expiring decision or an expiry reminder. The Approver or an administrator can extend a dated decision in force to a later day. Lifecycle shows the new last day, History records the change, and the Decision log and expiry filters use the new date.
 
 - **Sign-in** with a JWT access/refresh pair, a server-side revocation blocklist, per-account lockout and per-IP rate limits; opt-in **email MFA**; **self-service password reset** by an
   emailed single-use link.

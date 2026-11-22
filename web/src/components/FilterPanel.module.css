@@ -1,14 +1,9 @@
-.surface {
-  background: var(--mantine-color-default);
-}
-
 .toolbar,
 .fields {
   padding: var(--mantine-spacing-sm);
 }
 
 .fields {
-  border-block-start: 1px solid var(--mantine-color-default-border);
   background: light-dark(var(--hammurabi-surface-tint), var(--mantine-color-dark-6));
   border-end-start-radius: inherit;
   border-end-end-radius: inherit;

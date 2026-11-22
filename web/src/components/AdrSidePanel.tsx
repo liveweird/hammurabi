@@ -3,6 +3,7 @@ import { useTranslation } from "react-i18next";
 import { Stack, Title } from "@mantine/core";
 import type { AdrResponse } from "../api/adrs";
 import { ADR_VALIDITY_ID } from "../utils/adrLinks";
+import classes from "../theme.module.css";
 import AdrDetailsSection from "./AdrDetailsSection";
 import AdrHistory from "./AdrHistory";
 import AdrParticipantsPanel from "./AdrParticipantsPanel";
@@ -39,7 +40,7 @@ export default function AdrSidePanel({ adr }: { adr: AdrResponse }) {
         id={ADR_VALIDITY_ID}
         tabIndex={-1}
         aria-labelledby={validityHeading}
-        style={{ scrollMarginBlockStart: "calc(var(--app-shell-header-height, 3rem) + 1rem)" }}
+        className={classes.scrollTarget}
       >
         <Title order={3} size="h4" id={validityHeading} tabIndex={-1}>{t("adrs.validity.title")}</Title>
         <AdrValidity adr={adr} headingId={validityHeading} />

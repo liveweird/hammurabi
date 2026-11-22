@@ -1,13 +1,6 @@
-.listPage,
-.detailPage {
-  inline-size: 100%;
-  max-inline-size: 100rem;
-}
-
-.formPage {
-  inline-size: 100%;
-  max-inline-size: 90rem;
-}
+/* Page-specific, shared by the ADR list, the create form and the detail page: the list's row
+   typography, the create form's container-query layout and the detail panes' sizing. Page caps,
+   surfaces, hairlines and top-aligned rows come from theme.module.css and style props. */
 
 .listControls {
   display: grid;
@@ -15,18 +8,9 @@
   gap: var(--mantine-spacing-sm);
 }
 
-.searchField {
-  inline-size: 100%;
-  max-inline-size: 34rem;
-}
-
 .relevanceNote {
   margin-block-start: calc(-1 * var(--mantine-spacing-sm));
   padding-inline: var(--mantine-spacing-xs);
-}
-
-.adrRow > td {
-  vertical-align: top;
 }
 
 .adrKey,
@@ -46,17 +30,6 @@
 .adrStatus > :global(.mantine-Badge-root),
 .adrTags :global(.mantine-Badge-root) {
   inline-size: max-content;
-}
-
-.formSurface,
-.mainPane,
-.sidePanel {
-  background: var(--mantine-color-default);
-  border-radius: var(--mantine-radius-lg);
-}
-
-.formSurface {
-  inline-size: 100%;
 }
 
 .form {
@@ -83,22 +56,11 @@
   white-space: normal;
 }
 
-.formParticipants {
-  padding-block-start: var(--mantine-spacing-lg);
-  border-block-start: 1px solid var(--mantine-color-default-border);
-}
-
-.formActions {
-  padding-block-start: var(--mantine-spacing-md);
-  border-block-start: 1px solid var(--mantine-color-default-border);
-}
-
 .detailGrid > div {
   min-inline-size: 0;
 }
 
-.mainPane,
-.sidePanel {
+.pane {
   min-inline-size: 0;
 }
 
@@ -114,11 +76,5 @@
 
   .formActions > * {
     flex: 1 1 10rem;
-  }
-}
-
-@media (pointer: coarse) {
-  .moreButton {
-    min-block-size: 2.75rem;
   }
 }

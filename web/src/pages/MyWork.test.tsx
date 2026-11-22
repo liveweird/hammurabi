@@ -147,6 +147,79 @@ describe("MyWork", () => {
     await waitFor(() => expect(stub.find("GET", "/api/v1/adrs/my-work?participantRole=CONTRIBUTOR")).toBeDefined());
   });
 
+  test("each reason wears its vocabulary colour: blocking red, warnings orange, nudges gray, a review that waits for you grape", async () => {
+    serve({
+      ...WORK,
+      actions: {
+        hasMore: false,
+        items: [
+          ...WORK.actions.items,
+          { adr: { ...adr(9, "APPROVER", "IN_REVIEW"), name: "Wait for the board" }, reason: "STALLED_REVIEW", since: GENERATED_AT - 9 * 86_400_000, approverName: "Alex" },
+        ],
+      },
+    });
+    renderWithProviders(<MyWork />);
+    // happy-dom does not evaluate custom properties, so read the hue the Badge was given from its inline style.
+    const hueOf = async (text: string) => /--badge-color: var\(--mantine-color-(\w+)-light-color\)/.exec((await screen.findByText(text)).closest(".mantine-Badge-root")?.getAttribute("style") ?? "")?.[1];
+    expect(await hueOf("Open escalation")).toBe("red");
+    expect(await hueOf("Expires in 3 days")).toBe("orange");
+    expect(await hueOf("Returned for rework")).toBe("orange");
+    expect(await hueOf("No progress for 18 days")).toBe("gray");
+    expect(await hueOf("Waiting for a decision for 9 days")).toBe("gray");
+    expect(await hueOf("Awaiting your decision")).toBe("grape");
+  });
+
+  test("an expiring item with no date (not expected from the server) says only that it is expiring", async () => {
+    serve({
+      ...WORK,
+      actions: { hasMore: false, items: [{ adr: { ...adr(10, "APPROVER", "ACTIVE"), name: "Undated" }, reason: "EXPIRING", since: GENERATED_AT, approverName: "Alex" }] },
+      watching: { items: [], hasMore: false },
+    });
+    renderWithProviders(<MyWork />);
+    expect(await screen.findByText("Expiring")).toBeInTheDocument();
+    expect(screen.queryByText("Expires today")).not.toBeInTheDocument();
+  });
+
+  test("changing the role keeps the current content on screen until the new answer arrives, then announces the result", async () => {
+    const user = userEvent.setup();
+    const driverWork: AdrMyWork = {
+      ...WORK,
+      actions: { items: [WORK.actions.items[2]], hasMore: false },
+      watching: { items: [], hasMore: false },
+      activity: { items: [], hasMore: false },
+      adrs: { items: [], hasMore: false },
+    };
+    let release!: (response: Response) => void;
+    const driverAnswer = new Promise<Response>((resolve) => {
+      release = resolve;
+    });
+    vi.stubGlobal("fetch", vi.fn((url: string) => url.includes("participantRole=DRIVER") ? driverAnswer : Promise.resolve(jsonResponse(200, WORK))));
+    renderWithProviders(<MyWork />);
+    await screen.findByRole("link", { name: /Set the audit retention policy/ });
+    const live = () => document.querySelector("[aria-live=polite]")!;
+    await waitFor(() => expect(live()).toHaveTextContent("All roles. Needs your action: 5. Worth watching: 1+. Recent activity: 2. My ADRs: 4+"));
+
+    await user.click(screen.getByRole("combobox", { name: "My role" }));
+    await user.click(screen.getByRole("option", { name: "Driver" }));
+    await waitFor(() => expect(screen.getByRole("combobox", { name: "My role" })).toHaveValue("Driver"));
+    // The Driver answer is still pending: the previous role's rows stay, there is no loading block and nothing is announced yet.
+    expect(screen.getByRole("link", { name: /Set the audit retention policy/ })).toBeInTheDocument();
+    expect(screen.queryByRole("status")).not.toBeInTheDocument();
+    expect(live()).toBeEmptyDOMElement();
+    // The rows on screen answer the PREVIOUS role: they are marked busy and their "view all" link still follows that role, not the new filter.
+    const myAdrs = screen.getByRole("link", { name: "View all my ADRs" });
+    expect(myAdrs).toHaveAttribute("href", "/adrs?mine=1");
+    expect(myAdrs.closest("section")).toHaveAttribute("aria-busy", "true");
+    expect(screen.getByRole("heading", { name: "Needs your action" }).closest(".mantine-Paper-root")?.parentElement).toHaveAttribute("aria-busy", "true");
+
+    release(jsonResponse(200, driverWork));
+    await waitFor(() => expect(screen.queryByRole("link", { name: /Set the audit retention policy/ })).not.toBeInTheDocument());
+    expect(screen.getByRole("link", { name: /Document API ownership/ })).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "View all my ADRs" })).toHaveAttribute("href", "/adrs?mine=1&participantRole=DRIVER");
+    expect(screen.getByRole("link", { name: "View all my ADRs" }).closest("section")).toHaveAttribute("aria-busy", "false");
+    await waitFor(() => expect(live()).toHaveTextContent("Driver. Needs your action: 1. Worth watching: 0. Recent activity: 0. My ADRs: 0"));
+  });
+
   test("empty sections explain that there is currently nothing to do or review", async () => {
     serve({ ...WORK, actions: { items: [], hasMore: false }, watching: { items: [], hasMore: false }, activity: { items: [], hasMore: false }, adrs: { items: [], hasMore: false } });
     renderWithProviders(<MyWork />);

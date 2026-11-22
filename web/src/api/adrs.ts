@@ -23,6 +23,7 @@ export type AdrEventResponse = components["schemas"]["AdrEventResponse"];
 export type AdrEventPage = components["schemas"]["AdrEventPage"];
 export type AdrMyWorkAdr = components["schemas"]["AdrMyWorkAdr"];
 export type AdrMyWorkAttention = components["schemas"]["AdrMyWorkAttention"];
+export type AdrMyWorkReason = components["schemas"]["AdrMyWorkReason"];
 export type AdrMyWork = components["schemas"]["AdrMyWork"];
 export type AdrCreateBody = paths["/api/v1/adrs"]["post"]["requestBody"]["content"]["application/json"];
 export type AdrUpdateBody = paths["/api/v1/adrs/{id}"]["put"]["requestBody"]["content"]["application/json"];

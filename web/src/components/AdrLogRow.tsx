@@ -4,12 +4,13 @@ import { IconChevronRight } from "@tabler/icons-react";
 import { Link as RouterLink } from "react-router-dom";
 import type { AdrLogItem } from "../api/adrs";
 import { adrPath } from "../utils/adrLinks";
+import classes from "../theme.module.css";
 import styles from "./DecisionLog.module.css";
 
 /** The reference and name share a link. The section's metadata sits below the name. */
 export default function AdrLogRow({ item, note, highlight, to = adrPath(item.id) }: { item: Pick<AdrLogItem, "id" | "key" | "name">; note?: ReactNode; highlight?: boolean; to?: string }) {
   return (
-    <li className={styles.logRow} data-highlight={highlight || undefined}>
+    <li className={`${classes.breakAnywhere} ${styles.logRow}`} data-highlight={highlight || undefined}>
       <Anchor component={RouterLink} to={to} underline="never" className={styles.rowLink}>
         <span className={styles.rowKey}>{item.key}</span>
         <span className={styles.rowTitle}>{item.name}</span>

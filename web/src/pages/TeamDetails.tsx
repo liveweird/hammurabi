@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
 import { useParams } from "react-router-dom";
-import { Button, Stack, Text } from "@mantine/core";
+import { Button, Paper, Stack, Text } from "@mantine/core";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { IconPencil } from "@tabler/icons-react";
 import { ApiError } from "../api/http";
@@ -12,7 +12,8 @@ import PageHeader from "../components/PageHeader";
 import TeamEditorModal from "../components/TeamEditorModal";
 import { loadErrorMessage } from "../utils/saveError";
 import { teamsPath } from "../utils/teamLinks";
-import styles from "./RegistryViews.module.css";
+import { PANEL_PADDING, WIDE_MAX_WIDTH } from "../utils/layout";
+import classes from "../theme.module.css";
 
 /**
  * One team (`/teams/:id`): its name, description and manager. Everyone reads it, its manager included; an ADMIN
@@ -47,7 +48,7 @@ export default function TeamDetails() {
   const data = team.data;
 
   return (
-    <Stack gap="lg" className={styles.page}>
+    <Stack gap="lg" maw={WIDE_MAX_WIDTH}>
       <PageHeader
         title={data.name}
         backTo={{ to: teamsPath, label: t("teams.backToTeams") }}
@@ -60,17 +61,19 @@ export default function TeamDetails() {
         }
       />
 
-      <Stack component="section" gap="lg" className={styles.detailPanel} aria-label={data.name}>
-        {data.description && (
-          <Stack gap={4}>
-            <Text className={styles.detailLabel}>{t("common.field.description")}</Text>
-            <Text className={styles.detailValue}>{data.description}</Text>
-          </Stack>
-        )}
-        <Text className={styles.detailValue} c={data.managerName ? undefined : "dimmed"}>
-          {data.managerName ? t("teams.managerLine", { name: data.managerName }) : t("teams.noManager")}
-        </Text>
-      </Stack>
+      <Paper component="section" withBorder radius="md" p={PANEL_PADDING} maw="48rem" className={classes.surface} aria-label={data.name}>
+        <Stack gap="lg">
+          {data.description && (
+            <Stack gap={4}>
+              <Text fz="xs" fw={600} c="dimmed">{t("common.field.description")}</Text>
+              <Text className={classes.breakWord}>{data.description}</Text>
+            </Stack>
+          )}
+          <Text className={classes.breakWord} c={data.managerName ? undefined : "dimmed"}>
+            {data.managerName ? t("teams.managerLine", { name: data.managerName }) : t("teams.noManager")}
+          </Text>
+        </Stack>
+      </Paper>
 
       {editing && (
         <TeamEditorModal

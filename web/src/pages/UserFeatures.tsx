@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Link as RouterLink, Navigate, useNavigate, useParams } from "react-router-dom";
-import { Box, Button, Group, Stack, Switch, Text } from "@mantine/core";
+import { Box, Button, Group, Paper, Stack, Switch, Text } from "@mantine/core";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { ApiError } from "../api/http";
 import { FEATURES, type Feature } from "../api/session";
@@ -11,10 +11,10 @@ import EditPageLoadState from "../components/EditPageLoadState";
 import { showSuccessToast } from "../utils/toast";
 import { loadErrorMessage, saveErrorMessage } from "../utils/saveError";
 import PageHeader from "../components/PageHeader";
-import { FORM_MAX_WIDTH } from "../utils/layout";
+import { FORM_MAX_WIDTH, PANEL_PADDING, WIDE_MAX_WIDTH } from "../utils/layout";
 import { usersPath } from "../utils/userLinks";
 import FormErrorAlert from "../components/FormErrorAlert";
-import styles from "./RegistryViews.module.css";
+import classes from "../theme.module.css";
 
 /**
  * The per-user feature-flags editor (Lettuce's, ported): one switch per feature
@@ -78,9 +78,9 @@ export default function UserFeatures() {
   const notFound = isError && fetchError instanceof ApiError && fetchError.status === 404;
 
   return (
-    <Stack gap="lg" className={styles.page}>
+    <Stack gap="lg" maw={WIDE_MAX_WIDTH}>
       <PageHeader title={t("users.featuresTitle")} backTo={{ to: usersPath, label: t("users.title") }} />
-      <Box className={styles.detailPanel} maw={FORM_MAX_WIDTH}>
+      <Paper withBorder radius="md" p={PANEL_PADDING} maw={FORM_MAX_WIDTH} className={classes.surface}>
         <Stack>
           {isLoading || isError || enabled == null ? (
             <EditPageLoadState
@@ -96,11 +96,12 @@ export default function UserFeatures() {
                   {t("users.featuresHint", { name: data.name, email: data.email })}
                 </Text>
               )}
-              <ul className={styles.featureList}>
+              <ul className={`${classes.plainList} ${classes.divided}`}>
                 {FEATURES.map((f) => (
-                  <li key={f} className={styles.featureRow}>
+                  <Box component="li" key={f} py="md">
                     <Switch
                       label={t(`common.feature.${f}`)}
+                      classNames={{ label: classes.touchTarget }}
                       description={t(`common.featureHint.${f}`)}
                       checked={enabled[f]}
                       onChange={(e) => {
@@ -108,7 +109,7 @@ export default function UserFeatures() {
                         setOverrides((prev) => ({ ...prev, [f]: value }));
                       }}
                     />
-                  </li>
+                  </Box>
                 ))}
               </ul>
               {error && (
@@ -116,7 +117,7 @@ export default function UserFeatures() {
                   {error}
                 </FormErrorAlert>
               )}
-              <Group justify="flex-end" gap="sm" className={styles.featureActions}>
+              <Group justify="flex-end" gap="sm" pt="md" className={classes.ruleAbove}>
                 <Button component={RouterLink} to={usersPath} variant="default">
                   {t("common.action.cancel")}
                 </Button>
@@ -127,7 +128,7 @@ export default function UserFeatures() {
             </Stack>
           )}
         </Stack>
-      </Box>
+      </Paper>
     </Stack>
   );
 }

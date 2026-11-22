@@ -1,5 +1,5 @@
 import { describe, expect, test } from "vitest";
-import { ADR_ROLES, ADR_STATUS_COLOR, ADR_STATUSES, CONFIRMED_MOVES, ENDING_MOVES, isAdrRole, isAdrStatus, hasForbiddenReasonCharacter, isPreActive, isTerminal, moveOf } from "./adrStatus";
+import { ADR_ROLES, ADR_STATUS_COLOR, ADR_STATUSES, CONFIRMED_MOVES, ENDING_MOVES, isAdrRole, isAdrStatus, hasForbiddenReasonCharacter, isPreActive, isTerminal, moveOf, MY_WORK_REASON_COLOR } from "./adrStatus";
 
 describe("the ADR status colour map", () => {
   test("covers every status exactly once, in lifecycle order", () => {
@@ -19,6 +19,24 @@ describe("the ADR status colour map", () => {
       SUPERSEDED: "gray",
     });
     for (const color of Object.values(ADR_STATUS_COLOR)) expect(["blue", "indigo", "violet"]).not.toContain(color);
+  });
+});
+
+describe("the My work reason colour map", () => {
+  test("covers every reason the server reports, exactly once", () => {
+    expect(Object.keys(MY_WORK_REASON_COLOR).sort()).toEqual(["ESCALATION", "EXPIRING", "RETURNED", "REVIEW", "STALLED_DRAFT", "STALLED_REVIEW"]);
+  });
+
+  test("follows the colour vocabulary: blocking red, warnings orange, nudges gray, waiting on you grape", () => {
+    expect(MY_WORK_REASON_COLOR).toEqual({
+      ESCALATION: "red",
+      EXPIRING: "orange",
+      RETURNED: "orange",
+      STALLED_DRAFT: "gray",
+      STALLED_REVIEW: "gray",
+      REVIEW: "grape",
+    });
+    for (const color of Object.values(MY_WORK_REASON_COLOR)) expect(["blue", "indigo", "violet"]).not.toContain(color);
   });
 });
 

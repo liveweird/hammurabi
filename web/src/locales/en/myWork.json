@@ -14,6 +14,7 @@
   },
   "reason": {
     "REVIEW": "Awaiting your decision",
+    "EXPIRING": "Expiring",
     "EXPIRING_future_one": "Expires in {{count}} day",
     "EXPIRING_future_other": "Expires in {{count}} days",
     "EXPIRING_today": "Expires today",

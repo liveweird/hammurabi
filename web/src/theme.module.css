@@ -2,19 +2,78 @@
    "clean enterprise SaaS" pass). Everything here is scheme-aware via light-dark(). */
 
 /* Every data table becomes a quiet card on the tinted canvas: own surface, hairline frame,
-   rounded corners. border-collapse must be separate for the radius to clip; the frame then
-   owns the outer edge, so the last row drops its own border. */
+   rounded corners, hairlines between rows. border-collapse must be separate for the radius to
+   hold; the frame then owns the outer edge, so the last row drops its own border. The table is
+   NOT `overflow: hidden`: a clipping table would be the scroll container of the sticky loading
+   and empty states below, so the four corner cells carry the radius instead. */
 .table {
-  background-color: var(--mantine-color-body);
+  background-color: var(--mantine-color-default);
   border: 1px solid light-dark(var(--mantine-color-gray-3), var(--mantine-color-dark-4));
-  border-radius: var(--mantine-radius-md);
+  border-radius: var(--mantine-radius-lg);
   border-collapse: separate;
   border-spacing: 0;
-  overflow: hidden;
+  overflow: visible;
 }
 
 .table tbody tr:last-child td {
   border-bottom: none;
+}
+
+.table tbody tr + tr > :is(td, th) {
+  border-block-start: 1px solid var(--mantine-color-default-border);
+}
+
+.table thead th:first-child {
+  border-start-start-radius: var(--mantine-radius-lg);
+}
+
+.table thead th:last-child {
+  border-start-end-radius: var(--mantine-radius-lg);
+}
+
+/* A table without a header: its first row carries the top corners. */
+.table:not(:has(> thead)) tbody tr:first-child > :first-child {
+  border-start-start-radius: var(--mantine-radius-lg);
+}
+
+.table:not(:has(> thead)) tbody tr:first-child > :last-child {
+  border-start-end-radius: var(--mantine-radius-lg);
+}
+
+/* A header with no row under it (loading and empty states keep their own row, so this is a bare header): it carries the bottom corners. */
+.table thead:is(:last-child, :has(+ tbody:not(:has(tr)))) th:first-child {
+  border-end-start-radius: var(--mantine-radius-lg);
+}
+
+.table thead:is(:last-child, :has(+ tbody:not(:has(tr)))) th:last-child {
+  border-end-end-radius: var(--mantine-radius-lg);
+}
+
+.table tbody tr:last-child > :first-child {
+  border-end-start-radius: var(--mantine-radius-lg);
+}
+
+.table tbody tr:last-child > :last-child {
+  border-end-end-radius: var(--mantine-radius-lg);
+}
+
+/* A loading or empty row stays inside the visible portion of a wide table (the viewport below
+   is the container `cqi` measures). */
+.table td:only-child[colspan] > * {
+  position: sticky;
+  inset-inline-start: var(--mantine-spacing-md);
+  max-inline-size: calc(100cqi - 2 * var(--mantine-spacing-md));
+}
+
+/* The content shown is the previous answer while the next one loads: dimmed, not hidden (the element also says `aria-busy`). */
+.stale {
+  opacity: 0.6;
+}
+
+/* WorkspaceTable's wrapper: the size container for the sticky rule above. */
+.tableViewport {
+  container-type: inline-size;
+  min-inline-size: 0;
 }
 
 /* Neutral, compact table headers: dimmed 600-weight labels on a faint surface tint, with a
@@ -186,4 +245,64 @@
   text-transform: uppercase;
   color: var(--mantine-color-dimmed);
   border-bottom: 1px solid light-dark(var(--mantine-color-gray-2), var(--mantine-color-dark-4));
+}
+
+/* Shared layout idioms. Pages and shared components compose these instead of each carrying a
+   per-component module for the same rule (`web/CLAUDE.md` "CSS modules only where the theme
+   can't express it"). They touch disjoint properties, so combining several on one element
+   never depends on stylesheet order. */
+
+/* A raised surface: the card background (white; dark: dark-6). On a `Paper withBorder` that
+   already has its frame and radius. */
+.surface {
+  background: var(--mantine-color-default);
+}
+
+/* The same surface on a plain element (a section, a list): hairline frame, large radius. */
+.card {
+  composes: surface;
+  border: 1px solid var(--mantine-color-default-border);
+  border-radius: var(--mantine-radius-lg);
+}
+
+/* A list that is only structure: no bullets, no indent. */
+.plainList {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+/* A hairline between a container's children, and one above a single block. */
+.divided > * + * {
+  border-block-start: 1px solid var(--mantine-color-default-border);
+}
+
+.ruleAbove {
+  border-block-start: 1px solid var(--mantine-color-default-border);
+}
+
+/* Multi-line cells read from the top, not the middle. */
+.topAligned > :is(td, th) {
+  vertical-align: top;
+}
+
+/* Long unbroken text (an address, a key) wraps instead of widening its box. */
+.breakWord {
+  overflow-wrap: break-word;
+}
+
+.breakAnywhere {
+  overflow-wrap: anywhere;
+}
+
+/* A heading a link scrolls or focuses to (`#validity`, `#issues`) clears the sticky shell header. */
+.scrollTarget {
+  scroll-margin-block-start: calc(var(--app-shell-header-height, 3rem) + 1rem);
+}
+
+/* A touch target of at least 44px where the pointer is a finger. */
+@media (pointer: coarse) {
+  .touchTarget {
+    min-block-size: 2.75rem;
+  }
 }

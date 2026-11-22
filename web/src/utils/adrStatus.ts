@@ -1,5 +1,5 @@
 import type { MantineColor } from "@mantine/core";
-import type { AdrRole, AdrStatus } from "../api/adrs";
+import type { AdrMyWorkReason, AdrRole, AdrStatus } from "../api/adrs";
 
 /** The lifecycle in order (the server sorts by `status` in this order, not alphabetically). */
 export const ADR_STATUSES: readonly AdrStatus[] = [
@@ -30,6 +30,20 @@ export const ADR_STATUS_COLOR: Record<AdrStatus, MantineColor> = {
   WITHDRAWN: "orange",
   EXPIRED: "red",
   SUPERSEDED: "gray",
+};
+
+/**
+ * The colour of the reason badge on My work, from the same vocabulary: an open escalation is blocking (red), an expiry and rework
+ * the author must do are warnings (orange), a stalled draft or review is only a neutral nudge (gray), and a review that waits for
+ * YOUR decision is waiting (grape).
+ */
+export const MY_WORK_REASON_COLOR: Record<AdrMyWorkReason, MantineColor> = {
+  ESCALATION: "red",
+  EXPIRING: "orange",
+  RETURNED: "orange",
+  STALLED_DRAFT: "gray",
+  STALLED_REVIEW: "gray",
+  REVIEW: "grape",
 };
 
 /** Content (the name and the Markdown fields) is open to edits only before the decision is in force. */

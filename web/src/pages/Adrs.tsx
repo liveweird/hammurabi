@@ -28,6 +28,8 @@ import { ADR_ROLES, ADR_STATUSES, isAdrRole, isAdrStatus } from "../utils/adrSta
 import { MAX_TAG_FILTERS, tagOptionGroups } from "../utils/adrTags";
 import { browserTimeZone, formatDate } from "../utils/formatDate";
 import { filtersFromParams, paramsFromFilters } from "../utils/lensFilters";
+import { WORKSPACE_MAX_WIDTH } from "../utils/layout";
+import classes from "../theme.module.css";
 import styles from "./AdrWorkspace.module.css";
 
 // `number` is the key's order (ADR-0042 is number 42); the default is newest first, like the server's.
@@ -116,7 +118,7 @@ export default function Adrs() {
   );
 
   return (
-    <Stack gap="lg" className={styles.listPage}>
+    <Stack gap="lg" maw={WORKSPACE_MAX_WIDTH}>
       <PageHeader
         title={t("adrs.title")}
         description={t("adrs.intro")}
@@ -132,7 +134,7 @@ export default function Adrs() {
       />
 
       <Box className={styles.listControls} data-print="hide">
-        <Box className={styles.searchField}>
+        <Box w="100%" maw="34rem">
           <ClearableTextInput
             label={t("adrs.filter.search")}
             value={search.value}
@@ -242,7 +244,7 @@ export default function Adrs() {
           </Table.Tr>
         }
         rows={data?.items.map((adr) => (
-          <Table.Tr key={adr.id} className={styles.adrRow}>
+          <Table.Tr key={adr.id} className={classes.topAligned}>
             <Table.Td>
               <Text size="sm" ff="monospace" span className={styles.adrKey}>
                 {adr.key}

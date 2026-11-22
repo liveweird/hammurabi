@@ -6,7 +6,7 @@
  */
 
 /** One fixed 24-hour day in millis — UTC calendar arithmetic only (zone days go through the `…InZone` helpers). */
-const DAY_MS = 86_400_000;
+export const DAY_MS = 86_400_000;
 
 const ISO_DATE_PATTERN = /^\d{4}-\d{2}-\d{2}$/;
 

@@ -11,12 +11,10 @@
   font-size: clamp(1.5rem, 1.2rem + 1.1vw, 2rem);
   line-height: 1.2;
   letter-spacing: -0.025em;
-  overflow-wrap: anywhere;
 }
 
 .description {
   max-inline-size: 70ch;
-  overflow-wrap: anywhere;
 }
 
 .actions {

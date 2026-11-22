@@ -17,9 +17,10 @@ import { adrFormValidation, ADR_TEXT_FIELDS, EMPTY_ADR_FORM, toCreateBody, type 
 import { adrWriteError } from "../utils/adrErrors";
 import { adrPath, adrsPath } from "../utils/adrLinks";
 import { EMPTY_PARTICIPANTS, type ParticipantsState } from "../utils/adrParticipants";
-import { CONTENT_MAX_WIDTH } from "../utils/layout";
+import { CONTENT_MAX_WIDTH, WIDE_MAX_WIDTH } from "../utils/layout";
 import { refreshQueriesAfterMutation } from "../utils/queryRefresh";
 import { showSuccessToast } from "../utils/toast";
+import classes from "../theme.module.css";
 import styles from "./AdrWorkspace.module.css";
 
 /** Raising an ADR asks for the problem alone; the rest of the content is one click away and can also be written later. */
@@ -49,8 +50,10 @@ export default function CreateAdr() {
     setSubmitting(true);
     try {
       const created = await createAdr(toCreateBody(values, participants));
+      // The draft stays guarded until the ADR exists, and not a moment longer.
       markSaved();
-      await refreshQueriesAfterMutation(queryClient, ["adrs"]);
+      // The ADR exists now, so a failing refresh must not read as a failed create (a retry would only clash on the name): the list re-reads on its next visit.
+      await refreshQueriesAfterMutation(queryClient, ["adrs"]).catch(() => undefined);
       showSuccessToast(t("adrs.toast.created"));
       navigate(adrPath(created.id), { replace: true });
     } catch (err) {
@@ -62,9 +65,9 @@ export default function CreateAdr() {
   }
 
   return (
-    <Stack gap="lg" className={styles.formPage}>
+    <Stack gap="lg" maw={WIDE_MAX_WIDTH}>
       <PageHeader title={t("adrs.createTitle")} description={t("adrs.createIntro")} backTo={{ to: adrsPath, label: t("adrs.backToList") }} />
-      <Paper withBorder p={0} maw={CONTENT_MAX_WIDTH} className={styles.formSurface}>
+      <Paper withBorder radius="lg" p={0} maw={CONTENT_MAX_WIDTH} className={classes.surface}>
         <form onSubmit={form.onSubmit(submit)} noValidate className={styles.form}>
           <Stack gap="xl">
             <div className={styles.formDocument}>
@@ -72,7 +75,7 @@ export default function CreateAdr() {
               <Button
                 variant="subtle"
                 size="xs"
-                className={styles.moreButton}
+                className={`${classes.touchTarget} ${styles.moreButton}`}
                 style={{ alignSelf: "flex-start" }}
                 aria-expanded={moreOpen}
                 leftSection={moreOpen ? <IconChevronDown size={14} /> : <IconChevronRight size={14} />}
@@ -81,7 +84,7 @@ export default function CreateAdr() {
                 {t("adrs.createMore")}
               </Button>
             </div>
-            <Stack gap="md" className={styles.formParticipants}>
+            <Stack gap="md" pt="lg" className={classes.ruleAbove}>
               <Title order={3} size="h4">
                 {t("adrs.side.daci")}
               </Title>
@@ -91,7 +94,7 @@ export default function CreateAdr() {
               <AdrParticipantsFields value={participants} onChange={setParticipants} withDriver={false} reserved={me === null ? [] : [String(me)]} />
             </Stack>
             {error && <FormErrorAlert>{error}</FormErrorAlert>}
-            <Group justify="flex-end" gap="sm" className={styles.formActions}>
+            <Group justify="flex-end" gap="sm" pt="md" className={`${classes.ruleAbove} ${styles.formActions}`}>
               <Button component={RouterLink} to={adrsPath} variant="default">
                 {t("common.action.cancel")}
               </Button>

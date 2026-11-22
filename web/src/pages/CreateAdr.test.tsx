@@ -1,6 +1,7 @@
 import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
 import userEvent from "@testing-library/user-event";
 import { Route, Routes, useLocation } from "react-router-dom";
+import { QueryClient } from "@tanstack/react-query";
 import { adrFixture } from "../test/adrFixtures";
 import { problem, stubFetch } from "../test/fetchStub";
 import { jsonResponse } from "../test/http";
@@ -26,14 +27,14 @@ function Probe() {
   return <p>at {pathname}</p>;
 }
 
-function renderCreate() {
+function renderCreate(queryClient?: QueryClient) {
   return renderWithProviders(
     <Routes>
       <Route path="/adrs/new" element={<CreateAdr />} />
       <Route path="/adrs" element={<Probe />} />
       <Route path="/adrs/:id" element={<Probe />} />
     </Routes>,
-    { route: "/adrs/new", dataRouter: true },
+    { route: "/adrs/new", dataRouter: true, queryClient },
   );
 }
 
@@ -154,6 +155,20 @@ describe("CreateAdr page", () => {
     await user.click(screen.getByRole("button", { name: "Create" }));
     expect(await screen.findByText("at /adrs/12")).toBeInTheDocument();
     expect(unload()).toBe(true);
+  });
+
+  test("a failing refresh after the ADR was created neither reports a failed create nor strands the user behind the draft guard", async () => {
+    serve();
+    const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    vi.spyOn(queryClient, "invalidateQueries").mockRejectedValue(new Error("refresh failed"));
+    const user = userEvent.setup();
+    renderCreate(queryClient);
+    await user.type(await screen.findByRole("textbox", { name: /^Problem/ }), "A draft");
+    await user.click(screen.getByRole("button", { name: "Create" }));
+    expect(await screen.findByText("at /adrs/12")).toBeInTheDocument();
+    expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+    expect(window.dispatchEvent(new Event("beforeunload", { cancelable: true }))).toBe(true);
   });
 
   test("a dirty form can stay open or discard its draft before following a link", async () => {

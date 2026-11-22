@@ -20,6 +20,8 @@ import { useDeleteConfirm } from "../hooks/useDeleteConfirm";
 import { ADR_DISCUSSION_ID, ADR_ISSUES_ID, ADR_VALIDITY_ID, adrsPath } from "../utils/adrLinks";
 import { refreshQueriesAfterMutation } from "../utils/queryRefresh";
 import { loadErrorMessage, saveErrorMessage } from "../utils/saveError";
+import { WORKSPACE_MAX_WIDTH } from "../utils/layout";
+import classes from "../theme.module.css";
 import styles from "./AdrWorkspace.module.css";
 
 /**
@@ -93,7 +95,7 @@ function AdrDetailsPage({ id }: { id: number }) {
   const mayEdit = data.canEditContent;
 
   return (
-    <Stack gap="lg" className={styles.detailPage}>
+    <Stack gap="lg" maw={WORKSPACE_MAX_WIDTH}>
       <PageHeader
         title={data.name}
         documentTitle={`${data.key} · ${data.name}`}
@@ -121,14 +123,14 @@ function AdrDetailsPage({ id }: { id: number }) {
       <AdrSupersededBanner adr={data} />
       <Grid gap={{ base: "md", lg: "lg" }} align="flex-start" className={styles.detailGrid}>
         <Grid.Col span={{ base: 12, lg: 8 }}>
-          <Paper withBorder p={{ base: "sm", sm: "md" }} className={styles.mainPane}>
+          <Paper withBorder radius="lg" p={{ base: "sm", sm: "md" }} className={`${classes.surface} ${styles.pane}`}>
             <AdrMainPane adr={data} tab={tab} onTabChange={selectTab}>
               {editing ? <AdrEditForm adr={data} onClose={() => setEditing(false)} /> : <AdrContentSections adr={data} />}
             </AdrMainPane>
           </Paper>
         </Grid.Col>
         <Grid.Col span={{ base: 12, lg: 4 }}>
-          <Paper withBorder p={{ base: "md", sm: "lg" }} className={styles.sidePanel}>
+          <Paper withBorder radius="lg" p={{ base: "md", sm: "lg" }} className={`${classes.surface} ${styles.pane} ${styles.sidePanel}`}>
             <AdrSidePanel adr={data} />
           </Paper>
         </Grid.Col>

@@ -17,6 +17,8 @@ import { adrListPath } from "../utils/adrListParams";
 import { adrValidityPath } from "../utils/adrLinks";
 import { browserTimeZone, formatDate } from "../utils/formatDate";
 import { addDays, epochMillisToIsoDate } from "../utils/isoDate";
+import { WIDE_MAX_WIDTH } from "../utils/layout";
+import classes from "../theme.module.css";
 
 function Dim({ children }: { children: string }) {
   return (
@@ -143,14 +145,14 @@ export default function DecisionLog() {
   const { t } = useTranslation();
   const { data, isLoading, isError, error } = useQuery({ queryKey: ["adrs", "overview"], queryFn: getAdrOverview });
   return (
-    <Stack gap="lg" className={styles.page}>
+    <Stack gap="lg" maw={WIDE_MAX_WIDTH} pb="md" className={styles.page}>
       <PageHeader title={t("decisionLog.title")} description={t("decisionLog.intro")} />
       {isError && <ErrorAlert error={error} title={t("decisionLog.loadFailed")} />}
       {isLoading && <LoadingBlock />}
       {data && (
         <>
           <DecisionLogCounts counts={data.counts} />
-          <div className={styles.activity}>
+          <div className={`${classes.card} ${styles.activity}`}>
             <Awaiting awaiting={data.awaitingDecision} />
             <Expiring expiring={data.expiringSoon} generatedAt={data.generatedAt} />
             <Recent recent={data.recentlyDecided} />

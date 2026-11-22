@@ -19,7 +19,8 @@ import { useRegistryListControls } from "../hooks/useRegistryListControls";
 import { saveErrorMessage } from "../utils/saveError";
 import { teamPath } from "../utils/teamLinks";
 import { refreshQueriesAfterMutation } from "../utils/queryRefresh";
-import styles from "./RegistryViews.module.css";
+import { WIDE_MAX_WIDTH } from "../utils/layout";
+import classes from "../theme.module.css";
 
 const SORT_FIELDS = ["name", "updatedAt"] as const;
 type SortField = (typeof SORT_FIELDS)[number];
@@ -63,7 +64,7 @@ export default function Teams() {
   const columnCount = 4;
 
   return (
-    <Stack gap="lg" className={styles.page}>
+    <Stack gap="lg" maw={WIDE_MAX_WIDTH}>
       <PageHeader
         title={t("teams.title")}
         description={t("teams.intro")}
@@ -106,15 +107,15 @@ export default function Teams() {
         }
         rows={data?.items.map((team) => {
           return (
-            <Table.Tr key={team.id} className={styles.tableRow}>
-              <Table.Td className={styles.primaryCell}>
+            <Table.Tr key={team.id} className={classes.topAligned}>
+              <Table.Td miw="12rem">
                 {/* The name is the way into the team page — a real link (the detail-link rule). */}
                 <Anchor component={RouterLink} to={teamPath(team.id)} fw={600} size="sm" aria-label={t("teams.openAria", { name: team.name })}>
                   {team.name}
                 </Anchor>
               </Table.Td>
               <Table.Td>
-                <Text size="sm" c={team.description ? undefined : "dimmed"} lineClamp={2} className={styles.secondaryText}>
+                <Text size="sm" c={team.description ? undefined : "dimmed"} lineClamp={2} maw="34rem">
                   {team.description ?? "—"}
                 </Text>
               </Table.Td>

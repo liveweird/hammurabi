@@ -1,6 +1,7 @@
 import { useId, type ReactNode } from "react";
 import { Text, Title } from "@mantine/core";
 import type { Icon } from "@tabler/icons-react";
+import classes from "../theme.module.css";
 import styles from "./DecisionLog.module.css";
 
 type Props = { icon: Icon; title: string; hint: string; className: string; detail?: string; children: ReactNode };
@@ -27,7 +28,7 @@ export default function DecisionLogCard({ icon: CardIcon, title, hint, className
 /** A decision-log list: a real `<ul>` of `AdrLogRow`s with no bullets (the rows are the structure), `label` naming it for assistive technology. */
 export function LogList({ label, children }: { label: string; children: ReactNode }) {
   return (
-    <ul className={styles.logList} role="list" aria-label={label}>
+    <ul className={classes.plainList} role="list" aria-label={label}>
       {children}
     </ul>
   );

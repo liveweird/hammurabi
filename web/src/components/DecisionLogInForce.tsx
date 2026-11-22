@@ -6,6 +6,7 @@ import type { AdrOverview } from "../api/adrs";
 import { adrListPath } from "../utils/adrListParams";
 import AdrLogRow from "./AdrLogRow";
 import DecisionLogCard, { LogList } from "./DecisionLogCard";
+import classes from "../theme.module.css";
 import styles from "./DecisionLog.module.css";
 import EmptyState from "./EmptyState";
 
@@ -48,7 +49,7 @@ export default function DecisionLogInForce({ inForce }: { inForce: InForce }) {
       icon={IconTags}
       title={t("decisionLog.inForce.title")}
       hint={t("decisionLog.inForce.hint")}
-      className={styles.catalog}
+      className={`${classes.card} ${styles.catalog}`}
       detail={t("decisionLog.inForce.total", { count: inForce.total })}
     >
       {inForce.total === 0 && (
@@ -56,13 +57,13 @@ export default function DecisionLogInForce({ inForce }: { inForce: InForce }) {
       )}
       {inForce.categories.map((category) => (
         <div key={category.id} className={styles.category}>
-          <Title order={4} size="h6" className={styles.categoryHeading}>
+          <Title order={4} size="h6" className={`${classes.breakAnywhere} ${styles.categoryHeading}`}>
             {category.name}
           </Title>
           <div className={styles.tagGrid}>
             {category.tags.map((tag) => (
               <div key={tag.name} className={styles.tagGroup}>
-                <Group gap={8} className={styles.tagHeading}>
+                <Group gap={8} className={`${classes.breakAnywhere} ${styles.tagHeading}`}>
                   <Title order={5} size="sm">
                     {tag.name}
                   </Title>
@@ -84,7 +85,7 @@ export default function DecisionLogInForce({ inForce }: { inForce: InForce }) {
       ))}
       {inForce.untagged.total > 0 && (
         <div className={styles.category}>
-          <Title order={4} size="h6" className={styles.categoryHeading}>
+          <Title order={4} size="h6" className={`${classes.breakAnywhere} ${styles.categoryHeading}`}>
             {t("decisionLog.inForce.untagged")}
           </Title>
           <div className={styles.tagGroup}>

@@ -14,6 +14,7 @@ import DiscussionEntryCard from "./DiscussionEntryCard";
 import EmptyState from "./EmptyState";
 import ErrorAlert from "./ErrorAlert";
 import LoadingBlock from "./LoadingBlock";
+import classes from "../theme.module.css";
 
 /**
  * One discussion section of the ADR page (`adr-model.md` "Discussion"): "discussion" holds comments and questions, "issues" holds issues
@@ -60,7 +61,7 @@ export default function AdrDiscussion({ adr, variant }: { adr: AdrResponse; vari
   return (
     <Stack gap="md" component="section" aria-label={t(`adrs.discussion.${variant}.title`)}>
       <Group justify="space-between">
-        <Title order={3} size="h4" id={variant} tabIndex={-1} style={{ scrollMarginTop: "4rem" }}>
+        <Title order={3} size="h4" id={variant} tabIndex={-1} className={classes.scrollTarget}>
           {t(`adrs.discussion.${variant}.title`)}
         </Title>
         {variant === "issues" && (

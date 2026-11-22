@@ -3,6 +3,7 @@ import { Typography } from "@mantine/core";
 import ReactMarkdown, { type Components, type ExtraProps } from "react-markdown";
 import remarkGfm from "remark-gfm";
 import remarkGemoji from "remark-gemoji";
+import theme from "../theme.module.css";
 import classes from "./MarkdownView.module.css";
 
 // Read-only renderer for the markdown strings the app carries. Single home for the Mantine
@@ -59,7 +60,7 @@ export default function MarkdownView({
 }) {
   const message = variant === "message";
   return (
-    <Typography className={message ? classes.message : undefined}>
+    <Typography className={message ? `${theme.breakAnywhere} ${classes.message}` : undefined}>
       <ReactMarkdown
         remarkPlugins={[remarkGfm, remarkGemoji]}
         remarkRehypeOptions={idPrefix === undefined ? undefined : { clobberPrefix: `user-content-${idPrefix}` }}

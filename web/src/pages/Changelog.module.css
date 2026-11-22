@@ -1,22 +1,5 @@
-.page {
-  max-inline-size: 70rem;
-  padding-block-end: 1rem;
-}
-
-.releaseList {
-  display: grid;
-  padding: 0;
-  margin: 0;
-  border: 1px solid var(--mantine-color-default-border);
-  border-radius: var(--mantine-radius-lg);
-  background: var(--mantine-color-default);
-  list-style: none;
-}
-
-.releaseList > li + li {
-  border-block-start: 1px solid var(--mantine-color-default-border);
-}
-
+/* Page-specific: the release timeline (version and date in a sticky left column from 48em up). The
+   card, list and wrapping come from theme.module.css. */
 .release {
   display: grid;
   grid-template-columns: minmax(0, 1fr);
@@ -40,7 +23,6 @@
 .releaseBody {
   max-inline-size: 72ch;
   min-inline-size: 0;
-  overflow-wrap: break-word;
 }
 
 .releaseBody > :first-child {

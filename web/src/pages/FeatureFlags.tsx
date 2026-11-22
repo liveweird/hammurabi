@@ -23,7 +23,7 @@ import { refreshQueriesAfterMutation } from "../utils/queryRefresh";
 import { saveErrorMessage } from "../utils/saveError";
 import { showSuccessToast } from "../utils/toast";
 import WorkspaceTable from "../components/WorkspaceTable";
-import styles from "./RegistryViews.module.css";
+import { WIDE_MAX_WIDTH } from "../utils/layout";
 
 const SORT_FIELDS = ["id", "name", "email"] as const;
 type SortField = (typeof SORT_FIELDS)[number];
@@ -110,7 +110,7 @@ export default function FeatureFlags() {
   const sortProps = { activeField: sortField, activeDir: sortDir, onToggle: toggleSort };
 
   return (
-    <Stack gap="lg" className={styles.page}>
+    <Stack gap="lg" maw={WIDE_MAX_WIDTH}>
       <PageHeader
         title={t("users.featureFlags.title")}
         actions={

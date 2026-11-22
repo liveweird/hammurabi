@@ -17,6 +17,7 @@ import WorkspaceTable from "../components/WorkspaceTable";
 import { CONTENT_MAX_WIDTH } from "../utils/layout";
 import { saveErrorMessage } from "../utils/saveError";
 import { showSuccessToast } from "../utils/toast";
+import classes from "../theme.module.css";
 import styles from "./NotificationPreferences.module.css";
 
 /** The kinds this build words, in the order the server lists them; a newer server's kind is not shown (and its stored switches are kept on save). */
@@ -118,7 +119,7 @@ export default function NotificationPreferences() {
                   const bell = bellOn(k);
                   return (
                     <Table.Tr key={k.type}>
-                      <Table.Th scope="row" className={styles.kind}>
+                      <Table.Th scope="row" className={`${classes.breakAnywhere} ${styles.kind}`}>
                         <Text size="sm" fw={600}>
                           {kind}
                         </Text>

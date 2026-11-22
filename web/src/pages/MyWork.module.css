@@ -1,7 +1,8 @@
+/* Page-specific: the responsive two-column board is driven by the PAGE's width (a container
+   query), not the viewport's, because the sidebar and the rail change how much room it gets.
+   Surfaces, lists, hairlines and wrapping come from theme.module.css. */
 .page {
   container: my-work / inline-size;
-  max-inline-size: 78rem;
-  padding-block-end: var(--mantine-spacing-md);
 }
 
 .roleFilter {
@@ -15,11 +16,8 @@
   align-items: start;
 }
 
-.attention,
-.activity,
-.myAdrs {
+.section {
   overflow: clip;
-  background: var(--mantine-color-default);
 }
 
 .sectionHeader {
@@ -38,10 +36,11 @@
   background: var(--hammurabi-surface-tint);
 }
 
-.list {
-  margin: 0;
-  padding: 0 var(--mantine-spacing-md);
-  list-style: none;
+/* The rows are inset by their own margin so the hairline between two of them stops short of the card's edge. */
+.row,
+.activityRow {
+  margin-inline: var(--mantine-spacing-md);
+  padding-block: 0.7rem;
 }
 
 .row {
@@ -49,17 +48,10 @@
   grid-template-columns: minmax(0, 1fr) fit-content(50%);
   align-items: center;
   gap: var(--mantine-spacing-sm);
-  padding-block: 0.7rem;
-}
-
-.row + .row,
-.activityRow + .activityRow {
-  border-block-start: 1px solid var(--mantine-color-default-border);
 }
 
 .rowMain {
   min-inline-size: 0;
-  overflow-wrap: anywhere;
 }
 
 .reason {
@@ -72,17 +64,10 @@
 
 .reasonLabel {
   white-space: normal;
-  overflow-wrap: anywhere;
-}
-
-.activityRow {
-  padding-block: 0.7rem;
-  overflow-wrap: anywhere;
 }
 
 .more {
   padding: 0.6rem var(--mantine-spacing-md);
-  border-block-start: 1px solid var(--mantine-color-default-border);
 }
 
 .myAdrs {

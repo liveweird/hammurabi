@@ -1,10 +1,10 @@
+/* Page-specific: the Bell/Email columns shrink with the TABLE's container, not the viewport. */
 .preferences {
   container-type: inline-size;
 }
 
 .kind {
   font-weight: 400;
-  overflow-wrap: anywhere;
 }
 
 .channel {

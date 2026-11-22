@@ -27,7 +27,8 @@ import { editUserPath, newUserPath, userFeaturesPath } from "../utils/userLinks"
 import ErrorAlert from "../components/ErrorAlert";
 import FormErrorAlert from "../components/FormErrorAlert";
 import WorkspaceTable from "../components/WorkspaceTable";
-import styles from "./RegistryViews.module.css";
+import { WIDE_MAX_WIDTH } from "../utils/layout";
+import classes from "../theme.module.css";
 
 const SORT_FIELDS = ["name", "email"] as const;
 type SortField = (typeof SORT_FIELDS)[number];
@@ -83,7 +84,7 @@ export default function Users() {
   const columnCount = 4;
 
   return (
-    <Stack gap="lg" className={styles.page}>
+    <Stack gap="lg" maw={WIDE_MAX_WIDTH}>
       <PageHeader
         title={t("users.title")}
         actions={
@@ -152,10 +153,10 @@ export default function Users() {
             data.items.map((user) => {
               const self = user.id === currentUserId;
               return (
-                <Table.Tr key={user.id} className={styles.tableRow}>
-                  <Table.Td className={styles.identity}>
+                <Table.Tr key={user.id} className={classes.topAligned}>
+                  <Table.Td miw="13rem">
                     <Group gap={6} wrap="wrap">
-                      <Text size="sm" fw={600} className={styles.identityName}>
+                      <Text size="sm" fw={600} className={classes.breakWord}>
                         {user.name}
                       </Text>
                       {self && (
@@ -166,7 +167,7 @@ export default function Users() {
                     </Group>
                   </Table.Td>
                   <Table.Td>
-                    <Text size="sm" className={styles.identityEmail}>{user.email}</Text>
+                    <Text size="sm" className={classes.breakAnywhere}>{user.email}</Text>
                   </Table.Td>
                   <Table.Td>
                     {user.roles.includes("ADMIN") ? (

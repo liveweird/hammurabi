@@ -1,4 +1,4 @@
-import { useId, useState } from "react";
+import { useEffect, useId, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Alert, Button, Group, Paper, Stack, Title } from "@mantine/core";
 import { useForm } from "@mantine/form";
@@ -36,7 +36,13 @@ export default function AdrEditForm({ adr, onClose }: { adr: AdrResponse; onClos
     },
   });
 
-  if (!adr.canEditContent && !dirty) return <AdrContentSections adr={adr} />;
+  // Editing frozen under a clean form: leave edit mode for good, so the editor does not come back by itself if editing opens up again.
+  const frozenAndClean = !adr.canEditContent && !dirty;
+  useEffect(() => {
+    if (frozenAndClean) onClose();
+  }, [frozenAndClean, onClose]);
+
+  if (frozenAndClean) return <AdrContentSections adr={adr} />;
 
   return (
     <Paper withBorder p="md" component="section" aria-labelledby={titleId}>

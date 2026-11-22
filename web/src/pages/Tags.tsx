@@ -18,7 +18,8 @@ import { useTagCategories } from "../hooks/useTagCategories";
 import { adrConflict } from "../utils/adrErrors";
 import { refreshQueriesAfterMutation } from "../utils/queryRefresh";
 import { saveErrorMessage } from "../utils/saveError";
-import styles from "./RegistryViews.module.css";
+import { WIDE_MAX_WIDTH } from "../utils/layout";
+import classes from "../theme.module.css";
 
 /**
  * The tag registry (`/tags`, ADMIN-only: the nav entry and the route are - UX only, the server's `requireAdmin` is the rule, and reading the
@@ -47,7 +48,7 @@ export default function Tags() {
   const items = categories.data ?? [];
 
   return (
-    <Stack gap="lg" className={styles.page}>
+    <Stack gap="lg" maw={WIDE_MAX_WIDTH}>
       <PageHeader
         title={t("tags.title")}
         description={t("tags.intro")}
@@ -73,14 +74,14 @@ export default function Tags() {
             <TableLoadingRow colSpan={4} />
           ) : items.length > 0 ? (
             items.map((category) => (
-              <Table.Tr key={category.id} className={styles.tableRow}>
-                <Table.Td className={styles.primaryCell}>
+              <Table.Tr key={category.id} className={classes.topAligned}>
+                <Table.Td miw="12rem">
                   <Text size="sm" fw={500}>
                     {category.name}
                   </Text>
                 </Table.Td>
                 <Table.Td>
-                  <Text size="sm" c={category.description ? undefined : "dimmed"} className={styles.secondaryText}>
+                  <Text size="sm" c={category.description ? undefined : "dimmed"} maw="34rem">
                     {category.description ?? "—"}
                   </Text>
                 </Table.Td>

@@ -1,10 +1,12 @@
 import { useEffect } from "react";
-import { Stack, Text, Title } from "@mantine/core";
+import { Box, Stack, Text, Title } from "@mantine/core";
 import { useTranslation } from "react-i18next";
 import { CHANGELOG } from "../changelog/entries";
 import { markChangelogSeen } from "../hooks/useChangelogSeen";
 import MarkdownView from "../components/MarkdownView";
 import PageHeader from "../components/PageHeader";
+import { CONTENT_MAX_WIDTH } from "../utils/layout";
+import classes from "../theme.module.css";
 import styles from "./Changelog.module.css";
 
 // Changelog bodies are authored release CONTENT, deliberately not tied to the UI language
@@ -21,9 +23,9 @@ export default function Changelog() {
   }, []);
 
   return (
-    <Stack gap="lg" className={styles.page}>
+    <Stack gap="lg" maw={CONTENT_MAX_WIDTH} pb="md">
       <PageHeader title={t("changelog.title")} />
-      <ol className={styles.releaseList} role="list">
+      <Box component="ol" display="grid" className={`${classes.card} ${classes.plainList} ${classes.divided}`} role="list">
         {CHANGELOG.map((entry) => {
           const headingId = `release-${entry.version.replaceAll(".", "-")}`;
           return (
@@ -33,14 +35,14 @@ export default function Changelog() {
                   <Title order={3} size="h4" id={headingId}>v{entry.version}</Title>
                   <Text component="time" dateTime={entry.date} size="sm" c="dimmed">{entry.date}</Text>
                 </header>
-                <div className={styles.releaseBody}>
+                <div className={`${classes.breakWord} ${styles.releaseBody}`}>
                   <MarkdownView>{entry[bodyLang]}</MarkdownView>
                 </div>
               </article>
             </li>
           );
         })}
-      </ol>
+      </Box>
     </Stack>
   );
 }

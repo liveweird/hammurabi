@@ -3,6 +3,7 @@ import { Anchor, Group, Stack, Text, Title } from "@mantine/core";
 import { IconArrowLeft } from "@tabler/icons-react";
 import { Link as RouterLink } from "react-router-dom";
 import { useDocumentTitle } from "../hooks/useDocumentTitle";
+import classes from "../theme.module.css";
 import styles from "./PageHeader.module.css";
 
 /**
@@ -41,9 +42,9 @@ export default function PageHeader({
               </Group>
             </Anchor>
           )}
-          <Title order={2} className={styles.title}>{title}</Title>
+          <Title order={2} className={`${classes.breakAnywhere} ${styles.title}`}>{title}</Title>
           {description && (
-            <Text c="dimmed" size="sm" className={styles.description}>
+            <Text c="dimmed" size="sm" className={`${classes.breakAnywhere} ${styles.description}`}>
               {description}
             </Text>
           )}

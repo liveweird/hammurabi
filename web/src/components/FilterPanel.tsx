@@ -3,6 +3,7 @@ import { Badge, Button, Group, Paper } from "@mantine/core";
 import { IconChevronDown, IconFilter } from "@tabler/icons-react";
 import { useTranslation } from "react-i18next";
 import { isBoolean, useStoredState } from "../hooks/useStoredState";
+import classes from "../theme.module.css";
 import styles from "./FilterPanel.module.css";
 
 /**
@@ -29,7 +30,7 @@ export default function FilterPanel({
   const [open, setOpen] = useStoredState(`${storageKey}.filtersOpen`, false, isBoolean);
   const panelId = useId();
   return (
-    <Paper withBorder radius="lg" className={styles.surface} data-print="hide">
+    <Paper withBorder radius="lg" className={classes.surface} data-print="hide">
       <Group gap="xs" wrap="wrap" className={styles.toolbar}>
         <Button
           variant="default"
@@ -60,7 +61,7 @@ export default function FilterPanel({
         {trailing && <Group ml="auto">{trailing}</Group>}
       </Group>
       {open && (
-        <Group id={panelId} align="flex-end" gap="sm" className={styles.fields}>
+        <Group id={panelId} align="flex-end" gap="sm" className={`${classes.ruleAbove} ${styles.fields}`}>
           {children}
         </Group>
       )}

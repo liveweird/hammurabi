@@ -7,7 +7,7 @@
 // conventions (inclusive slash forms, active voice).
 interface ChangelogEntry {
   version: string;
-  /** Release date, YYYY-MM-DD. Keep the array strictly descending by date. */
+  /** Release date, YYYY-MM-DD. Keep entries newest first and preserve authoring order on the same date. */
   date: string;
   /** Markdown body, English. */
   en: string;
@@ -16,6 +16,20 @@ interface ChangelogEntry {
 }
 
 export const CHANGELOG: readonly ChangelogEntry[] = [
+  {
+    version: "1.3.0",
+    date: "2026-11-22",
+    en: `**Hammurabi 1.3.0 — My work.**
+
+- **My work** is your landing page after sign-in. Filter the whole page by your DACI role and open the full list of ADRs you take part in.
+- See what needs your action and what is worth watching. The page surfaces pending reviews, drafts returned for rework, inactivity, open escalations, and decisions nearing expiry.
+- Catch up on seven days of activity, including document edits, questions, issues, and workflow changes. Follow a row to the ADR, its Validity section, or the relevant discussion tab.`,
+    pl: `**Hammurabi 1.3.0 — Moja praca.**
+
+- Po zalogowaniu otwiera się widok **Moja praca**. Przefiltruj cały widok według swojej roli DACI i przejdź do pełnej listy ADR-ów, w których bierzesz udział.
+- Sprawdź, co wymaga Twojego działania i co warto obserwować. Widok pokazuje sprawy czekające na decyzję, szkice zwrócone do poprawy, brak postępów, otwarte eskalacje i decyzje bliskie wygaśnięcia.
+- Przejrzyj aktywność z ostatnich siedmiu dni, w tym zmiany dokumentów i statusów, pytania i problemy. Po wybraniu wpisu przejdziesz do ADR-u, sekcji Ważność lub odpowiedniej karty dyskusji.`,
+  },
   {
     version: "1.2.4",
     date: "2026-11-22",

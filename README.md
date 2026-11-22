@@ -31,7 +31,8 @@ Hammurabi's repository started as an exact copy of [Flow](https://github.com/liv
   Markdown file in the [adr-tools](https://github.com/npryce/adr-tools) layout (status, context, decision, consequences, plus the alternatives, the DACI roles and the tags), named
   `ADR-0042-use-postgresql.md`, or a ZIP of every ADR the list's current search and filters select (at most 500) with an `index.md` in number order.
 
-- **Decision log** (`GET /api/v1/adrs/overview`; the Decision log page, between Home and the ADRs): a read-only overview for every signed-in user: the number of ADRs per status, **what waits for a
+- **My work** (`/my-work`, the signed-in landing page) shows the ADRs you take part in, recent activity, and what needs attention. Filter all sections by your DACI role. Review, expiry and stalled draft signals show why an ADR surfaced and link back to the relevant section.
+- **Decision log** (`GET /api/v1/adrs/overview`): a read-only overview for every signed-in user: the number of ADRs per status, **what waits for a
   decision** (ADRs in review, longest wait first, with the ones waiting for you highlighted), **what expires soon** (`ADRS_OVERVIEW_EXPIRING_SOON_DAYS`, 30 by default), **what was decided recently**
   and **what is in force by tag category and tag**; every row opens its ADR and every "+N more" opens the ADR list filtered to what the section covers.
 
@@ -47,7 +48,7 @@ Hammurabi's repository started as an exact copy of [Flow](https://github.com/liv
 
 ## Roadmap
 
-0.2.0 ADR core (ids, lifecycle, DACI, history, expiry) · 0.3.0 discussion (comments, questions, issues, escalations) · 0.4.0 tags and successors · 0.5.0 find (full-text search, the remaining filters, URL-synced filters, saved lenses) · 0.6.0 notify (the bell, email digest, preferences, expiry reminders) · 0.7.0 send back and withdraw · 0.8.0 Markdown export · 0.9.0 the decision log page · 1.0.0 checkup · 1.1.0 write and see (the visual editor, the Lifecycle tab) · 1.2.0 safety net (the mail budget and write bucket, the predecessor-ended notice, backup and restore).
+0.2.0 ADR core (ids, lifecycle, DACI, history, expiry) · 0.3.0 discussion (comments, questions, issues, escalations) · 0.4.0 tags and successors · 0.5.0 find (full-text search, the remaining filters, URL-synced filters, saved lenses) · 0.6.0 notify (the bell, email digest, preferences, expiry reminders) · 0.7.0 send back and withdraw · 0.8.0 Markdown export · 0.9.0 the decision log page · 1.0.0 checkup · 1.1.0 write and see (the visual editor, the Lifecycle tab) · 1.2.0 safety net (the mail budget and write bucket, the predecessor-ended notice, backup and restore) · 1.3.0 My work (personal ADR queue, activity and DACI filters).
 The scope of each version and the decisions behind it: `.claude/docs/product.md`; the domain model: `.claude/docs/adr-model.md`; open items: `BACKLOG.md`. `CLAUDE.md`'s "Product" and
 "Donors" sections say which sibling project each capability ports from.
 

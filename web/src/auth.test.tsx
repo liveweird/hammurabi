@@ -25,7 +25,7 @@ function TestRoutes() {
     <Routes>
       <Route path="/login" element={<RedirectIfAuthed><div>login page</div></RedirectIfAuthed>} />
       <Route element={<RequireAuth />}>
-        <Route path="/" element={<div>home page</div>} />
+        <Route path="/my-work" element={<div>work page</div>} />
         <Route path="/secret" element={<div>secret page</div>} />
         <Route path="/contracts/:id/diff" element={<LocationProbe />} />
         <Route element={<RequireAdmin />}>
@@ -72,12 +72,12 @@ describe("route guards", () => {
     localStorage.setItem(TOKEN_KEY, "token");
     renderWithProviders(
       <Routes>
-        <Route path="/" element={<div>home page</div>} />
+        <Route path="/my-work" element={<div>work page</div>} />
         <Route path="/login" element={<RedirectIfAuthed><div>login page</div></RedirectIfAuthed>} />
       </Routes>,
       { route: "/login" },
     );
-    expect(screen.getByText("home page")).toBeInTheDocument();
+    expect(screen.getByText("work page")).toBeInTheDocument();
   });
 
   test("RedirectIfAuthed preserves the saved destination's query string and hash", () => {
@@ -98,20 +98,34 @@ describe("route guards", () => {
     expect(destination).toHaveAttribute("data-hash", "#compatibility");
   });
 
-  test("a signed-in visit to /login goes to the saved path (without query or hash), else home", () => {
+  test("a signed-in visit to /login goes to the saved path or My work", () => {
     persistSession(SESSION);
     const first = renderWithProviders(<TestRoutes />, { route: "/login", state: { from: { pathname: "/secret" } } });
     expect(screen.getByText("secret page")).toBeInTheDocument();
     first.unmount();
     renderWithProviders(<TestRoutes />, { route: "/login", state: { from: {} } });
-    expect(screen.getByText("home page")).toBeInTheDocument();
+    expect(screen.getByText("work page")).toBeInTheDocument();
   });
 
-  test("RequireAdmin sends a regular user home and renders the outlet for an admin", () => {
+  test("a saved root link goes to My work with its query and fragment", () => {
+    persistSession(SESSION);
+    renderWithProviders(
+      <Routes>
+        <Route path="/login" element={<RedirectIfAuthed><div>login page</div></RedirectIfAuthed>} />
+        <Route path="/my-work" element={<LocationProbe />} />
+      </Routes>,
+      { route: "/login", state: { from: { pathname: "/", search: "?participantRole=DRIVER", hash: "#main-content" } } },
+    );
+    const destination = screen.getByTestId("location");
+    expect(destination).toHaveAttribute("data-search", "?participantRole=DRIVER");
+    expect(destination).toHaveAttribute("data-hash", "#main-content");
+  });
+
+  test("RequireAdmin sends a regular user to My work and renders the outlet for an admin", () => {
     localStorage.setItem(TOKEN_KEY, "token");
     localStorage.setItem("hammurabi.auth.roles", "[]");
     renderWithProviders(<TestRoutes />, { route: "/admin-only" });
-    expect(screen.getByText("home page")).toBeInTheDocument();
+    expect(screen.getByText("work page")).toBeInTheDocument();
     localStorage.setItem("hammurabi.auth.roles", JSON.stringify(["ADMIN"]));
     renderWithProviders(<TestRoutes />, { route: "/admin-only" });
     expect(screen.getByText("admin page")).toBeInTheDocument();
@@ -128,7 +142,7 @@ describe("route guards", () => {
       renderWithProviders(<TestRoutes />, { route: "/admin-only" });
       expect(screen.getByText("admin page")).toBeInTheDocument();
       await act(async () => { await authedFetch("/api/v1/thing"); });
-      expect(screen.getByText("home page")).toBeInTheDocument();
+      expect(screen.getByText("work page")).toBeInTheDocument();
     } finally {
       vi.unstubAllGlobals();
     }

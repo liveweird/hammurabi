@@ -37,7 +37,7 @@ function renderProtectedMenu() {
     <Routes>
       <Route path="/login" element={<RedirectIfAuthed><Login /></RedirectIfAuthed>} />
       <Route element={<RequireAuth />}>
-        <Route path="/" element={<p>home page</p>} />
+        <Route path="/my-work" element={<p>work page</p>} />
         <Route path="/contracts/:id" element={<UserMenu />} />
       </Route>
     </Routes>,
@@ -200,7 +200,7 @@ describe("UserMenu", () => {
     await user.type(screen.getByLabelText("Password"), "new-password");
     await user.click(screen.getByRole("button", { name: "Sign in" }));
 
-    expect(await screen.findByText("home page")).toBeInTheDocument();
+    expect(await screen.findByText("work page")).toBeInTheDocument();
     expect(localStorage.getItem("hammurabi.auth.token")).toBe("next-token");
     revokeResponse.resolve(new Response(null, { status: 204 }));
     await waitFor(() => expect(localStorage.getItem("hammurabi.auth.token")).toBe("next-token"));

@@ -102,7 +102,7 @@ test.describe("the tag registry and the ADR tags", () => {
     await expect(page.getByRole("link", { name: "Teams" })).toBeVisible();
     await expect(page.getByRole("link", { name: "Tags" })).toHaveCount(0);
     await page.goto("/tags");
-    await expect(page).toHaveURL(/\/$/);
+    await expect(page).toHaveURL(/\/my-work$/);
 
     const { api } = await apiAs(driver.email, driver.password);
     const read = await api.get("/api/v1/tag-categories");

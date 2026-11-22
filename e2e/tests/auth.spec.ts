@@ -1,9 +1,9 @@
 import type { Route } from "@playwright/test";
 import { accountMenu, ADMIN, expect, login, signOut, test } from "./helpers";
 
-test("signing out from a protected route starts the next login at home", async ({ page }) => {
+test("signing out from a protected route starts the next login at My work", async ({ page }) => {
   await login(page);
-  await expect(page.getByRole("heading", { name: "Hammurabi" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "My work" })).toBeVisible();
 
   await page.goto("/teams");
   await expect(page.getByRole("heading", { name: "Teams", exact: true })).toBeVisible();
@@ -40,8 +40,8 @@ test("signing out from a protected route starts the next login at home", async (
     await page.getByRole("textbox", { name: "Password" }).fill("changeme");
     await page.getByRole("button", { name: "Sign in" }).click();
 
-    await expect(page).toHaveURL(/\/$/);
-    await expect(page.getByRole("heading", { name: "Hammurabi" })).toBeVisible();
+    await expect(page).toHaveURL(/\/my-work$/);
+    await expect(page.getByRole("heading", { name: "My work" })).toBeVisible();
   } finally {
     releaseLogout();
     if (logoutIntercepted) await logoutSettled;

@@ -5,17 +5,10 @@ import { Alert, Anchor, Button, Center, PasswordInput, PinInput, Stack, Text, Te
 import { isEmail, isNotEmpty, useForm } from "@mantine/form";
 import { isMfaChallenge, login, verifyMfa, type MfaChallenge } from "../api/auth";
 import { saveErrorMessage } from "../utils/saveError";
-import { consumeSignedOut, notifyAuthChange, pendingSignedOut } from "../auth";
+import { consumeSignedOut, notifyAuthChange, pendingSignedOut, signInDestination, type SignInLocationState } from "../auth";
 import AuthCard from "../components/AuthCard";
 import { MAX_EMAIL_LENGTH } from "../utils/userForm";
 import FormErrorAlert from "../components/FormErrorAlert";
-
-type LocationState = { from?: { pathname?: string; search?: string; hash?: string } } | null;
-
-function destination(state: LocationState): string {
-  const from = state?.from;
-  return from?.pathname ? `${from.pathname}${from.search ?? ""}${from.hash ?? ""}` : "/";
-}
 
 export default function Login() {
   const { t } = useTranslation();
@@ -43,7 +36,7 @@ export default function Login() {
 
   function finishSignIn() {
     notifyAuthChange();
-    navigate(destination(location.state as LocationState), { replace: true });
+    navigate(signInDestination(location.state as SignInLocationState), { replace: true });
   }
 
   async function onSubmit(values: { email: string; password: string }) {

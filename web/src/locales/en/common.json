@@ -70,7 +70,7 @@
   "notFound": {
     "title": "Page not found",
     "message": "This address doesn't match any page. It may have moved, or the link is mistyped.",
-    "backHome": "Back to home"
+    "backToMyWork": "Back to My work"
   },
   "buildInfo": "Build version",
   "role": {

@@ -1,12 +1,12 @@
 import { describe, expect, test } from "vitest";
-import { ACCOUNT_NAV, activeNavPath, homePath, visibleSections } from "./navigation";
+import { ACCOUNT_NAV, activeNavPath, visibleSections } from "./navigation";
 
 describe("visibleSections", () => {
-  test("a regular session sees Overview (Home, the Decision log and the ADRs) and Administration — Teams stays, the admin-only leaves drop", () => {
+  test("a regular session sees My work, Decision log, ADRs and Teams", () => {
     const sections = visibleSections(false);
     expect(sections.map((s) => s.label)).toEqual(["appShell.section.overview", "appShell.section.administration"]);
     const paths = sections.flatMap((s) => s.items.map((l) => l.to));
-    expect(paths).toEqual(["/", "/decision-log", "/adrs", "/teams"]);
+    expect(paths).toEqual(["/my-work", "/decision-log", "/adrs", "/teams"]);
   });
 
   test("an admin session gets Teams, Tags, Users and Feature flags in the Administration section", () => {
@@ -38,16 +38,17 @@ describe("activeNavPath", () => {
 
   test("a leaf stays highlighted on every route it lists in activeFor, and still links to its own", () => {
     const custom = [
-      { to: "/a", label: "appShell.nav.home", icon: leaves[0].icon, activeFor: ["/b/deep"] },
-      { to: "/b", label: "appShell.nav.home", icon: leaves[0].icon },
+      { to: "/a", label: "appShell.nav.myWork", icon: leaves[0].icon, activeFor: ["/b/deep"] },
+      { to: "/b", label: "appShell.nav.myWork", icon: leaves[0].icon },
     ] as const;
     // The longest match still wins across leaves.
     expect(activeNavPath("/b/deep/x", custom)).toBe("/a");
     expect(activeNavPath("/b/other", custom)).toBe("/b");
   });
 
-  test("the root matches only exactly", () => {
-    expect(activeNavPath(homePath, leaves)).toBe("/");
+  test("My work is active at its canonical path and legacy root", () => {
+    expect(activeNavPath("/my-work", leaves)).toBe("/my-work");
+    expect(activeNavPath("/", leaves)).toBe("/my-work");
     expect(activeNavPath("/nowhere", leaves)).toBeNull();
   });
 });

@@ -1,0 +1,40 @@
+{
+  "title": "My work",
+  "description": "The ADRs you take part in, what changed, and what needs attention.",
+  "raise": "Raise an ADR",
+  "role": { "label": "My role", "all": "All roles" },
+  "actions": { "title": "Needs your action", "empty": "Nothing needs your action." },
+  "watching": { "title": "Worth watching", "empty": "Nothing needs your attention right now." },
+  "activity": { "title": "Recent activity", "period": "Last 7 days", "empty": "No recent activity in your ADRs." },
+  "adrs": { "title": "My ADRs", "order": "Recently updated", "empty": "You have no open ADRs in this role.", "viewAll": "View all my ADRs", "lastActivity": "Last activity {{time}}" },
+  "more": {
+    "attention": "Showing the 12 highest-priority items.",
+    "activity": "Showing the 12 latest events.",
+    "adrs": "Showing the 12 most recently active ADRs."
+  },
+  "reason": {
+    "REVIEW": "Awaiting your decision",
+    "EXPIRING_future_one": "Expires in {{count}} day",
+    "EXPIRING_future_other": "Expires in {{count}} days",
+    "EXPIRING_today": "Expires today",
+    "EXPIRING_overdue_one": "Expiry is {{count}} day overdue",
+    "EXPIRING_overdue_other": "Expiry is {{count}} days overdue",
+    "EXPIRING_owner": "{{reason}} · {{name}} can extend it",
+    "STALLED_DRAFT_one": "No progress for {{count}} day",
+    "STALLED_DRAFT_other": "No progress for {{count}} days",
+    "STALLED_REVIEW_one": "Waiting for a decision for {{count}} day",
+    "STALLED_REVIEW_other": "Waiting for a decision for {{count}} days",
+    "RETURNED": "Returned for rework",
+    "ESCALATION": "Open escalation"
+  },
+  "relative": {
+    "now": "Just now",
+    "minutes_one": "{{count}} minute ago",
+    "minutes_other": "{{count}} minutes ago",
+    "hours_one": "{{count}} hour ago",
+    "hours_other": "{{count}} hours ago",
+    "days_one": "{{count}} day ago",
+    "days_other": "{{count}} days ago"
+  },
+  "loadFailed": "Your work could not be loaded."
+}

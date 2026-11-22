@@ -8,6 +8,8 @@ import ch.nokillswit.adrs.AdrExportService
 import ch.nokillswit.adrs.AdrExportServiceKey
 import ch.nokillswit.adrs.AdrListService
 import ch.nokillswit.adrs.AdrListServiceKey
+import ch.nokillswit.adrs.AdrMyWorkService
+import ch.nokillswit.adrs.AdrMyWorkServiceKey
 import ch.nokillswit.adrs.AdrOverviewService
 import ch.nokillswit.adrs.AdrOverviewServiceKey
 import ch.nokillswit.adrs.AdrParticipantService
@@ -25,6 +27,7 @@ import ch.nokillswit.infra.config.requireConfigLong
 import ch.nokillswit.lenses.LensService
 import ch.nokillswit.lenses.LensServiceKey
 import ch.nokillswit.notifications.MAX_EMAIL_BUDGET_PER_ACTOR
+import ch.nokillswit.notifications.MAX_REMINDER_DAYS
 import ch.nokillswit.notifications.NotificationEmailBudget
 import ch.nokillswit.notifications.NotificationService
 import ch.nokillswit.notifications.NotificationServiceKey
@@ -308,6 +311,8 @@ suspend fun Application.configureDatabase() {
     // The decision log (0.9.0): counts, the in-force groups and three short lists in one read transaction.
     val expiringSoonDays = requireConfigInt(environment.config, "adrs.overview.expiringSoonDays", min = 1, max = OVERVIEW_EXPIRING_DAYS_MAX)
     attributes.put(AdrOverviewServiceKey, AdrOverviewService(database, adrParticipants, expiringSoonDays))
+    val expiryReminderDays = requireConfigInt(environment.config, "adrs.expiry.reminderDays", min = 0, max = MAX_REMINDER_DAYS)
+    attributes.put(AdrMyWorkServiceKey, AdrMyWorkService(database, expiryReminderDays))
     attributes.put(LensServiceKey, LensService(database))
     attributes.put(
         TokenBlocklistServiceKey,

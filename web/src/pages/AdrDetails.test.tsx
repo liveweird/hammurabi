@@ -33,6 +33,7 @@ function ValidityNavigation() {
   return (
     <>
       <button onClick={() => navigate("/adrs/1#validity")}>Open validity</button>
+      <button onClick={() => navigate("/adrs/1#issues")}>Open issues</button>
       <button onClick={() => navigate("/adrs/1")}>Open ADR</button>
       <button onClick={() => navigate(-1)}>Back</button>
     </>
@@ -148,6 +149,34 @@ describe("AdrDetails page", () => {
     await user.click(screen.getByRole("button", { name: "Back" }));
     await waitFor(() => expect(target).toHaveFocus());
     expect(scrollIntoView).toHaveBeenCalledTimes(2);
+  });
+
+  test.each([
+    ["discussion", "Discussion", "Comments and questions"],
+    ["issues", "Issues", "Issues and escalations"],
+  ])("a %s deep link opens the tab and focuses its heading", async (hash, tab, heading) => {
+    HTMLElement.prototype.scrollIntoView = vi.fn();
+    serve({ adr: adrFixture({ participants: PEOPLE }) }, (method, url) =>
+      method === "GET" && url.startsWith("/api/v1/adrs/1/discussion?")
+        ? jsonResponse(200, discussionPageFixture())
+        : null);
+    renderDetails(`/adrs/1#${hash}`);
+    const target = await screen.findByRole("heading", { name: heading });
+    await waitFor(() => expect(target).toHaveFocus());
+    expect(screen.getByRole("tab", { name: tab })).toHaveAttribute("aria-selected", "true");
+  });
+
+  test("a new discussion hash supersedes a manual tab selection on the same ADR", async () => {
+    HTMLElement.prototype.scrollIntoView = vi.fn();
+    serve({ adr: adrFixture({ participants: PEOPLE }) }, (method, url) =>
+      method === "GET" && url.startsWith("/api/v1/adrs/1/discussion?")
+        ? jsonResponse(200, discussionPageFixture())
+        : null);
+    const user = userEvent.setup();
+    renderWithProviders(<><ValidityNavigation /><Routes><Route path="/adrs/:id" element={<AdrDetails />} /></Routes></>, { route: "/adrs/1" });
+    await user.click(await screen.findByRole("tab", { name: "Lifecycle" }));
+    await user.click(screen.getByRole("button", { name: "Open issues" }));
+    await waitFor(() => expect(screen.getByRole("heading", { name: "Issues and escalations" })).toHaveFocus());
   });
 
   test("Export Markdown downloads this ADR's file - for a reader with no role on it too - under the server's name", async () => {

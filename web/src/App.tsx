@@ -2,7 +2,7 @@ import { lazy, Suspense } from "react";
 import { ActionIcon, AppShell, Box, Burger, Divider, Group, NavLink, ScrollArea, Text, Tooltip } from "@mantine/core";
 import { useDisclosure } from "@mantine/hooks";
 import { IconLayoutSidebarLeftCollapse, IconLayoutSidebarLeftExpand } from "@tabler/icons-react";
-import { Link as RouterLink, Outlet, Route, Routes, useLocation } from "react-router-dom";
+import { Link as RouterLink, Navigate, Outlet, Route, Routes, useLocation } from "react-router-dom";
 import DraftGuardProvider from "./components/DraftGuardProvider";
 import { useTranslation } from "react-i18next";
 import { RedirectIfAuthed, RequireAdmin, RequireAuth, useAdmin } from "./auth";
@@ -14,7 +14,7 @@ import TelemetryPanelCrash from "./components/TelemetryPanelCrash";
 import UserMenu from "./components/UserMenu";
 import VersionStamp from "./components/VersionStamp";
 import ErrorBoundary, { RouteErrorBoundary } from "./components/ErrorBoundary";
-import { activeNavPath, visibleSections, type NavLeaf } from "./utils/navigation";
+import { activeNavPath, myWorkPath, visibleSections, type NavLeaf } from "./utils/navigation";
 import { usePrintLifecycle } from "./hooks/usePrintLifecycle";
 import { isBoolean, useStoredState } from "./hooks/useStoredState";
 import { setTelemetryPanelOpen, useTelemetryPanelOpen } from "./hooks/useTelemetryPanel";
@@ -23,7 +23,7 @@ import classes from "./theme.module.css";
 // The ADMIN telemetry panel: a lazy chunk a non-admin never downloads (it is only mounted for an ADMIN with the panel open).
 const TelemetryPanel = lazy(() => import("./components/TelemetryPanel"));
 const Login = lazy(() => import("./pages/Login"));
-const Home = lazy(() => import("./pages/Home"));
+const MyWork = lazy(() => import("./pages/MyWork"));
 const DecisionLog = lazy(() => import("./pages/DecisionLog"));
 const Adrs = lazy(() => import("./pages/Adrs"));
 const CreateAdr = lazy(() => import("./pages/CreateAdr"));
@@ -47,6 +47,11 @@ function RouteFallback() {
   return (
     <LoadingBlock mih={200} />
   );
+}
+
+function MyWorkRedirect() {
+  const { search, hash } = useLocation();
+  return <Navigate to={{ pathname: myWorkPath, search, hash }} replace />;
 }
 
 function Shell() {
@@ -236,7 +241,8 @@ export default function App() {
         <Route path="/reset-password/confirm" element={<ConfirmPasswordReset />} />
         <Route element={<RequireAuth />}>
           <Route element={<Shell />}>
-            <Route index element={<Home />} />
+            <Route index element={<MyWorkRedirect />} />
+            <Route path="my-work" element={<MyWork />} />
             <Route path="decision-log" element={<DecisionLog />} />
             <Route path="adrs" element={<Adrs />} />
             <Route path="adrs/new" element={<CreateAdr />} />

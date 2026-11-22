@@ -66,7 +66,7 @@ const PASSWORD = "changeme";
 
 /**
  * Navigate to a usable sign-in form. Any leftover session has to go first: while one exists
- * the app's RedirectIfAuthed bounces /login to the home page, so the form never renders and
+ * the app's RedirectIfAuthed sends /login to My work, so the form never renders and
  * a fill() waits out the whole test timeout.
  */
 async function gotoSignInForm(page: Page): Promise<void> {
@@ -140,7 +140,7 @@ export async function login(page: Page, email = ADMIN, password = PASSWORD): Pro
     localStorage.clear();
     for (const [key, value] of entries) localStorage.setItem(key, value);
   }, sessionEntries(body as LoginBody));
-  await page.goto("/");
+  await page.goto("/my-work");
   try {
     await expect(accountMenu(page)).toBeVisible({ timeout: 15_000 });
   } catch {

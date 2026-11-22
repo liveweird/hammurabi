@@ -17,7 +17,7 @@
 3. They look at the newest entry.
    - *Expected*: it shows a version (`vX.Y.Z`) and a release date (`YYYY-MM-DD`) — no exact
      version is asserted, so releases never break this spec.
-4. They navigate back to the Home page.
+4. They navigate back to My work.
    - *Expected*: the dot stays cleared.
 
 ## Not covered here (and why)

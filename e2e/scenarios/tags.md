@@ -25,7 +25,7 @@
 ## Scenario: a regular user reads the registry through the API but has no Tags page and no writes
 
 1. The Tagger signs in.
-   - *Expected*: the nav has a **Teams** link and no **Tags** link; opening `/tags` lands on Home.
+   - *Expected*: the nav has a **Teams** link and no **Tags** link. Opening `/tags` lands on `/my-work`.
 2. Through the API they read the registry and try to create a category.
    - *Expected*: the read is `200` and lists the seeded Domain and Scope categories; the create is `403`.
 

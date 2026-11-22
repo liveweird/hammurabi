@@ -21,6 +21,9 @@ export type AdrOverview = components["schemas"]["AdrOverview"];
 export type AdrLogItem = components["schemas"]["AdrLogItem"];
 export type AdrEventResponse = components["schemas"]["AdrEventResponse"];
 export type AdrEventPage = components["schemas"]["AdrEventPage"];
+export type AdrMyWorkAdr = components["schemas"]["AdrMyWorkAdr"];
+export type AdrMyWorkAttention = components["schemas"]["AdrMyWorkAttention"];
+export type AdrMyWork = components["schemas"]["AdrMyWork"];
 export type AdrCreateBody = paths["/api/v1/adrs"]["post"]["requestBody"]["content"]["application/json"];
 export type AdrUpdateBody = paths["/api/v1/adrs/{id}"]["put"]["requestBody"]["content"]["application/json"];
 
@@ -90,6 +93,12 @@ export async function exportAdrs(filters: AdrFilterQuery): Promise<Download> {
 /** The decision log in one read (any signed-in user): no parameters, every section capped by the server. */
 export async function getAdrOverview(): Promise<AdrOverview> {
   return jsonRequest<AdrOverview>("/api/v1/adrs/overview");
+}
+
+/** The signed-in user's bounded work queue, optionally narrowed to one DACI role. */
+export async function getAdrMyWork(participantRole?: AdrRole): Promise<AdrMyWork> {
+  const query = buildQuery({ participantRole });
+  return jsonRequest<AdrMyWork>(`/api/v1/adrs/my-work${query === "" ? "" : `?${query}`}`);
 }
 
 export async function getAdr(id: number): Promise<AdrResponse> {

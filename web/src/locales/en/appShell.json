@@ -4,7 +4,7 @@
   "toggleNav": "Show or hide the navigation",
   "toggleMobileNav": "Toggle navigation",
   "nav": {
-    "home": "Home",
+    "myWork": "My work",
     "users": "Users",
     "notificationPreferences": "Notification preferences",
     "changePassword": "Change password",

@@ -2,6 +2,7 @@ import { Anchor, Stack } from "@mantine/core";
 import PageHeader from "../components/PageHeader";
 import { Link as RouterLink } from "react-router-dom";
 import { useTranslation } from "react-i18next";
+import { myWorkPath } from "../utils/navigation";
 
 /**
  * The authenticated catch-all (v2.22.0) — before it, an unmatched URL matched no route at
@@ -13,8 +14,8 @@ export default function NotFound() {
   return (
     <Stack gap="md">
       <PageHeader title={t("common.notFound.title")} description={t("common.notFound.message")} />
-      <Anchor component={RouterLink} to="/">
-        {t("common.notFound.backHome")}
+      <Anchor component={RouterLink} to={myWorkPath}>
+        {t("common.notFound.backToMyWork")}
       </Anchor>
     </Stack>
   );

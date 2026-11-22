@@ -31,7 +31,7 @@ private const val MAX_EMAIL_SECONDS = 86_400L
 private const val MAX_EMAIL_PER_RUN = 1000
 
 /** The ceiling of `adrs.expiry.reminderDays`: a year ahead (`0` = no reminders). */
-private const val MAX_REMINDER_DAYS = 365
+internal const val MAX_REMINDER_DAYS = 365
 
 /**
  * Published once the sweep has started and has run its first pass: how many notices that pass purged, or null when it failed. A TEST seam

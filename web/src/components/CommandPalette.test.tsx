@@ -38,7 +38,7 @@ describe("CommandPalette", () => {
     renderPalette();
     // Label in Name (WCAG 2.5.3): the wide trigger is named by its visible words, with no aria-label of its own.
     await user.click(screen.getByRole("button", { name: /^Search or jump to a page…/ }));
-    expect(await screen.findByRole("button", { name: /Home/ })).toBeInTheDocument();
+    expect(await screen.findByRole("button", { name: /My work/ })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: /Change password/ })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: /^Notification preferences$/ })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: /^Teams$/ })).toBeInTheDocument();
@@ -111,7 +111,7 @@ describe("CommandPalette", () => {
     vi.stubGlobal("fetch", vi.fn());
     renderPalette();
     palette.open();
-    await screen.findByRole("button", { name: /Home/ });
+    await screen.findByRole("button", { name: /My work/ });
     expect(screen.queryByRole("button", { name: /telemetry/i })).not.toBeInTheDocument();
   });
 

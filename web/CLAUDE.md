@@ -3,8 +3,7 @@
 Vite + React 19 + TypeScript SPA: the shell + auth, user/feature management, MFA, password reset,
 the changelog, the flat-teams registry and the ADMIN telemetry panel — the foundation, trimmed from Flow
 (`~/Sources/flow` @ 4e43e480, 1.57.1, the donor: port building blocks from there, don't reinvent; Astrolabe's trim of the same
-shell is the precedent) — plus the ADR pages (the list, create and detail pages, the discussion, find, the notifications, the decision log: "The ADR pages" below) behind a Home that welcomes
-and leads into them. Routes are lazy.
+shell is the precedent) — plus the ADR pages, the Decision log and the personal **My work** landing page. Routes are lazy.
 
 - Dev server: `cd web && npm run dev` (port **5181** — not Vite's 5173 default, so Hammurabi can run
   beside the sibling stacks' 5173–5178 and 5180; the port table is in `.claude/docs/ci.md`). All backend routes live under the
@@ -61,7 +60,7 @@ and leads into them. Routes are lazy.
 - Pages are **lazy** (`React.lazy` in `App.tsx`); new routes register above the `path="*"`
   NotFound catch-all (LAST child, never feature-gated). **The nav model lives in
   `utils/navigation.ts`**, shared by the sidebar and the command palette: `NAV_SECTIONS` —
-  labelled, always-open sections (currently Overview: Home, Decision log, ADRs; and Administration: Teams, Users, Feature flags) of `NavLeaf`s (the
+  labelled, always-open sections (currently Overview: My work, Decision log, ADRs; and Administration: Teams, Tags, Users, Feature flags) of `NavLeaf`s (the
   `label` is a typed i18n key; `adminOnly?` gates admin leaves, `keywords?` adds raw palette search terms for a renamed page's old name, and `visibleSections(isAdmin())`
   drops an emptied section) — plus `ACCOUNT_NAV` (Change password, Notification preferences, Changelog), which the header
   `UserMenu` and the palette render and the sidebar never does. Sections are static captions
@@ -200,6 +199,7 @@ Every list page composes the same ported Lettuce blocks — copy `pages/Users.ts
 
 `pages/Adrs.tsx` (`/adrs`, the primary nav entry), `pages/CreateAdr.tsx` (`/adrs/new`) and `pages/AdrDetails.tsx` (`/adrs/:id`); routes in `utils/adrLinks.ts`, wrappers in `api/adrs.ts`, copy in `locales/*/adrs.json`.
 
+- **My work.** `pages/MyWork.tsx` is the signed-in landing page at `/my-work`. The root URL redirects to it. The sidebar, command palette and default sign-in destination use `myWorkPath`. The role filter is `participantRole` in the URL and the caller-scoped query `['adrs', 'my-work', role]`. The server classifies attention, supplies recent history and sorts the open ADRs. The page links to the full filtered ADR list and uses `#validity`, `#discussion` or `#issues` to open the relevant detail section. Discussion links select the corresponding tab and focus its heading.
 - **Decision log.** `pages/DecisionLog.tsx` reads `["adrs", "overview"]` once. The responsive status grid links each count to the ADR list and uses the shared status colors. The activity panel groups Awaiting decision, Expiring soon and Recently decided. Awaiting decision highlights the caller's reviews and links their Approver queue. Expiring soon uses the response's UTC day (`generatedAt`) for overdue dates. In force groups active ADRs by category and tag, with a separate Untagged group. Each row is one link with the ADR key and name. Use `adrListPath(patch)` for filtered list links and keep a visible "+N more" label with a screen-reader suffix that identifies its destination.
 
 - **Export (0.8.0).** `components/AdrExportButton.tsx` (a `data-print="hide"` action; the failure is an inline red `role="alert"` line, `utils/adrExport.ts`) sits in both pages' `PageHeader` actions: **Export Markdown** on the detail page (everyone who can read the ADR) calls `exportAdr(id)`, **Export (ZIP)** on the list calls `exportAdrs(filters)` with the SAME `filters` object the list query uses (no paging or sort; disabled while a date range is inverted; the server's `400` over 500 matches reads "narrow the filters"). The download goes through `api/download.ts` (`downloadRequest`: `authedFetch`, so the bearer token and the silent refresh apply, the body as a Blob, the file name from `Content-Disposition` accepted only when it is a plain slug) and `utils/saveFile.ts` (an object URL on a throwaway `<a download>`); page tests mock `../utils/saveFile`.

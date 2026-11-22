@@ -5,11 +5,11 @@
 - **Owns** (exclusive server-side state): nothing — read-only (sessions only; no seeded account
   is ever mutated)
 
-## Scenario: signing out from a protected route starts the next login at home
+## Scenario: signing out from a protected route starts the next login at My work
 
 1. The admin signs in (the shared `login` helper: a real `POST /api/v1/login`, the session stored the way the SPA stores it, one load of
-   Home — the form itself is driven in step 3 and by the next two scenarios).
-   - *Expected*: the app shell is up — the **Home** heading and the header account-menu button are
+   My work. The form itself is driven in step 3 and by the next two scenarios).
+   - *Expected*: the app shell is up with the **My work** heading and the header account-menu button
      visible.
 2. The admin opens the **Teams** page, then opens the header account menu and clicks **Sign out**
    while the server response is held pending.
@@ -17,7 +17,7 @@
      "You've been signed out." banner are visible.
 3. Without reloading the page or clearing browser storage, the admin signs in again through the
    displayed form.
-   - *Expected*: the new session starts at the **Home** page. The protected route from
+   - *Expected*: the new session starts at `/my-work`. The protected route from
      before the explicit sign-out is not restored.
 4. The delayed server response is allowed to finish.
    - *Expected*: the new session remains signed in.

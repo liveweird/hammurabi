@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: hammurabi-api
-  version: 1.2.4
+  version: 1.3.0
   description: |
     JWT-authenticated REST API for Hammurabi — Architecture Decision Records (ADRs) across their lifecycle, with DACI
     responsibility. It serves the Hammurabi web app and is versioned by its `/api/v1` path prefix. It exposes the ADRs
@@ -1085,6 +1085,35 @@ paths:
         '401': { $ref: '#/components/responses/Unauthorized' }
         '500': { $ref: '#/components/responses/InternalServerError' }
 
+  /api/v1/adrs/my-work:
+    get:
+      tags: [adrs]
+      operationId: getAdrMyWork
+      summary: The caller's ADR work
+      description: |
+        Any authenticated user. A personal, purpose-built read over the ADRs where the caller currently holds a DACI role. Administrators
+        see only their own participant rows too. Each of the four sections returns at most 12 rows and carries `hasMore`; this bounded
+        shape exception is recorded in `list-endpoints.md`. `participantRole` narrows every section to one exact DACI role.
+
+        `actions` contains work assigned to the caller by their role: review and active validity for the Approver, returned or stalled
+        drafting for the Driver, and open active escalations for either lead. `watching` contains the same attention signals on the caller's
+        other participating ADRs. Drafting stalls after 14 days without a content edit or workflow move; review stalls after 7 days.
+        Expiry reuses the notification reminder horizon and disappears when reminders are disabled. It also keeps an overdue `ACTIVE` ADR
+        visible until the expiry sweep moves it, while the reminder job itself only mails dates from today onward. `activity` is the newest
+        seven days of document, expiry, lifecycle, discussion and successor history; participant and tag fan-out is omitted. `adrs` is the
+        caller's non-terminal ADRs, ordered by the same curated activity.
+      parameters:
+        - $ref: '#/components/parameters/AdrMyWorkRole'
+      responses:
+        '200':
+          description: The caller's ADR work
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/AdrMyWork' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '500': { $ref: '#/components/responses/InternalServerError' }
+
   /api/v1/adrs/{id}:
     parameters:
       - $ref: '#/components/parameters/ResourceId'
@@ -2077,6 +2106,12 @@ components:
       required: false
       schema: { $ref: '#/components/schemas/AdrRole' }
       description: Narrows `participantId` to one role (`400` without `participantId`).
+    AdrMyWorkRole:
+      name: participantRole
+      in: query
+      required: false
+      schema: { $ref: '#/components/schemas/AdrRole' }
+      description: Narrows every personal-work section to ADRs where the caller holds this exact DACI role. A repeated key is `400`.
     AdrFilterTag:
       name: tag
       in: query
@@ -2938,6 +2973,70 @@ components:
         recentlyDecided: { $ref: '#/components/schemas/AdrLogSection' }
         expiringSoon: { $ref: '#/components/schemas/AdrExpiringSection' }
         awaitingDecision: { $ref: '#/components/schemas/AdrAwaitingSection' }
+    AdrMyWorkReason:
+      type: string
+      enum: [REVIEW, EXPIRING, STALLED_DRAFT, STALLED_REVIEW, RETURNED, ESCALATION]
+    AdrMyWorkAdr:
+      type: object
+      required: [id, key, name, role, status, lastActivityAt, expiresOn]
+      properties:
+        id: { type: integer, format: int32, minimum: 0 }
+        key: { type: string, example: ADR-0042 }
+        name: { type: string }
+        role: { $ref: '#/components/schemas/AdrRole' }
+        status: { $ref: '#/components/schemas/AdrStatus' }
+        lastActivityAt: { type: integer, format: int64, description: "The newest meaningful history event on the ADR, in epoch millis." }
+        expiresOn: { type: string, format: date, nullable: true, description: The last day the decision is in force; null = none. }
+    AdrMyWorkAttention:
+      type: object
+      required: [adr, reason, since, approverName]
+      properties:
+        adr: { $ref: '#/components/schemas/AdrMyWorkAdr' }
+        reason: { $ref: '#/components/schemas/AdrMyWorkReason' }
+        since: { type: integer, format: int64, description: The relevant event time in epoch millis. }
+        approverName: { type: string, nullable: true, description: "The active Approver's display name, when one exists." }
+    AdrMyWorkActivity:
+      type: object
+      required: [adr, event]
+      properties:
+        adr: { $ref: '#/components/schemas/AdrMyWorkAdr' }
+        event: { $ref: '#/components/schemas/AdrEventResponse' }
+    AdrMyWorkAttentionSection:
+      type: object
+      required: [items, hasMore]
+      properties:
+        items:
+          type: array
+          maxItems: 12
+          items: { $ref: '#/components/schemas/AdrMyWorkAttention' }
+        hasMore: { type: boolean, description: More matching rows exist beyond the 12 shown. }
+    AdrMyWorkActivitySection:
+      type: object
+      required: [items, hasMore]
+      properties:
+        items:
+          type: array
+          maxItems: 12
+          items: { $ref: '#/components/schemas/AdrMyWorkActivity' }
+        hasMore: { type: boolean, description: More matching rows exist beyond the 12 shown. }
+    AdrMyWorkAdrSection:
+      type: object
+      required: [items, hasMore]
+      properties:
+        items:
+          type: array
+          maxItems: 12
+          items: { $ref: '#/components/schemas/AdrMyWorkAdr' }
+        hasMore: { type: boolean, description: More matching rows exist beyond the 12 shown. }
+    AdrMyWork:
+      type: object
+      required: [generatedAt, actions, watching, activity, adrs]
+      properties:
+        generatedAt: { type: integer, format: int64, description: "When the snapshot was generated, in epoch millis." }
+        actions: { $ref: '#/components/schemas/AdrMyWorkAttentionSection' }
+        watching: { $ref: '#/components/schemas/AdrMyWorkAttentionSection' }
+        activity: { $ref: '#/components/schemas/AdrMyWorkActivitySection' }
+        adrs: { $ref: '#/components/schemas/AdrMyWorkAdrSection' }
     AdrEventType:
       type: string
       enum:

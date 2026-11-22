@@ -52,6 +52,11 @@ class AdrsRoute {
     @Resource("overview")
     class Overview(val parent: AdrsRoute = AdrsRoute())
 
+    /** `GET /adrs/my-work`: the caller's personal ADR queues and recent activity. */
+    @Serializable
+    @Resource("my-work")
+    class MyWork(val parent: AdrsRoute = AdrsRoute())
+
     @Serializable
     @Resource("{id}")
     class Id(val parent: AdrsRoute = AdrsRoute(), val id: UInt) {

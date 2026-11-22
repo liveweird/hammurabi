@@ -20,10 +20,11 @@ const ROUTE_PATTERNS = [...appSource.matchAll(/<Route\s+(?:index|path="([^"]+)")
   .map((m) => m[1] ?? "")
   .filter((p) => p !== "*");
 
-// The tab title each route settles on (WCAG 2.4.2: "{page} · Hammurabi", the bare brand for Home). The detail routes answer
+// The tab title each route settles on (WCAG 2.4.2: "{page} · Hammurabi"). The detail routes answer
 // 404 here, so they show their load-state title (the area name), not a record's.
 const TAB_TITLES: Record<string, string> = {
-  "/": "Hammurabi",
+  "/": "My work · Hammurabi",
+  "/my-work": "My work · Hammurabi",
   "/login": "Sign in · Hammurabi",
   "/reset-password": "Reset password · Hammurabi",
   "/reset-password/confirm": "Choose a new password · Hammurabi",

@@ -22,7 +22,7 @@ test("login screen has no WCAG A/AA violations", async ({ page }) => {
 
 // One test per page keeps the report line-per-page.
 const AUTHED_PAGES: { path: string; heading: string }[] = [
-  { path: "/", heading: "Hammurabi" },
+  { path: "/my-work", heading: "My work" },
   { path: "/decision-log", heading: "Decision log" },
   { path: "/adrs", heading: "ADRs" },
   { path: "/adrs/new", heading: "Raise an ADR" },
@@ -48,6 +48,7 @@ function registerAuthedPageScans(scheme: Scheme): void {
       await expect(page.getByRole("heading", { name: heading }).first()).toBeVisible();
       // The Markdown field is a lazy chunk: scan the page WITH the visual editor (its toolbar and editable region), not its loading state.
       if (path === "/adrs/new") await expect(page.getByRole("textbox", { name: /^Problem/ })).toBeVisible();
+      if (path === "/my-work") await expect(page.getByRole("heading", { name: "Needs your action" })).toBeVisible();
       await expectScheme(page, scheme);
       await scan(page);
     });
@@ -71,8 +72,8 @@ function registerMobileShellScan(scheme: Scheme): void {
   const suffix = scheme === "dark" ? " in the dark scheme" : "";
   test(`the app shell at a mobile width has no WCAG A/AA violations${suffix}`, async ({ page }) => {
     await login(page);
-    await page.goto("/");
-    await expect(page.getByRole("heading", { name: "Hammurabi" }).first()).toBeVisible();
+    await page.goto("/my-work");
+    await expect(page.getByRole("heading", { name: "Needs your action" })).toBeVisible();
     await expect(page.getByRole("button", { name: "Toggle navigation" })).toBeVisible();
     await expectScheme(page, scheme);
     await scan(page);

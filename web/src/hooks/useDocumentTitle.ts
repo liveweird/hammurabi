@@ -8,7 +8,7 @@ const SEPARATOR = " · ";
  * Sets the browser tab's title to "{title} · Hammurabi" for as long as the calling page is mounted (WCAG 2.4.2: a tab
  * titled "Hammurabi" on every route says nothing about where the reader is), and puts the bare brand back on unmount, so
  * the lazy-chunk fallback between pages shows "Hammurabi", never the last page's name.
- * A page titled with the brand itself (Home) gets the bare brand, never "Hammurabi · Hammurabi". Called once per page, by `PageHeader`
+ * A page titled with the brand itself gets the bare brand. Called once per page, by `PageHeader`
  * and `AuthCard`; the brand is `appShell.brand`, so a language switch re-titles the tab on the next render.
  */
 export function useDocumentTitle(title: string): void {

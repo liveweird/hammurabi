@@ -28,14 +28,14 @@ export type NavSection = {
   items: ReadonlyArray<NavLeaf>;
 };
 
-/** The Home route — everyone lands here after sign-in. */
-export const homePath = "/";
+/** The personal work view is the default destination after sign-in. */
+export const myWorkPath = "/my-work";
 
 /**
  * The navigation model, shared by the sidebar and the command palette. Sections are labelled,
  * always-open blocks (never collapsible groups): every leaf is always in the DOM, so tests and
  * deep links address the links directly, and a static label costs less vertical space than a
- * toggle. Home, the Decision log (the read-only overview) and the ADRs (the primary entry: every signed-in user reads and raises them) are visible to everyone; the Administration section holds Teams (everyone reads
+ * toggle. My work, the Decision log and ADRs are visible to every signed-in user. The Administration section holds Teams (everyone reads
  * the flat teams list; only its create/edit/delete are ADMIN) alongside the ADMIN-only Tags (the tag registry), Users and
  * Feature flags leaves — a non-admin session sees just Teams there.
  */
@@ -43,7 +43,7 @@ const NAV_SECTIONS: ReadonlyArray<NavSection> = [
   {
     label: "appShell.section.overview",
     items: [
-      { to: homePath, label: "appShell.nav.home", icon: IconHome2 },
+      { to: myWorkPath, label: "appShell.nav.myWork", icon: IconHome2, activeFor: ["/"], keywords: ["home", "strona główna"] },
       { to: decisionLogPath, label: "appShell.nav.decisionLog", icon: IconScale, keywords: ["overview", "dashboard", "in force", "expiring", "awaiting", "adr"] },
       { to: adrsPath, label: "appShell.nav.adrs", icon: IconGavel, keywords: ["decision", "architecture", "record", "adr"] },
     ],

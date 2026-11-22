@@ -70,7 +70,7 @@
   "notFound": {
     "title": "Nie znaleziono strony",
     "message": "Ten adres nie pasuje do żadnej strony. Mogła zostać przeniesiona albo link zawiera literówkę.",
-    "backHome": "Wróć do strony głównej"
+    "backToMyWork": "Wróć do widoku Moja praca"
   },
   "buildInfo": "Wersja aplikacji",
   "role": {

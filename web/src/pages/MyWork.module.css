@@ -1,0 +1,116 @@
+.page {
+  container: my-work / inline-size;
+  max-inline-size: 78rem;
+  padding-block-end: var(--mantine-spacing-md);
+}
+
+.roleFilter {
+  inline-size: min(100%, 13rem);
+}
+
+.primaryGrid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: var(--mantine-spacing-md);
+  align-items: start;
+}
+
+.attention,
+.activity,
+.myAdrs {
+  overflow: clip;
+  background: var(--mantine-color-default);
+}
+
+.sectionHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--mantine-spacing-sm);
+  min-block-size: 3.25rem;
+  padding: var(--mantine-spacing-sm) var(--mantine-spacing-md);
+  border-block-end: 1px solid var(--mantine-color-default-border);
+}
+
+.subsection {
+  padding: 0.55rem var(--mantine-spacing-md);
+  border-block: 1px solid var(--mantine-color-default-border);
+  background: var(--hammurabi-surface-tint);
+}
+
+.list {
+  margin: 0;
+  padding: 0 var(--mantine-spacing-md);
+  list-style: none;
+}
+
+.row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) fit-content(50%);
+  align-items: center;
+  gap: var(--mantine-spacing-sm);
+  padding-block: 0.7rem;
+}
+
+.row + .row,
+.activityRow + .activityRow {
+  border-block-start: 1px solid var(--mantine-color-default-border);
+}
+
+.rowMain {
+  min-inline-size: 0;
+  overflow-wrap: anywhere;
+}
+
+.reason {
+  max-inline-size: min(100%, 22rem);
+  block-size: auto;
+  min-block-size: 1.4rem;
+  padding-block: 0.15rem;
+  text-align: start;
+}
+
+.reasonLabel {
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
+
+.activityRow {
+  padding-block: 0.7rem;
+  overflow-wrap: anywhere;
+}
+
+.more {
+  padding: 0.6rem var(--mantine-spacing-md);
+  border-block-start: 1px solid var(--mantine-color-default-border);
+}
+
+.myAdrs {
+  margin-block-start: var(--mantine-spacing-md);
+}
+
+.viewAll {
+  display: inline-block;
+  margin: 0 var(--mantine-spacing-md) var(--mantine-spacing-md);
+  font-weight: 600;
+}
+
+@container my-work (min-width: 43rem) {
+  .primaryGrid {
+    grid-template-columns: minmax(0, 1.55fr) minmax(16rem, 1fr);
+  }
+}
+
+@container my-work (max-width: 30rem) {
+  .roleFilter {
+    inline-size: 100%;
+  }
+
+  .row {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .reason {
+    justify-self: start;
+  }
+}

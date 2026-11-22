@@ -22,7 +22,7 @@ such a section by the fixed words of the template. The other titles are matched 
 1. The admin signs in, opens `<path>`, and waits for its heading.
    - *Expected*: an axe scan (same tags) reports zero violations.
 
-The list covers the Home page, the Decision log, the ADR list and its create form, the Teams list, the Users list and its create form, the ADMIN feature-flags screen,
+The list covers My work, the Decision log, the ADR list and its create form, the Teams list, the Users list and its create form, the ADMIN feature-flags screen,
 Change password and the Changelog — see `tests/accessibility.spec.ts`'s `AUTHED_PAGES` list for the current set.
 
 ## Scenario: `<name>` has no WCAG A/AA violations
@@ -63,7 +63,7 @@ Change password and the Changelog — see `tests/accessibility.spec.ts`'s `AUTHE
 
 ## Scenario: the app shell at a mobile width has no WCAG A/AA violations
 
-1. The browser viewport is 390x844. The admin signs in, opens `/` and waits for the Home heading.
+1. The browser viewport is 390x844. The admin signs in, opens `/my-work` and waits for the attention section.
    - *Expected*: the header's burger is visible with the accessible name "Toggle navigation" (it is
      the only control that opens the nav drawer at this width), `<html>` carries the light scheme
      and an axe scan (same tags, `color-contrast` included) reports zero violations.

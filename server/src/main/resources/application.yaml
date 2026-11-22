@@ -56,6 +56,8 @@ ktor:
       - ch.nokillswit.adrs.AdrExportRoutesKt.configureAdrExportRoutes
       # The decision log (0.9.0, `.claude/docs/adr-model.md` "Overview"): GET /api/v1/adrs/overview.
       - ch.nokillswit.adrs.AdrOverviewRoutesKt.configureAdrOverviewRoutes
+      # The personal ADR work queue: GET /api/v1/adrs/my-work.
+      - ch.nokillswit.adrs.AdrMyWorkRoutesKt.configureAdrMyWorkRoutes
       - ch.nokillswit.adrs.AdrExpirySweepKt.configureAdrExpirySweep
       # The saved ADR-list filters (0.5.0, `.claude/docs/adr-model.md` "Lenses"): /api/v1/lenses.
       - ch.nokillswit.lenses.LensRoutesKt.configureLensRoutes

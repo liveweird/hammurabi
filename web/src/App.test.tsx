@@ -17,13 +17,14 @@ function renderApp(route: string) {
     defaultOptions: { queries: { retry: false } },
   });
   const router = createMemoryRouter([{ path: "*", element: <App /> }], { initialEntries: [route] });
-  return render(
+  render(
     <MantineProvider env="test">
       <QueryClientProvider client={queryClient}>
         <RouterProvider router={router} />
       </QueryClientProvider>
     </MantineProvider>,
   );
+  return router;
 }
 
 describe("App shell", () => {
@@ -43,9 +44,13 @@ describe("App shell", () => {
       localStorage.setItem(TOKEN_KEY, "fake-token");
     });
 
-    test("renders the brand and the home page at /", async () => {
-      renderApp("/");
-      expect(await screen.findByRole("heading", { level: 2, name: "Hammurabi" })).toBeInTheDocument();
+    test("redirects the legacy root to the My work page", async () => {
+      const router = renderApp("/?participantRole=CONTRIBUTOR#main-content");
+      expect(await screen.findByRole("heading", { level: 2, name: "My work" })).toBeInTheDocument();
+      expect(router.state.location.pathname).toBe("/my-work");
+      expect(router.state.location.search).toBe("?participantRole=CONTRIBUTOR");
+      expect(router.state.location.hash).toBe("#main-content");
+      expect(screen.getByRole("link", { name: "My work" })).toHaveAttribute("aria-current", "page");
       expect(screen.getAllByText("Hammurabi").length).toBeGreaterThan(0);
     });
 
@@ -58,7 +63,7 @@ describe("App shell", () => {
       renderApp("/");
       // Sections are labelled groups, never toggles — every leaf is in the DOM immediately.
       const overview = await screen.findByRole("group", { name: "Overview" });
-      expect(within(overview).getByRole("link", { name: "Home" })).toHaveAttribute("href", "/");
+      expect(within(overview).getByRole("link", { name: "My work" })).toHaveAttribute("href", "/my-work");
       // A non-admin session still sees Administration — Teams are everyone's, only Users and
       // Feature flags are admin-only and drop out.
       const admin = screen.getByRole("group", { name: "Administration" });
@@ -79,7 +84,7 @@ describe("App shell", () => {
 
       // The section label text is gone, but every leaf is still addressable by name and href.
       expect(screen.queryByText("Overview")).not.toBeInTheDocument();
-      expect(screen.getByRole("link", { name: "Home" })).toHaveAttribute("href", "/");
+      expect(screen.getByRole("link", { name: "My work" })).toHaveAttribute("href", "/my-work");
       expect(screen.getByRole("link", { name: "Teams" })).toHaveAttribute("href", "/teams");
       expect(localStorage.getItem("hammurabi.viewSettings.appShell.navCollapsed")).toBe("true");
     });
@@ -105,11 +110,11 @@ describe("App shell", () => {
     test("a fresh render starts collapsed once the choice was persisted", async () => {
       localStorage.setItem("hammurabi.viewSettings.appShell.navCollapsed", "true");
       renderApp("/");
-      await screen.findByRole("heading", { level: 2, name: "Hammurabi" });
+      await screen.findByRole("heading", { level: 2, name: "My work" });
       expect(screen.queryByText("Overview")).not.toBeInTheDocument();
       const toggle = screen.getByRole("button", { name: "Show or hide the navigation" });
       expect(toggle).not.toHaveAttribute("data-expanded");
-      expect(screen.getByRole("link", { name: "Home" })).toHaveAttribute("href", "/");
+      expect(screen.getByRole("link", { name: "My work" })).toHaveAttribute("href", "/my-work");
     });
 
     test("an admin session additionally sees Tags, Users and Feature flags in Administration", async () => {
@@ -254,7 +259,7 @@ describe("App shell", () => {
     test("shows no dot when the current version was already seen", async () => {
       localStorage.setItem("hammurabi.changelog", JSON.stringify({ seenVersion: APP_VERSION }));
       renderApp("/");
-      await screen.findByRole("heading", { level: 2, name: "Hammurabi" });
+      await screen.findByRole("heading", { level: 2, name: "My work" });
       expect(screen.queryByTitle("What's new")).not.toBeInTheDocument();
     });
 
@@ -265,7 +270,7 @@ describe("App shell", () => {
       ).toBeInTheDocument();
       // The Shell mounted around it — an unmatched URL must never render a blank document.
       expect(screen.getByText("Hammurabi")).toBeInTheDocument();
-      expect(screen.getByRole("link", { name: "Back to home" })).toHaveAttribute("href", "/");
+      expect(screen.getByRole("link", { name: "Back to My work" })).toHaveAttribute("href", "/my-work");
     });
 
     test("logout clears the session and lands on the login page", async () => {
@@ -285,7 +290,7 @@ describe("App shell", () => {
 
   describe("when not authenticated", () => {
     test("a protected route redirects to the login page", async () => {
-      renderApp("/");
+      renderApp("/my-work");
       expect(await screen.findByRole("heading", { name: "Sign in" })).toBeInTheDocument();
     });
 

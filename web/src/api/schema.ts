@@ -704,6 +704,36 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/adrs/my-work": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * The caller's ADR work
+         * @description Any authenticated user. A personal, purpose-built read over the ADRs where the caller currently holds a DACI role. Administrators
+         *     see only their own participant rows too. Each of the four sections returns at most 12 rows and carries `hasMore`; this bounded
+         *     shape exception is recorded in `list-endpoints.md`. `participantRole` narrows every section to one exact DACI role.
+         *
+         *     `actions` contains work assigned to the caller by their role: review and active validity for the Approver, returned or stalled
+         *     drafting for the Driver, and open active escalations for either lead. `watching` contains the same attention signals on the caller's
+         *     other participating ADRs. Drafting stalls after 14 days without a content edit or workflow move; review stalls after 7 days.
+         *     Expiry reuses the notification reminder horizon and disappears when reminders are disabled. It also keeps an overdue `ACTIVE` ADR
+         *     visible until the expiry sweep moves it, while the reminder job itself only mails dates from today onward. `activity` is the newest
+         *     seven days of document, expiry, lifecycle, discussion and successor history; participant and tag fan-out is omitted. `adrs` is the
+         *     caller's non-terminal ADRs, ordered by the same curated activity.
+         */
+        get: operations["getAdrMyWork"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/adrs/{id}": {
         parameters: {
             query?: never;
@@ -1919,6 +1949,68 @@ export interface components {
             expiringSoon: components["schemas"]["AdrExpiringSection"];
             awaitingDecision: components["schemas"]["AdrAwaitingSection"];
         };
+        /** @enum {string} */
+        AdrMyWorkReason: "REVIEW" | "EXPIRING" | "STALLED_DRAFT" | "STALLED_REVIEW" | "RETURNED" | "ESCALATION";
+        AdrMyWorkAdr: {
+            /** Format: int32 */
+            id: number;
+            /** @example ADR-0042 */
+            key: string;
+            name: string;
+            role: components["schemas"]["AdrRole"];
+            status: components["schemas"]["AdrStatus"];
+            /**
+             * Format: int64
+             * @description The newest meaningful history event on the ADR, in epoch millis.
+             */
+            lastActivityAt: number;
+            /**
+             * Format: date
+             * @description The last day the decision is in force; null = none.
+             */
+            expiresOn: string | null;
+        };
+        AdrMyWorkAttention: {
+            adr: components["schemas"]["AdrMyWorkAdr"];
+            reason: components["schemas"]["AdrMyWorkReason"];
+            /**
+             * Format: int64
+             * @description The relevant event time in epoch millis.
+             */
+            since: number;
+            /** @description The active Approver's display name, when one exists. */
+            approverName: string | null;
+        };
+        AdrMyWorkActivity: {
+            adr: components["schemas"]["AdrMyWorkAdr"];
+            event: components["schemas"]["AdrEventResponse"];
+        };
+        AdrMyWorkAttentionSection: {
+            items: components["schemas"]["AdrMyWorkAttention"][];
+            /** @description More matching rows exist beyond the 12 shown. */
+            hasMore: boolean;
+        };
+        AdrMyWorkActivitySection: {
+            items: components["schemas"]["AdrMyWorkActivity"][];
+            /** @description More matching rows exist beyond the 12 shown. */
+            hasMore: boolean;
+        };
+        AdrMyWorkAdrSection: {
+            items: components["schemas"]["AdrMyWorkAdr"][];
+            /** @description More matching rows exist beyond the 12 shown. */
+            hasMore: boolean;
+        };
+        AdrMyWork: {
+            /**
+             * Format: int64
+             * @description When the snapshot was generated, in epoch millis.
+             */
+            generatedAt: number;
+            actions: components["schemas"]["AdrMyWorkAttentionSection"];
+            watching: components["schemas"]["AdrMyWorkAttentionSection"];
+            activity: components["schemas"]["AdrMyWorkActivitySection"];
+            adrs: components["schemas"]["AdrMyWorkAdrSection"];
+        };
         /**
          * @description The kinds of history, with their `params` (all strings): `CREATED` {key, name}; `UPDATED` {changed: comma-joined field names, `name.from`/`name.to`/`expiresOn.from`/`expiresOn.to` where short}; `TRANSITIONED` {from, to, reason?} (the optional free-text reason of the move, 0.7.0); `PARTICIPANT_ADDED` and `PARTICIPANT_REMOVED` {userId, name, role}; `PARTICIPANT_CHANGED` {userId, name, from, to}; `EXPIRED` {expiresOn}, a system event; `SUPERSEDED` {successorId, key, name}, on the predecessor, when its successor became `ACTIVE` (the actor is the user who activated it); `SUCCESSOR_ACTIVATED` {predecessorId, key, name}, on the successor, in the same transaction; `TAGS_CHANGED` {added, removed}, comma-joined tag names, each key only when non-empty; `SUCCESSOR_LINKED` / `SUCCESSOR_UNLINKED` {predecessorId, key, name}, on the successor (a `SUCCESSOR_UNLINKED` is also written on the predecessor when its owner detaches the pending successor, then {successorId, key, name}); `SUCCESSOR_ACCEPTED` {predecessorId, key, name} on the successor and {successorId, key, name} on the predecessor when the predecessor's Approver (or an administrator) accepted the pending successor; `PREDECESSOR_ENDED` {predecessorId, key, name, status}, on the pending successor, when the ADR it was set to replace was cancelled, withdrawn or expired (`status` is the new one; the actor is who ended it, none for the expiry sweep). The discussion events (`COMMENTED`, `QUESTION_ASKED`, `QUESTION_ANSWERED`, `QUESTION_REOPENED`, `ISSUE_RAISED`, `ESCALATED`, `ISSUE_RESOLVED`, `ISSUE_REOPENED`) carry {entryId, kind} - never the text; an edit or a delete of an entry is not an event.
          * @enum {string}
@@ -2563,6 +2655,8 @@ export interface components {
         AdrFilterParticipantId: number;
         /** @description Narrows `participantId` to one role (`400` without `participantId`). */
         AdrFilterParticipantRole: components["schemas"]["AdrRole"];
+        /** @description Narrows every personal-work section to ADRs where the caller holds this exact DACI role. A repeated key is `400`. */
+        AdrMyWorkRole: components["schemas"]["AdrRole"];
         /** @description Any-of filter on the ADR's tags. Repeat the key for several. The limit applies to distinct, normalized registry names. */
         AdrFilterTag: string[];
         /** @description Created on or after this UTC day. */
@@ -3644,6 +3738,32 @@ export interface operations {
                     "application/json": components["schemas"]["AdrOverview"];
                 };
             };
+            401: components["responses"]["Unauthorized"];
+            500: components["responses"]["InternalServerError"];
+        };
+    };
+    getAdrMyWork: {
+        parameters: {
+            query?: {
+                /** @description Narrows every personal-work section to ADRs where the caller holds this exact DACI role. A repeated key is `400`. */
+                participantRole?: components["parameters"]["AdrMyWorkRole"];
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The caller's ADR work */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AdrMyWork"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
             401: components["responses"]["Unauthorized"];
             500: components["responses"]["InternalServerError"];
         };

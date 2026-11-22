@@ -3,6 +3,7 @@
 import { useSyncExternalStore, type ReactElement } from "react";
 import { Navigate, Outlet, useLocation } from "react-router-dom";
 import { getToken, isAdmin, ROLES_KEY, TOKEN_KEY } from "./api/session";
+import { myWorkPath } from "./utils/navigation";
 
 const listeners = new Set<() => void>();
 
@@ -52,11 +53,13 @@ export function useAdmin(): boolean {
   return useSyncExternalStore(subscribe, isAdmin, () => false);
 }
 
-type LocationStateWithFrom = { from?: { pathname?: string; search?: string; hash?: string } } | null;
+export type SignInLocationState = { from?: { pathname?: string; search?: string; hash?: string } } | null;
 
-function destination(state: LocationStateWithFrom): string {
+export function signInDestination(state: SignInLocationState): string {
   const from = state?.from;
-  return from?.pathname ? `${from.pathname}${from.search ?? ""}${from.hash ?? ""}` : "/";
+  if (!from?.pathname) return myWorkPath;
+  const pathname = from.pathname === "/" ? myWorkPath : from.pathname;
+  return `${pathname}${from.search ?? ""}${from.hash ?? ""}`;
 }
 
 export function RequireAuth(): ReactElement {
@@ -70,11 +73,11 @@ export function RequireAuth(): ReactElement {
 
 /**
  * The ADMIN-only route element (wraps the user-management routes in App.tsx): a regular user is sent
- * home instead of watching the page 403. UX only — the server's `requireAdmin` is the rule; the pages'
+ * to My work before the guarded page mounts. The server's `requireAdmin` is the rule; the pages'
  * queries additionally stay `enabled: isAdmin()` so no request fires for a redirected caller.
  */
 export function RequireAdmin(): ReactElement {
-  if (!useAdmin()) return <Navigate to="/" replace />;
+  if (!useAdmin()) return <Navigate to={myWorkPath} replace />;
   return <Outlet />;
 }
 
@@ -82,7 +85,7 @@ export function RedirectIfAuthed({ children }: { children: ReactElement }): Reac
   const { isAuthenticated } = useAuth();
   const location = useLocation();
   if (isAuthenticated) {
-    return <Navigate to={destination(location.state as LocationStateWithFrom)} replace />;
+    return <Navigate to={signInDestination(location.state as SignInLocationState)} replace />;
   }
   return children;
 }

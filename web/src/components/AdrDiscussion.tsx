@@ -60,7 +60,7 @@ export default function AdrDiscussion({ adr, variant }: { adr: AdrResponse; vari
   return (
     <Stack gap="md" component="section" aria-label={t(`adrs.discussion.${variant}.title`)}>
       <Group justify="space-between">
-        <Title order={3} size="h4">
+        <Title order={3} size="h4" id={variant} tabIndex={-1} style={{ scrollMarginTop: "4rem" }}>
           {t(`adrs.discussion.${variant}.title`)}
         </Title>
         {variant === "issues" && (

@@ -53,9 +53,9 @@ Mechanism and narrative text kept out of `web/CLAUDE.md` so that file stays a le
 ### Sign-out and the return destination
 
 Explicit sign-out opens `/login` without a saved return destination, so the next sign-in opens
-Home even when a different account signs in. Anonymous access to a protected link still preserves
-its path, query and hash. Test logout navigation with the real route guards from a non-home page;
-a root-only menu test cannot detect a stale return destination. Reading the signed-out notice
+My work (`/my-work`) even when a different account signs in. Anonymous access to a protected link still preserves
+its path, query and hash. The legacy root redirects to My work. Test logout navigation with the real route guards
+from a protected detail or list page. Reading the signed-out notice
 during render must be side-effect free. Acknowledge it only after the login page commits, so a
 suspended or retried render cannot discard the notice. The flag carries a reason (`SignedOutReason` in `auth.tsx`: `sessionEnded`, the default, or `passwordChanged`; `pendingSignedOut()` reads it, `consumeSignedOut()` clears it) and `pages/Login.tsx` picks the notice from it. **The self password change signs the device out explicitly** (`pages/ChangePassword.tsx`): the PUT bumps the account's credential revision, which ends every access and refresh token including this device's, so after the success toast the page runs `clearSession()`, `flagSignedOut("passwordChanged")` and `navigate("/login", { replace: true })` (the notice reads "Your password was changed. Sign in with your new password."). No `/logout` call - nothing is left to revoke, and the stale access token would only 401; no broadcast, for the same reason as `UserMenu`'s sign-out.
 
@@ -72,7 +72,7 @@ drops the plaintext from state for good — the server never returns it. The adm
 action (`hooks/useResetPassword.ts`) reuses the same generate→PUT→reveal flow. `NavLeaf.adminOnly`
 gates the Users nav item (the Shell filters by `isAdmin()`); the management routes sit under ONE
 `<Route element={<RequireAdmin />}>` in `App.tsx` (`auth.tsx`, beside `RequireAuth` — a regular
-user is sent home), so no page redirects itself; their queries additionally stay
+user is sent to My work), so no page redirects itself; their queries additionally stay
 `enabled: isAdmin()` so a redirected caller fires no request. UX only — the server's
 `requireAdmin` is the rule. The pages live under `/users` (`utils/userLinks.ts` is the one place the family is spelled out; Flow's `/flow-users` rename and its legacy `/users…` redirect do not exist here).
 
@@ -210,7 +210,7 @@ When a feature needs one of these, port the sibling's `web/` implementation and 
 
 ## Storage keys, Web Locks and telemetry (reference)
 
-- **localStorage:** `hammurabi.auth.*` (session), `hammurabi.viewSettings.*` (`useStoredState`), `hammurabi.lang`, `hammurabi.changelog`, `hammurabi.chunkReloadedAt` (the one-shot reload after a failed lazy chunk, `main.tsx`). **Web Lock:** `hammurabi.auth.refresh`. **CSS variables:** `--hammurabi-*`. None of Flow's `flow.*` keys exist; there are no legacy redirects.
+- **localStorage:** `hammurabi.auth.*` (session), `hammurabi.viewSettings.*` (`useStoredState`), `hammurabi.lang`, `hammurabi.changelog`, `hammurabi.chunkReloadedAt` (the one-shot reload after a failed lazy chunk, `main.tsx`). **Web Lock:** `hammurabi.auth.refresh`. **CSS variables:** `--hammurabi-*`.
 - **Telemetry panel** (`components/Telemetry*.tsx`, `hooks/useTelemetryPanel.ts`, `utils/telemetry*.ts`): the memory, storage, requests and jvm groups only (`GET /api/v1/telemetry/history?group=`), and one process role, `app` (`utils/telemetryRole.ts`). Flow's sync and derive sections are gone.
 - **`components/TableDisclosure.tsx`** (Flow's `DailyTableDisclosure`) is the collapsible accessible-table twin of a chart; use it for every chart that carries data a screen-reader user needs.
 - The Polish user-facing noun for Users is "Użytkownicy/czki" (EN "Users").

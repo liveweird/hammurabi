@@ -9,10 +9,11 @@ reviewed and decided; while the decision is in force people report how it works;
 `PROBLEM_RAISED` → `SOLUTION_DRAFT` → `IN_REVIEW` → `ACTIVE`, with `CANCELLED`, `WITHDRAWN`, `EXPIRED` and `SUPERSEDED` as the other endings.
 Responsibility follows **DACI**: one Driver, one Approver, any number of Contributors and Informed. Every change is an event in the ADR's history;
 ADRs are tagged, searchable by several criteria, discussed before they are active (comments/questions) and challenged after (issues/escalations).
+My work (`/my-work`) is the signed-in user's personal ADR workspace.
 
 **Roadmap:** 0.1.0 = the foundation, Flow trimmed to its generic core: auth + email MFA, password reset, users, feature flags, teams,
 EN/PL, light/dark, changelog, the ADMIN telemetry panel, the lapis brand and the "Stele" logo. 0.2.0 = the ADR core
-(ids, lifecycle, DACI, history, expiry; the list, create and detail pages), **0.3.0 = discussion** (comments/questions before active, issues/escalations while active), 0.4.0 = tags and successors, 0.5.0 = find (full-text search, filters, saved lenses), 0.6.0 = notify, 0.7.0 = send back and withdraw, 0.8.0 = Markdown export, 0.9.0 = the decision log page, 1.0.0 = the checkup (hardening, API names frozen, a decision in force ends only by its Approver), 1.1.0 = write and see (the visual editor, the Lifecycle tab), **1.2.x (current release) = safety net**: the per-actor mail budget and ADR write bucket, the pending successor told when its predecessor ends, backup/restore scripts and a drill.
+(ids, lifecycle, DACI, history, expiry), 0.3.0 = discussion, 0.4.0 = tags and successors, 0.5.0 = find, 0.6.0 = notify, 0.7.0 = send back and withdraw, 0.8.0 = Markdown export, 0.9.0 = Decision log, 1.0.0 = checkup, 1.1.0 = visual editor and Lifecycle tab, 1.2.x = safety net. **1.3.0 (current release) = My work**, with a personal ADR queue, activity and DACI role filtering.
 Per-version scope, the user's decisions and the assumptions: `.claude/docs/product.md`; the domain model: `.claude/docs/adr-model.md`. Open items: `BACKLOG.md`.
 
 Brand: lapis lazuli indigo (the `hammurabi` colour tuple in `web/src/theme.ts`, `primaryShade: { light: 7, dark: 8 }`, dark accent ink shade 3); the logo

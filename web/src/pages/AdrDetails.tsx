@@ -17,7 +17,7 @@ import ConfirmDeleteModal from "../components/ConfirmDeleteModal";
 import EditPageLoadState from "../components/EditPageLoadState";
 import PageHeader from "../components/PageHeader";
 import { useDeleteConfirm } from "../hooks/useDeleteConfirm";
-import { ADR_VALIDITY_ID, adrsPath } from "../utils/adrLinks";
+import { ADR_DISCUSSION_ID, ADR_ISSUES_ID, ADR_VALIDITY_ID, adrsPath } from "../utils/adrLinks";
 import { refreshQueriesAfterMutation } from "../utils/queryRefresh";
 import { loadErrorMessage, saveErrorMessage } from "../utils/saveError";
 import styles from "./AdrWorkspace.module.css";
@@ -40,25 +40,29 @@ function AdrDetailsPage({ id }: { id: number }) {
   const queryClient = useQueryClient();
   const admin = useAdmin();
   const [editing, setEditing] = useState(false);
-  // The main pane's tab lives here so Edit can bring the document forward (and a tab switch never costs a draft).
-  const [tab, setTab] = useState<AdrTab>("document");
+  const sectionId = location.hash.slice(1);
+  const linkedTab = sectionId === ADR_DISCUSSION_ID || sectionId === ADR_ISSUES_ID ? sectionId : null;
+  // A navigation supplies the initial tab. Manual switches on that visit keep the mounted drafts.
+  const [selectedTab, setSelectedTab] = useState<{ locationKey: string; tab: AdrTab } | null>(null);
+  const tab = selectedTab?.locationKey === location.key ? selectedTab.tab : linkedTab ?? "document";
+  const selectTab = (next: AdrTab) => setSelectedTab({ locationKey: location.key, tab: next });
   // Set once the ADR is deleted: the page is on its way out and must not fetch the 404 of the ADR it just removed.
   const [deleted, setDeleted] = useState(false);
   const adr = useQuery({ queryKey: ["adrs", "detail", id], queryFn: () => getAdr(id), enabled: Number.isInteger(id) && id > 0 && !deleted });
-  const handledValidityNavigation = useRef<string | null>(null);
+  const handledSectionNavigation = useRef<string | null>(null);
 
   useEffect(() => {
-    if (location.hash !== `#${ADR_VALIDITY_ID}`) {
-      handledValidityNavigation.current = null;
+    if (sectionId !== ADR_VALIDITY_ID && linkedTab === null) {
+      handledSectionNavigation.current = null;
       return;
     }
-    if (!adr.data || handledValidityNavigation.current === location.key) return;
-    const target = document.getElementById(ADR_VALIDITY_ID);
+    if (!adr.data || handledSectionNavigation.current === location.key) return;
+    const target = document.getElementById(sectionId);
     if (!target) return;
-    handledValidityNavigation.current = location.key;
+    handledSectionNavigation.current = location.key;
     target.focus({ preventScroll: true });
     target.scrollIntoView({ block: "start" });
-  }, [adr.data, location.hash, location.key]);
+  }, [adr.data, linkedTab, location.key, sectionId]);
 
   const remove = useDeleteConfirm<AdrResponse>({
     mutationFn: (row) => deleteAdr(row.id),
@@ -66,7 +70,7 @@ function AdrDetailsPage({ id }: { id: number }) {
       // Stop reading the ADR, leave, refresh the list and drop the deleted ADR's own queries (nothing observes them any more).
       setDeleted(true);
       navigate(adrsPath);
-      await refreshQueriesAfterMutation(queryClient, ["adrs", "list"]);
+      await refreshQueriesAfterMutation(queryClient, ["adrs", "list"], ["adrs", "my-work"]);
       queryClient.removeQueries({ queryKey: ["adrs", "detail", row.id] });
       queryClient.removeQueries({ queryKey: ["adrs", "events", row.id] });
     },
@@ -100,7 +104,7 @@ function AdrDetailsPage({ id }: { id: number }) {
             <AdrExportButton label={t("adrs.export.markdown")} run={() => exportAdr(data.id)} />
             {mayEdit && !editing && (
               <Button variant="default" leftSection={<IconPencil size={16} />} onClick={() => {
-                  setTab("document");
+                  selectTab("document");
                   setEditing(true);
                 }}>
                 {t("adrs.edit")}
@@ -118,7 +122,7 @@ function AdrDetailsPage({ id }: { id: number }) {
       <Grid gap={{ base: "md", lg: "lg" }} align="flex-start" className={styles.detailGrid}>
         <Grid.Col span={{ base: 12, lg: 8 }}>
           <Paper withBorder p={{ base: "sm", sm: "md" }} className={styles.mainPane}>
-            <AdrMainPane adr={data} tab={tab} onTabChange={setTab}>
+            <AdrMainPane adr={data} tab={tab} onTabChange={selectTab}>
               {editing ? <AdrEditForm adr={data} onClose={() => setEditing(false)} /> : <AdrContentSections adr={data} />}
             </AdrMainPane>
           </Paper>

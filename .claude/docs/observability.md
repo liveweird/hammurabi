@@ -149,7 +149,7 @@ with `hasKeyValue` from `TestEnvironment.kt`). Emitted today:
   text; every ADR mutation after its commit; a refused or conflicting
   write (403/409/400) emits none, a 403 is the generic `authz.denied`; content (the name and the Markdown fields) is never a field,
 - `adr.exported` (byUserId/adrId/number) / `adr.exported_bulk` (byUserId/count/adrIds - the ids as a comma-joined list, up to 500) - the Markdown export (0.8.0), emitted when the export is accepted, just before the first byte; NEVER a name, a filter, the search term or content; a `404`, a refused filter or a `429` emits none. **`adr.exported_bulk` is audited on acceptance, before the stream: an export aborted mid-stream may have sent fewer ADRs than `count` says** (the client got a failed download, not a short archive). `export.busy` (byUserId) - a bulk export refused by the process cap (`adrs.export.maxConcurrent`); `HEAD` on either route is `405` and audits nothing,
-- **`GET /adrs/overview` (0.9.0) emits no audit event**: a read of what every signed-in user can already read, and it exports nothing.
+- **`GET /adrs/overview` (0.9.0) emits no audit event**: a read of what every signed-in user can already read, and it exports nothing. **`GET /adrs/my-work` (1.3.0) emits none either**: a read of the caller's own DACI view of ADRs they can already read; only its `429` is audited (the generic `rate_limit.exceeded`, bucket `my-work`).
 - `lens.created` (byUserId/lensId/visibility) / `lens.updated` (the same) / `lens.deleted` (byUserId/lensId/byAdmin - true when an ADMIN moderated a PUBLIC lens of someone else) - the saved ADR-list filters (`/api/v1/lenses`, V16); NEVER the name or the filters (a search term is user content),
 - `search.timeout` (byUserId) / `search.busy` (byUserId) - a full-text search (`GET /adrs?text=`) outran `search.timeoutSeconds` (the cancelled statement or a deadline spent between two statements) or met the `search.maxConcurrent` cap: the typed `429`s, ids only, the throwable neither logged nor attached (`adrs/AdrListService.kt`, `security.md` "Search"),
 - `bootstrap.admin_password_rotated` (userId/email — the fixed seed-admin email, never the password or
@@ -158,13 +158,13 @@ with `hasKeyValue` from `TestEnvironment.kt`). Emitted today:
   (Flow's `crypto.reencrypted` boot-backfill event comes back with `EncryptedAtRest`/`Reencrypt`, `security.md` "Encryption at rest"),
 - `authz.denied` (every 403, from the `ForbiddenException` handler in `plugins/ErrorHandling.kt`,
   with method/path/byUserId/detail — `path` is the request path only, never the query string),
-- `rate_limit.exceeded` (bucket/method/path/suppressed, plus `byUserId` on the per-USER `telemetry`, `directory`, `read-state`, `export`, `password-change` and `adr-write` buckets — a token bucket (`plugins/RateLimits.kt`: per-IP login, refresh,
-  password-reset, password-reset-confirm, mfa, ready; per-user telemetry, directory, read-state, export, password-change and adr-write) rejected the request with a 429, emitted from the 429 status handler in
+- `rate_limit.exceeded` (bucket/method/path/suppressed, plus `byUserId` on the per-USER `telemetry`, `directory`, `my-work`, `read-state`, `export`, `password-change` and `adr-write` buckets — a token bucket (`plugins/RateLimits.kt`: per-IP login, refresh,
+  password-reset, password-reset-confirm, mfa, ready; per-user telemetry, directory, my-work, read-state, export, password-change and adr-write) rejected the request with a 429, emitted from the 429 status handler in
   `plugins/ErrorHandling.kt`; `bucket` is stamped by the bucket's own `requestKey`. **Coalesced**
   (`RateLimitAuditThrottle`): at most ONE event per bucket per 60 s, `suppressed` counting the rejections folded into it
   since the previous event (0 on the first), so an unauthenticated flood writes a line a minute per bucket instead of one
-  per request; keyed by bucket only (per-IP buckets), so memory is bounded whoever floods. The per-USER `telemetry`, `directory`, `read-state`, `export`, `password-change` and `adr-write` buckets are keyed by
-  `telemetry:<userId>` / `directory:<userId>` / `read-state:<userId>` / `export:<userId>` / `password-change:<userId>` / `adr-write:<userId>` instead and carry `byUserId` -- the server-minted claim of a verified token, never client text; only a signed-in
+  per request; keyed by bucket only (per-IP buckets), so memory is bounded whoever floods. The per-USER `telemetry`, `directory`, `my-work`, `read-state`, `export`, `password-change` and `adr-write` buckets are keyed by
+  `telemetry:<userId>` / `directory:<userId>` / `my-work:<userId>` / `read-state:<userId>` / `export:<userId>` / `password-change:<userId>` / `adr-write:<userId>` instead and carry `byUserId` -- the server-minted claim of a verified token, never client text; only a signed-in
   account reaches that key, so the key space is the account count. The client address is deliberately NOT a field
   (it is `X-Forwarded-For`-derived behind a proxy, i.e. attacker-chosen text; the ingress log has it), and neither is the
   query string. The per-account lockout's 429s are their own `login.lockout`/`login.rejected_locked` events and do not

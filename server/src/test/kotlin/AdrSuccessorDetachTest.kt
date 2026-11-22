@@ -76,6 +76,21 @@ class AdrSuccessorDetachTest {
         }
 
     @Test
+    fun `a detach naming the current pending successor is accepted and frees the link`() = testApplication {
+        usePostgresTestcontainer()
+        val cast = adrCast()
+        val old = cast.activeAdr()
+        val pending = cast.raise(complete = true)
+        assertEquals(HttpStatusCode.NoContent, cast.driver.client.setSupersedes(pending.id, old.id).status)
+        assertEquals(pending.id, cast.driver.client.getAdr(old.id).supersededBy?.id)
+
+        val detached = cast.driver.client.delete("/api/v1/adrs/${old.id}/successor?successorId=${pending.id}")
+        assertEquals(HttpStatusCode.NoContent, detached.status)
+        assertNull(cast.driver.client.getAdr(old.id).supersededBy)
+        assertNull(rawSupersedesId(pending.id))
+    }
+
+    @Test
     fun `a detach naming a stale successor cannot detach its replacement`() = testApplication {
         usePostgresTestcontainer()
         val cast = adrCast()

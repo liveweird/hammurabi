@@ -59,8 +59,8 @@ internal class RateLimitAuditThrottle(
 }
 
 /**
- * Every token bucket the routes ride (per client IP, except [TELEMETRY], [DIRECTORY], [READ_STATE], [EXPORT], [PASSWORD_CHANGE] and
- * [ADR_WRITE]: per signed-in user), named in one place so a
+ * Every token bucket the routes ride (per client IP, except [TELEMETRY], [DIRECTORY], [MY_WORK], [READ_STATE], [EXPORT],
+ * [PASSWORD_CHANGE] and [ADR_WRITE]: per signed-in user), named in one place so a
  * feature module never has to know another's constant (the auth module used to import the try-it bucket's name — a layering
  * inversion the checkup removed). Route files reference these names; only this plugin installs them.
  */
@@ -87,6 +87,14 @@ object RateLimits {
      * records, a bulk harvest by a signed-in user; it does not prevent one (the user's decision D2 accepts the disclosure).
      */
     const val DIRECTORY = "directory"
+    /**
+     * `GET /api/v1/adrs/my-work` (1.3.1): the landing page after sign-in, and its read runs two capped statements with per-ADR lateral
+     * subqueries over every ADR the caller is on, so it rides a per-USER bucket (the [DIRECTORY] idiom): 120/min in every mode. A person
+     * opens the page, switches the role filter and refetches on focus a handful of times a minute, and every sign-in LANDS on it (the e2e
+     * suite signs the one shared ADMIN in ~190 times in ~2.5 min over 4 workers), so the bound sits at the [DIRECTORY] figure: two a
+     * second is a script. It is for a runaway client or a polling loop. It rides INSIDE `authenticate {}`.
+     */
+    const val MY_WORK = "my-work"
     /**
      * Every `/api/v1/notifications` route and `GET`/`PUT /api/v1/users/{id}/notification-preferences` (0.6.0, Adder's bucket): the
      * bell's poll, the two "seen" writes and the switches move or read only the caller's OWN view, so they share ONE bucket per
@@ -130,6 +138,7 @@ object RateLimits {
     private const val MAX_LIMIT_PER_MINUTE = 1_000_000
     private const val TELEMETRY_PER_MINUTE = 30
     private const val DIRECTORY_PER_MINUTE = 120
+    private const val MY_WORK_PER_MINUTE = 120
     private const val READ_STATE_PER_MINUTE = 240
     private const val EXPORT_PER_MINUTE = 20
     private const val PASSWORD_CHANGE_PER_MINUTE = 5
@@ -162,6 +171,7 @@ object RateLimits {
     )
     internal fun telemetryLimit() = TELEMETRY_PER_MINUTE
     internal fun directoryLimit() = DIRECTORY_PER_MINUTE
+    internal fun myWorkLimit() = MY_WORK_PER_MINUTE
     internal fun readStateLimit() = READ_STATE_PER_MINUTE
     internal fun exportLimit() = EXPORT_PER_MINUTE
     internal fun passwordChangeLimit() = PASSWORD_CHANGE_PER_MINUTE
@@ -172,7 +182,7 @@ object RateLimits {
 
 /**
  * The buckets (see application.yaml `security.rateLimit` and security.md): per IP, except the per-USER telemetry, directory,
- * read-state, export, password-change and adr-write buckets.
+ * my-work, read-state, export, password-change and adr-write buckets.
  * Login and password-reset follow the mode — production keeps them tight, development lifts them so one host
  * driving the e2e suite is not throttled (the per-account lockout and the per-email throttle are the
  * abuse defences in both modes); refresh, ready, MFA and the password-reset confirm are the same in every mode. Installed here, before
@@ -193,6 +203,7 @@ fun Application.configureRateLimits() {
         mapOf(
             TELEMETRY to telemetryLimit(),
             DIRECTORY to directoryLimit(),
+            MY_WORK to myWorkLimit(),
             READ_STATE to readStateLimit(),
             EXPORT to exportLimit(),
             PASSWORD_CHANGE to passwordChangeLimit(),
@@ -211,8 +222,8 @@ fun Application.configureRateLimits() {
                 }
             }
         }
-        // The per-USER buckets (telemetry, directory, read-state, export, password-change, adr-write). The routes mount them INSIDE
-        // `authenticate {}` (telemetry/TelemetryRoutes.kt, users/UserRoutes.kt, adrs/AdrRoutes.kt, ...), so this key runs only for a
+        // The per-USER buckets (telemetry, directory, my-work, read-state, export, password-change, adr-write). The routes mount them
+        // INSIDE `authenticate {}` (telemetry/TelemetryRoutes.kt, users/UserRoutes.kt, adrs/AdrRoutes.kt, ...), so this key runs only for a
         // verified token: an anonymous call is a 401 that never reaches it and never creates a limiter.
         // The plugin keeps one limiter per key and drops it after its refill period, so memory is bounded by the accounts active
         // within a minute.

@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import { assertSampleDataTarget } from "./sample-data-target.mjs";
+import { assertNoAdrRows, assertSampleDataTarget } from "./sample-data-target.mjs";
 
 const container = (name, project, service, ports = {}) => ({
   Name: `/${name}`,
@@ -96,4 +96,20 @@ test("refuses a stopped configured container", () => {
       }),
     /is not running/,
   );
+});
+
+test("accepts an empty adrs table, whatever psql's trailing whitespace", () => {
+  assert.doesNotThrow(() => assertNoAdrRows("0\n"));
+  assert.doesNotThrow(() => assertNoAdrRows(" 0 "));
+});
+
+test("refuses any existing adrs row, soft-deleted ones included", () => {
+  assert.throws(() => assertNoAdrRows("1\n"), /already has 1 ADR row\(s\) \(soft-deleted ones included\)/);
+  assert.throws(() => assertNoAdrRows("16"), /already has 16 ADR row/);
+});
+
+test("refuses an unreadable row count instead of treating it as empty", () => {
+  for (const output of ["", "\n", "ERROR: relation does not exist", "-1", "1.5", "0 0"]) {
+    assert.throws(() => assertNoAdrRows(output), /could not read the ADR row count/, JSON.stringify(output));
+  }
 });

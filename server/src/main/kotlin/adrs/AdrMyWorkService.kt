@@ -23,11 +23,26 @@ private const val DRAFT_STALE_DAYS = 14L
 private const val REVIEW_STALE_DAYS = 7L
 private const val ACTIVITY_DAYS = 7L
 
-/** Meaningful personal activity. Participant and tag fan-out cannot crowd decision work out of the short feed. */
-private const val ACTIVITY_EVENT_TYPES_SQL = """'CREATED', 'UPDATED', 'TRANSITIONED', 'EXPIRED', 'SUPERSEDED',
-    'SUCCESSOR_LINKED', 'SUCCESSOR_UNLINKED', 'SUCCESSOR_ACTIVATED', 'SUCCESSOR_ACCEPTED', 'PREDECESSOR_ENDED',
-    'COMMENTED', 'QUESTION_ASKED', 'QUESTION_ANSWERED', 'QUESTION_REOPENED',
-    'ISSUE_RAISED', 'ESCALATED', 'ISSUE_RESOLVED', 'ISSUE_REOPENED'"""
+/**
+ * The event types the activity feed and the "last activity" of an ADR read: meaningful personal activity. Participant and tag fan-out
+ * cannot crowd decision work out of the short feed. Every [AdrEventType] is classified in exactly ONE of this set and
+ * [MY_WORK_EXCLUDED_EVENT_TYPES] (`AdrMyWorkTest` pins it), so a new event type fails the build until someone decides.
+ */
+internal val MY_WORK_ACTIVITY_EVENT_TYPES: Set<AdrEventType> = setOf(
+    AdrEventType.CREATED, AdrEventType.UPDATED, AdrEventType.TRANSITIONED, AdrEventType.EXPIRED, AdrEventType.SUPERSEDED,
+    AdrEventType.SUCCESSOR_LINKED, AdrEventType.SUCCESSOR_UNLINKED, AdrEventType.SUCCESSOR_ACTIVATED, AdrEventType.SUCCESSOR_ACCEPTED,
+    AdrEventType.PREDECESSOR_ENDED,
+    AdrEventType.COMMENTED, AdrEventType.QUESTION_ASKED, AdrEventType.QUESTION_ANSWERED, AdrEventType.QUESTION_REOPENED,
+    AdrEventType.ISSUE_RAISED, AdrEventType.ESCALATED, AdrEventType.ISSUE_RESOLVED, AdrEventType.ISSUE_REOPENED,
+)
+
+/** Deliberately NOT personal activity: roster and tag housekeeping, which stays in the full History (`adr-model.md` "My work"). */
+internal val MY_WORK_EXCLUDED_EVENT_TYPES: Set<AdrEventType> = setOf(
+    AdrEventType.PARTICIPANT_ADDED, AdrEventType.PARTICIPANT_REMOVED, AdrEventType.PARTICIPANT_CHANGED, AdrEventType.TAGS_CHANGED,
+)
+
+/** Enum names only (never user text), so the quoted list is safe to inline in the statements. */
+private val ACTIVITY_EVENT_TYPES_SQL = MY_WORK_ACTIVITY_EVENT_TYPES.joinToString(", ") { "'${it.name}'" }
 
 private val WORKSPACE_FACTS_SQL = """
     LEFT JOIN LATERAL (
@@ -50,6 +65,10 @@ private val WORKSPACE_FACTS_SQL = """
         WHERE a.status = 'SOLUTION_DRAFT' AND e.adr_id = a.id AND e.created_at = a.status_changed_at
             AND e.event_type = 'TRANSITIONED' AND e.params::jsonb ->> 'from' = 'IN_REVIEW'
             AND e.params::jsonb ->> 'to' = 'SOLUTION_DRAFT'
+            AND NOT EXISTS (
+                SELECT 1 FROM adr_participants driver
+                WHERE driver.adr_id = a.id AND driver.role = 'DRIVER' AND driver.user_id = e.user_id
+            )
         ORDER BY e.id DESC LIMIT 1
     ) returned ON true
     LEFT JOIN LATERAL (

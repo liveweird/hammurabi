@@ -5,10 +5,15 @@ import io.ktor.server.application.ApplicationCall
 import io.ktor.server.plugins.BadRequestException
 
 /**
- * Optimistic concurrency for whole-document PUTs (Toadie's `X-Expected-Revision`, ported): the client names the revision it
- * read, and the write is refused with a typed 409 when the stored revision moved on. Document writes require the header.
- * Existing v1 discussion clients may omit it. A repeated or malformed value is a 400. Lives in `infra/` because `infra`
- * may not import `authz`; the ErrorHandling mapping is `urn:hammurabi:problem:revision-conflict`.
+ * Optimistic concurrency (Toadie's `X-Expected-Revision`, ported): the client names the revision it read, and the write is refused
+ * with a typed 409 when the stored revision moved on. The header is REQUIRED ([expectedRevision]) on the ADR writes (the document PUT,
+ * the transitions, participants, tags and supersedes) and the tag-category PUT and DELETE: a stale editor there would overwrite what
+ * another saved, and every client sends it.
+ * It is OPTIONAL ([optionalExpectedRevision]) on the discussion entry edit, delete and state writes: the token is per ENTRY (V22
+ * `adr_discussion.revision`, 1.2.2) and these routes were published in 0.3.0 without it, so the v1 contract cannot start
+ * rejecting a client that omits it (an API consumer that never read an entry's revision); an absent header skips the check, a present one
+ * is enforced. A repeated or malformed value is a 400 either way. Lives in `infra/` because `infra` may not import `authz`; the
+ * ErrorHandling mapping is `urn:hammurabi:problem:revision-conflict`.
  */
 const val EXPECTED_REVISION_HEADER = "X-Expected-Revision"
 
@@ -25,7 +30,7 @@ private val POSITIVE_REVISION = Regex("[1-9]\\d*")
 fun ApplicationCall.expectedRevision(): Long =
     optionalExpectedRevision() ?: throw BadRequestException("$EXPECTED_REVISION_HEADER header is required")
 
-/** The same strict check for a route that accepts writes from clients that predate the revision header. */
+/** The same strict check for a route that must keep accepting writes from clients that predate the header (the discussion writes). */
 fun ApplicationCall.optionalExpectedRevision(): Long? {
     val values = request.headers.getAll(EXPECTED_REVISION_HEADER)
     if (values.isNullOrEmpty()) return null

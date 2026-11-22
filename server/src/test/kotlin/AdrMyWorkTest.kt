@@ -8,12 +8,18 @@ import ch.nokillswit.adrs.AdrMyWorkService
 import ch.nokillswit.adrs.AdrRole
 import ch.nokillswit.adrs.AdrStatus
 import ch.nokillswit.adrs.DiscussionKind
+import ch.nokillswit.adrs.MY_WORK_ACTIVITY_EVENT_TYPES
+import ch.nokillswit.adrs.MY_WORK_EXCLUDED_EVENT_TYPES
 import ch.nokillswit.adrs.adrDiscussionPostedEvent
+import ch.nokillswit.adrs.adrTransitionedEvent
 import ch.nokillswit.adrs.adrTagsChangedEvent
 import ch.nokillswit.adrs.adrUpdatedEvent
 import ch.nokillswit.infra.db.FieldChange
+import ch.nokillswit.plugins.ProblemDetail
+import ch.nokillswit.users.UserRole
 import io.ktor.client.HttpClient
 import io.ktor.client.call.body
+import io.ktor.client.request.delete
 import io.ktor.client.request.get
 import io.ktor.http.HttpStatusCode
 import io.ktor.server.testing.testApplication
@@ -27,6 +33,8 @@ import java.time.ZoneOffset
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
+import kotlin.test.assertNotNull
+import kotlin.test.assertNull
 import kotlin.test.assertTrue
 
 class AdrMyWorkTest {
@@ -45,7 +53,7 @@ class AdrMyWorkTest {
         }
     }
 
-    private suspend fun recordEvents(id: UInt, actorId: UInt, at: Long, vararg events: ch.nokillswit.adrs.AdrEventDescriptor) {
+    private suspend fun recordEvents(id: UInt, actorId: UInt?, at: Long, vararg events: ch.nokillswit.adrs.AdrEventDescriptor) {
         suspendTransaction(sharedDatabaseForTests()) {
             AdrEventService(sharedDatabaseForTests()).recordAll(id, actorId, events.toList(), at)
         }
@@ -211,6 +219,178 @@ class AdrMyWorkTest {
         val disabled = AdrMyWorkService(sharedDatabaseForTests(), expiryReminderDays = 0, clock = clock)
             .myWork(cast.driver.id, AdrRole.DRIVER)
         assertFalse(disabled.watching.items.any { it.adr.id == expiring.id })
+    }
+
+    private val staleMillis = 15L * 24 * 60 * 60 * 1000
+
+    /** Ages [id] past every stall threshold: its creation, its last move and each of its events. */
+    private suspend fun age(id: UInt, now: Long = System.currentTimeMillis()) {
+        val at = now - staleMillis
+        forceAdrTimes(id, at, at)
+        forceAdrStatusChangedAt(id, at)
+        forceEventTimes(id, at)
+    }
+
+    private fun AdrMyWorkResponse.isEmpty() = listOf(actions.items, watching.items, activity.items, adrs.items).all { it.isEmpty() } &&
+        listOf(actions.hasMore, watching.hasMore, activity.hasMore, adrs.hasMore).none { it }
+
+    @Test
+    fun `the caller comes from the token, so an ADMIN and a stranger see nothing of ADRs they are not on`() = testApplication {
+        usePostgresTestcontainer()
+        val cast = adrCast()
+        val adr = cast.raise()
+        cast.activate(adr)
+        cast.stranger.client.postEntryOk(adr.id, DiscussionKind.ESCALATION)
+        assertTrue(cast.driver.client.myWork().adrs.items.any { it.id == adr.id }, "the Driver is on it")
+
+        for (outsider in listOf(cast.admin, cast.stranger)) {
+            assertTrue(outsider.client.myWork().isEmpty(), "an ADMIN is scoped like anyone else")
+            AdrRole.entries.forEach { role ->
+                assertTrue(outsider.client.myWork("?participantRole=${role.name}").isEmpty(), "role $role")
+            }
+        }
+    }
+
+    @Test
+    fun `a soft-deleted ADR drops out of every section`() = testApplication {
+        usePostgresTestcontainer()
+        val cast = adrCast()
+        val adr = cast.raise()
+        cast.activate(adr)
+        cast.stranger.client.postEntryOk(adr.id, DiscussionKind.ESCALATION)
+
+        val before = cast.driver.client.myWork()
+        assertTrue(before.actions.items.any { it.adr.id == adr.id })
+        assertTrue(before.activity.items.any { it.adr.id == adr.id })
+        assertTrue(before.adrs.items.any { it.id == adr.id })
+        assertTrue(cast.informed.client.myWork().watching.items.any { it.adr.id == adr.id })
+
+        assertEquals(HttpStatusCode.NoContent, cast.admin.client.delete("/api/v1/adrs/${adr.id}").status)
+
+        listOf(cast.driver, cast.approver, cast.informed).forEach { who ->
+            val work = who.client.myWork()
+            assertTrue(work.actions.items.none { it.adr.id == adr.id })
+            assertTrue(work.watching.items.none { it.adr.id == adr.id })
+            assertTrue(work.activity.items.none { it.adr.id == adr.id })
+            assertTrue(work.adrs.items.none { it.id == adr.id })
+        }
+    }
+
+    @Test
+    fun `the approver name is null once the Approver account is soft-deleted`() = testApplication {
+        usePostgresTestcontainer()
+        val cast = adrCast()
+        val review = cast.raise()
+        cast.driver.client.moveAdrNow(review.id, AdrStatus.IN_REVIEW)
+        age(review.id)
+
+        val named = cast.driver.client.myWork().watching.singleFor(review.id)
+        assertEquals(AdrMyWorkReason.STALLED_REVIEW, named.reason)
+        assertEquals("Apr", named.approverName)
+
+        TestUsers.softDelete(cast.approver.id)
+        val unnamed = cast.driver.client.myWork().watching.singleFor(review.id)
+        assertNull(unnamed.approverName)
+    }
+
+    @Test
+    fun `the seven-day activity window includes its exact boundary and excludes the millisecond before`() = testApplication {
+        usePostgresTestcontainer()
+        val cast = adrCast()
+        val instant = Instant.parse("2030-06-20T12:00:00Z")
+        val boundary = instant.toEpochMilli() - 7L * 24 * 60 * 60 * 1000
+        val inside = cast.raise()
+        val outside = cast.raise()
+        forceEventTimes(inside.id, boundary)
+        forceEventTimes(outside.id, boundary - 1)
+
+        val work = AdrMyWorkService(sharedDatabaseForTests(), expiryReminderDays = 14, clock = Clock.fixed(instant, ZoneOffset.UTC))
+            .myWork(cast.driver.id, null)
+        assertTrue(work.activity.items.any { it.adr.id == inside.id && it.event.createdAt == boundary })
+        assertTrue(work.activity.items.none { it.adr.id == outside.id })
+        assertEquals(instant.toEpochMilli(), work.generatedAt)
+    }
+
+    @Test
+    fun `the role filter narrows the activity feed as well as the ADR list`() = testApplication {
+        usePostgresTestcontainer()
+        val cast = adrCast()
+        val asApprover = cast.raise()
+        val asDriver = cast.approver.client.createAdr(complete = true)
+
+        val both = cast.approver.client.myWork()
+        assertEquals(setOf(AdrRole.APPROVER, AdrRole.DRIVER), both.activity.items.map { it.adr.role }.toSet())
+
+        val approving = cast.approver.client.myWork("?participantRole=APPROVER")
+        assertTrue(approving.activity.items.isNotEmpty() && approving.activity.items.all { it.adr.id == asApprover.id })
+        assertTrue(approving.adrs.items.none { it.id == asDriver.id })
+
+        val driving = cast.approver.client.myWork("?participantRole=DRIVER")
+        assertTrue(driving.activity.items.isNotEmpty() && driving.activity.items.all { it.adr.id == asDriver.id })
+    }
+
+    @Test
+    fun `an ADR is returned only when somebody other than its Driver sent it back, a system actor included`() = testApplication {
+        usePostgresTestcontainer()
+        val cast = adrCast()
+
+        val pulledBack = cast.raise()
+        cast.driver.client.moveAdrNow(pulledBack.id, AdrStatus.IN_REVIEW)
+        cast.driver.client.moveAdrNow(pulledBack.id, AdrStatus.SOLUTION_DRAFT)
+        val adminSent = cast.raise()
+        cast.driver.client.moveAdrNow(adminSent.id, AdrStatus.IN_REVIEW)
+        cast.admin.client.moveAdrNow(adminSent.id, AdrStatus.SOLUTION_DRAFT)
+        val systemSent = cast.raise()
+        cast.driver.client.moveAdrNow(systemSent.id, AdrStatus.IN_REVIEW)
+        val at = System.currentTimeMillis()
+        forceAdrStatus(systemSent.id, AdrStatus.SOLUTION_DRAFT)
+        forceAdrStatusChangedAt(systemSent.id, at)
+        recordEvents(systemSent.id, null, at, adrTransitionedEvent(AdrStatus.IN_REVIEW, AdrStatus.SOLUTION_DRAFT))
+
+        val driver = cast.driver.client.myWork()
+        assertTrue(driver.actions.items.none { it.adr.id == pulledBack.id }, "the Driver's own pull-back is plain drafting")
+        assertEquals(AdrMyWorkReason.RETURNED, driver.actions.singleFor(adminSent.id).reason)
+        assertEquals(AdrMyWorkReason.RETURNED, driver.actions.singleFor(systemSent.id).reason)
+        val informed = cast.informed.client.myWork()
+        assertTrue(informed.watching.items.none { it.adr.id == pulledBack.id })
+        assertEquals(AdrMyWorkReason.RETURNED, informed.watching.singleFor(adminSent.id).reason)
+
+        age(pulledBack.id)
+        val aged = cast.driver.client.myWork()
+        assertEquals(AdrMyWorkReason.STALLED_DRAFT, aged.actions.singleFor(pulledBack.id).reason, "it ages like any draft")
+    }
+
+    @Test
+    fun `every event type is either personal activity or deliberately excluded, never both and never neither`() {
+        assertTrue((MY_WORK_ACTIVITY_EVENT_TYPES intersect MY_WORK_EXCLUDED_EVENT_TYPES).isEmpty())
+        assertEquals(
+            emptySet(),
+            AdrEventType.entries.toSet() - MY_WORK_ACTIVITY_EVENT_TYPES - MY_WORK_EXCLUDED_EVENT_TYPES,
+            "classify the new AdrEventType in AdrMyWorkService.kt: activity feed or deliberately excluded",
+        )
+    }
+
+    @Test
+    fun `my work rides a per-user bucket of 120 a minute, answers 429 beyond it and audits the rejection`() = testApplication {
+        usePostgresTestcontainer()
+        val limitedEmail = uniqueEmail("mw-bucket")
+        val limitedId = TestUsers.seed(email = limitedEmail, password = "pw-123456789", role = UserRole.USER)
+        val limited = authedClient(limitedEmail, "pw-123456789")
+        val other = seededClient("mw-bucket-other", UserRole.USER)
+
+        withAuditCapture { capture ->
+            repeat(120) { n -> assertEquals(HttpStatusCode.OK, limited.get("/api/v1/adrs/my-work").status, "request ${n + 1}") }
+            val rejected = limited.get("/api/v1/adrs/my-work")
+            assertEquals(HttpStatusCode.TooManyRequests, rejected.status)
+            assertEquals(429, rejected.body<ProblemDetail>().status, "the generic 429 problem body")
+            assertNotNull(rejected.headers["Retry-After"], "the bucket 429 says when to retry")
+            assertEquals(HttpStatusCode.OK, other.get("/api/v1/adrs/my-work").status, "keyed by the user, not the address")
+
+            val event = capture.awaitEvent { it.message == "rate_limit.exceeded" && it.hasKeyValue("bucket", "my-work") }
+            assertNotNull(event)
+            assertTrue(event.hasKeyValue("byUserId", limitedId.toLong()))
+            assertTrue(event.hasKeyValue("path", "/api/v1/adrs/my-work"), "the path carries no query string")
+        }
     }
 
     private fun ch.nokillswit.adrs.AdrMyWorkAdr.adrIsOneOf(adrs: List<ch.nokillswit.adrs.AdrResponse>) = adrs.any { it.id == id }

@@ -316,6 +316,7 @@ A Kotlin enum is stored by NAME in a `VARCHAR` with no CHECK (the V5 rule: the e
   `FOR NO KEY UPDATE` (the window is judged under it) and never bumps `adrs.revision`; `AdrRowLockTest` pins both halves.
   V22 adds `adr_discussion.revision BIGINT NOT NULL DEFAULT 1`, including for existing entries and tombstones. The revision is checked
   and advanced under the same lock. A no-op keeps it.
+  **Rollback to 1.2.1 or older (V22, 1.2.2):** safe, no data step. Flyway's default `ignoreMigrationPatterns=*:future` lets an older build start over the applied V22; its inserts omit the column and get `DEFAULT 1`; its reads name their columns; an older build simply never bumps the revision, so the next newer-build edit or delete still sees a valid token.
 - **Locking.** Every ADR write: `FOR NO KEY UPDATE` on the `adrs` row ("Row locks vs. FK locks"), the caller's role re-read under it, then state, revision, requirements, writes and events in ONE transaction.
 
 ### Tag categories and tags (V13)

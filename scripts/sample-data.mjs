@@ -4,20 +4,21 @@
 // IN_REVIEW, drafts, sent back, CANCELLED, WITHDRAWN twice, EXPIRED, SUPERSEDED, a pending successor), discussion entries,
 // issues and escalations, and 4 saved lenses.
 //
-// Everything goes through the public API as the acting user, so every rule, history event and notice is the real one. Two
-// steps cannot be done through the API and touch the database directly (`docker exec hammurabi-postgres psql`):
+// Everything goes through the public API as the acting user, so every rule, history event and notice is the real one. The
+// database is touched directly (`docker exec hammurabi-postgres psql`) three times: a read-only guard, then two steps the API cannot do:
+//   0. before the first write, `SELECT count(*) FROM adrs` (soft-deleted rows included) must be 0, else the run refuses;
 //   1. one ADR's expiry date is moved into the past and the app is restarted, so the expiry sweep expires it the real way;
 //   2. at the end every timestamp written by this run is spread over the past year along the story's timeline (one
 //      monotonic mapping for all tables, so the order of events and status_changed_at == its TRANSITIONED event still hold).
 //
-// Usage: node scripts/sample-data.mjs            (refuses unless the stack is on localhost and has no ADRs yet)
+// Usage: node scripts/sample-data.mjs            (refuses unless the stack is on localhost and `adrs` has no rows, soft-deleted included)
 // Env:   HAMMURABI_URL (default http://localhost:8090), ADMIN_PASSWORD (default changeme),
 //        PG_CONTAINER (default hammurabi-postgres), APP_CONTAINER (default hammurabi-app). Both containers must belong to the Compose
 //        project whose app service publishes HAMMURABI_URL; this is checked before the first write.
 //
 // Every sample account signs in with the password below (a local demo value, never a real one).
 import { execFileSync } from 'node:child_process';
-import { inspectSampleDataTarget } from './sample-data-target.mjs';
+import { assertNoAdrRows, inspectSampleDataTarget } from './sample-data-target.mjs';
 
 const BASE = process.env.HAMMURABI_URL ?? 'http://localhost:8090';
 const ADMIN_EMAIL = 'admin@hammurabi.local';
@@ -121,7 +122,7 @@ async function linkPredecessor(as, successor, predecessor) {
 const acceptSuccessor = (as, predecessor, successor) =>
   api(U[as].email, 'POST', `/adrs/${predecessor.id}/successor/accept`, { successorId: successor.id });
 
-// ---------- database (two steps only) ----------
+// ---------- database (the three steps above only) ----------
 function psql(sql) {
   return execFileSync('docker', ['exec', '-i', PG, 'psql', '-v', 'ON_ERROR_STOP=1', '-U', 'hammurabi', '-d', 'hammurabi', '-Atq'], {
     input: sql,
@@ -173,8 +174,9 @@ async function main() {
   // before the first API mutation, including when the caller selected an alternate local Compose project.
   inspectSampleDataTarget(BASE, PG, APP);
   await login(ADMIN_EMAIL);
-  const existing = await api(ADMIN_EMAIL, 'GET', '/adrs?pageSize=1');
-  if (existing.total > 0) throw new Error(`The stack already has ${existing.total} ADR(s); sample data goes into an empty one only`);
+  // Count EVERY row in `adrs`, soft-deleted ones included, in the database just proved to be this stack's (`GET /adrs` hides the
+  // soft-deleted rows, so a used database could look empty through the API).
+  assertNoAdrRows(psql('SELECT count(*) FROM adrs;'));
   U.admin = { id: userIds.get(ADMIN_EMAIL), email: ADMIN_EMAIL, name: 'admin' };
 
   // ---- the organisation (a year ago) ----

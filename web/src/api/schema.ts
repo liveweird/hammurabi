@@ -723,7 +723,10 @@ export interface paths {
          *     Expiry reuses the notification reminder horizon and disappears when reminders are disabled. It also keeps an overdue `ACTIVE` ADR
          *     visible until the expiry sweep moves it, while the reminder job itself only mails dates from today onward. `activity` is the newest
          *     seven days of document, expiry, lifecycle, discussion and successor history; participant and tag fan-out is omitted. `adrs` is the
-         *     caller's non-terminal ADRs, ordered by the same curated activity.
+         *     caller's non-terminal ADRs, ordered by the same curated activity. `RETURNED` means somebody other than the Driver sent the ADR
+         *     back from review to drafting; a Driver pulling their own ADR back is ordinary drafting and ages into `STALLED_DRAFT`.
+         *
+         *     Rides a per-USER rate bucket of 120 per minute (`429` beyond it).
          */
         get: operations["getAdrMyWork"];
         put?: never;
@@ -1975,7 +1978,9 @@ export interface components {
             reason: components["schemas"]["AdrMyWorkReason"];
             /**
              * Format: int64
-             * @description The relevant event time in epoch millis.
+             * @description Epoch millis the reason began, by reason: `REVIEW`, `STALLED_REVIEW` and `RETURNED` the latest lifecycle move (the submission
+             *     or the send-back); `STALLED_DRAFT` the latest substantive document edit or lifecycle move; `ESCALATION` the oldest open
+             *     escalation; `EXPIRING` the ADR's activation time (when it became `ACTIVE`), NOT the expiry date, which is `adr.expiresOn`.
              */
             since: number;
             /** @description The active Approver's display name, when one exists. */
@@ -2600,7 +2605,7 @@ export interface components {
                 "application/problem+json": components["schemas"]["ProblemDetail"];
             };
         };
-        /** @description Throttled — either the per-IP rate-limit bucket is exhausted (generic detail), on a telemetry read (`/api/v1/telemetry/**`) the per-USER telemetry bucket is exhausted (30/min), on the user directory (`/api/v1/users/directory`) the per-USER directory bucket is exhausted (120/min), on the notification routes the per-USER read-state bucket is exhausted (240/min), on the ADR exports the per-USER export bucket is exhausted (20/min), on a password change the per-USER password-change bucket is exhausted (5/min), on any of the 13 ADR and discussion writes the per-USER adr-write bucket is exhausted (120/min, checked before the ADR is looked up), or, on /login, the per-account lockout is active (account-specific detail), or, on the ADR list's full-text `text` search, the search ran past its deadline (`urn:hammurabi:problem:search-timeout`) or the process's concurrent-search cap is reached (`urn:hammurabi:problem:search-busy`; both with `Retry-After`), or the bulk ADR export's concurrency cap is reached (`urn:hammurabi:problem:export-busy`, `Retry-After`). All carry a ProblemDetail body. */
+        /** @description Throttled — either the per-IP rate-limit bucket is exhausted (generic detail), on a telemetry read (`/api/v1/telemetry/**`) the per-USER telemetry bucket is exhausted (30/min), on the user directory (`/api/v1/users/directory`) the per-USER directory bucket is exhausted (120/min), on My work (`/api/v1/adrs/my-work`) the per-USER my-work bucket is exhausted (120/min), on the notification routes the per-USER read-state bucket is exhausted (240/min), on the ADR exports the per-USER export bucket is exhausted (20/min), on a password change the per-USER password-change bucket is exhausted (5/min), on any of the 13 ADR and discussion writes the per-USER adr-write bucket is exhausted (120/min, checked before the ADR is looked up), or, on /login, the per-account lockout is active (account-specific detail), or, on the ADR list's full-text `text` search, the search ran past its deadline (`urn:hammurabi:problem:search-timeout`) or the process's concurrent-search cap is reached (`urn:hammurabi:problem:search-busy`; both with `Retry-After`), or the bulk ADR export's concurrency cap is reached (`urn:hammurabi:problem:export-busy`, `Retry-After`). All carry a ProblemDetail body. */
         TooManyRequests: {
             headers: {
                 [name: string]: unknown;
@@ -3765,6 +3770,7 @@ export interface operations {
             };
             400: components["responses"]["BadRequest"];
             401: components["responses"]["Unauthorized"];
+            429: components["responses"]["TooManyRequests"];
             500: components["responses"]["InternalServerError"];
         };
     };

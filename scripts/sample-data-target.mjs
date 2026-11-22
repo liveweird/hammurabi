@@ -59,3 +59,17 @@ export function inspectSampleDataTarget(base, pgContainer, appContainer) {
   }
   assertSampleDataTarget({ base, pgContainer, appContainer, containers });
 }
+
+/**
+ * The sample data goes into an EMPTY stack only. [countOutput] is psql's `-At` answer to `SELECT count(*) FROM adrs`, which counts every
+ * row, soft-deleted ones included (the API list hides those, so an API-side check could see an empty list over a used database).
+ * Anything that is not a plain non-negative integer is refused too: an unreadable answer is not evidence of an empty table.
+ */
+export function assertNoAdrRows(countOutput) {
+  const text = String(countOutput).trim();
+  if (!/^\d+$/.test(text)) throw new Error(`Refusing sample data: could not read the ADR row count (got '${text.slice(0, 40)}')`);
+  const rows = Number(text);
+  if (rows > 0) {
+    throw new Error(`Refusing sample data: the database already has ${rows} ADR row(s) (soft-deleted ones included); sample data goes into an empty one only`);
+  }
+}

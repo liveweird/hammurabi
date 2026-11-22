@@ -17,7 +17,7 @@ EN/PL, light/dark, changelog, the ADMIN telemetry panel, the lapis brand and the
 Per-version scope, the user's decisions and the assumptions: `.claude/docs/product.md`; the domain model: `.claude/docs/adr-model.md`. Open items: `BACKLOG.md`.
 
 Brand: lapis lazuli indigo (the `hammurabi` colour tuple in `web/src/theme.ts`, `primaryShade: { light: 7, dark: 8 }`, dark accent ink shade 3); the logo
-"Stele" is the basalt stele of the Code of Hammurabi on a lapis disc — the sun disc of Shamash above, rows of cuneiform wedges below (`web/public/logo-*.svg`).
+"Stele" depicts the relief on the Code of Hammurabi. See [the logo](.claude/docs/web-internals.md#the-logo) for the assets and their uses.
 
 ## Donors
 

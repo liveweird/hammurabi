@@ -1,26 +1,11 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 48 48" role="img" aria-labelledby="t d">
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16" role="img" aria-labelledby="t d">
   <title id="t">Hammurabi</title>
-  <desc id="d">Stele: the basalt stele of the Code of Hammurabi on a lapis-lazuli disc — a tall, round-topped slab crowned by the sun disc of Shamash with its rays, a band beneath the relief, and rows of cuneiform wedges pressed into the face below.</desc>
-  <circle cx="24" cy="24" r="22" fill="#2f3f94"/>
-  <path fill="#ffffff" d="M14.6 41.6V16.4C14.6 10.6 18.6 6.6 24 6.6C29.4 6.6 33.4 10.6 33.4 16.4V41.6Z"/>
-  <path fill="#ffffff" d="M12.6 40.6H35.4V42.8H12.6Z"/>
-  <circle cx="24" cy="14.6" r="2.4" fill="#d9a52e"/>
-  <path fill="none" stroke="#d9a52e" stroke-width="1.1" stroke-linecap="round" d="M27.30 14.60L28.90 14.60M26.33 16.93L27.46 18.06M24.00 17.90L24.00 19.50M21.67 16.93L20.54 18.06M20.70 14.60L19.10 14.60M21.67 12.27L20.54 11.14M24.00 11.30L24.00 9.70M26.33 12.27L27.46 11.14"/>
-  <path fill="none" stroke="#2f3f94" stroke-width="0.9" stroke-linecap="round" d="M16.4 21.6H31.6"/>
-  <g fill="#2f3f94">
-    <path d="M17.2 23.9L18.5 24.7L20.5 24.88V25.12L18.5 25.3L17.2 26.1Z"/>
-    <path d="M22.0 23.9L23.3 24.7L25.3 24.88V25.12L23.3 25.3L22.0 26.1Z"/>
-    <path d="M26.8 23.9L28.1 24.7L30.1 24.88V25.12L28.1 25.3L26.8 26.1Z"/>
-    <path d="M18.4 28.2L19.7 29.0L21.7 29.18V29.42L19.7 29.6L18.4 30.400000000000002Z" transform="translate(0 -1.65) rotate(90 18.4 29.3)"/>
-    <path d="M20.6 28.2L21.900000000000002 29.0L23.900000000000002 29.18V29.42L21.900000000000002 29.6L20.6 30.400000000000002Z"/>
-    <path d="M25.4 28.2L26.7 29.0L28.7 29.18V29.42L26.7 29.6L25.4 30.400000000000002Z"/>
-    <path d="M30.4 28.2L31.7 29.0L33.699999999999996 29.18V29.42L31.7 29.6L30.4 30.400000000000002Z" transform="translate(0 -1.65) rotate(90 30.4 29.3)"/>
-    <path d="M17.2 32.5L18.5 33.300000000000004L20.5 33.480000000000004V33.72L18.5 33.9L17.2 34.7Z"/>
-    <path d="M22.0 32.5L23.3 33.300000000000004L25.3 33.480000000000004V33.72L23.3 33.9L22.0 34.7Z"/>
-    <path d="M27.4 32.5L28.7 33.300000000000004L30.7 33.480000000000004V33.72L28.7 33.9L27.4 34.7Z" transform="translate(0 -1.65) rotate(90 27.4 33.6)"/>
-    <path d="M28.9 32.5L30.2 33.300000000000004L32.199999999999996 33.480000000000004V33.72L30.2 33.9L28.9 34.7Z"/>
-    <path d="M17.2 36.8L18.5 37.6L20.5 37.78V38.019999999999996L18.5 38.199999999999996L17.2 39.0Z"/>
-    <path d="M22.0 36.8L23.3 37.6L25.3 37.78V38.019999999999996L23.3 38.199999999999996L22.0 39.0Z"/>
-    <path d="M26.8 36.8L28.1 37.6L30.1 37.78V38.019999999999996L28.1 38.199999999999996L26.8 39.0Z"/>
-  </g>
+  <desc id="d">Stele of the Code of Hammurabi with a rod and ring above two cuneiform-inspired wedges.</desc>
+  <polygon fill="#93a4e2" points="2,13.5 2.5,6.5 3.25,4 5,2.3 7,1.15 9,1 11,1.8 12.6,3.3 13.5,5.5 14,13.6 13,14.8 3.2,15"/>
+  <polygon fill="#7d90de" points="9,1 11,1.8 12.6,3.3 13.5,5.5 14,13.6 13,14.8 3.2,15 2,13.5 3.2,13 12.8,13 12.3,5.6 11.55,4 10.4,2.8 8.8,2.1"/>
+  <polygon fill="#263378" points="3.15,13.1 3.65,6.6 4.3,4.5 5.8,3 7.3,2.25 8.8,2.1 10.4,2.8 11.55,4 12.3,5.6 12.85,13.2 12.35,13.7 3.7,13.85"/>
+  <rect fill="#eef1fb" height="2.55" width="1.4" x="7.3" y="7.1"/>
+  <circle cx="8" cy="6" fill="none" r="1.55" stroke="#eef1fb" stroke-width="1.3"/>
+  <polygon fill="#eef1fb" points="4.6,10.45 7.5,11.45 4.6,12.55"/>
+  <polygon fill="#eef1fb" points="8.8,10.35 11.65,10.35 10.2,12.75"/>
 </svg>

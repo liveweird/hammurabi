@@ -35,9 +35,9 @@ side effects.
 The name is Hammurabi of Babylon, whose stele carried one of the oldest written codes: decisions written down so that they bind and can be
 looked up. **Brand:** lapis lazuli indigo (`hammurabi` tuple, hue ≈ 228°, light primary shade 7 `#3a4cb0`, dark primary shade 8 `#2f3f94`,
 dark-scheme accent ink shade 3 `#93a4e2`) — the glazed bricks of Babylon's Ishtar Gate, the free arc between Flow blue 209° and Covenant
-violet 264° (Toadie amber 26°, Adder olive 71°, Lettuce green 142°, Astrolabe cyan 189°, Astrid red 351°). The logo **"Stele"**: the basalt
-stele of the Code of Hammurabi on a lapis disc — the sun disc of Shamash crowning the relief, rows of cuneiform wedges below (Babylonian gold
-`#d9a52e`/`#e2b54a` for the sun). Success is **teal**, in progress is **cyan** (never stock blue/indigo/violet, which sit beside the brand).
+violet 264° (Toadie amber 26°, Adder olive 71°, Lettuce green 142°, Astrolabe cyan 189°, Astrid red 351°). The
+[Stele logo](web-internals.md#the-logo) depicts the relief on the basalt stele of the Code of Hammurabi.
+Success is **teal**, in progress is **cyan** (never stock blue/indigo/violet, which sit beside the brand).
 
 ## Decisions (the user's, 2026-11-20)
 

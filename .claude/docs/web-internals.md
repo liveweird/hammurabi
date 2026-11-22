@@ -153,9 +153,14 @@ skips a level going down. A page whose real title needs loaded data passes a sta
 
 ### The logo
 
-- The logo SVGs (`public/logo-{light,dark}.svg` + `favicon.svg`; rendered by `components/BrandLogo.tsx`) are the brand mark **"Stele"**: the basalt stele of the Code of Hammurabi on a 48×48
-  lapis disc — a tall, round-topped slab crowned by the sun disc of Shamash with its rays, a band beneath the relief, and rows of cuneiform wedges pressed into the face below (the `<desc>` in each file says so). The light file is the lapis disc with a white stele and Babylonian-gold sun (`#2f3f94` / `#ffffff` / `#d9a52e`), the dark file the pale-lapis disc with a deep-indigo stele (`#93a4e2` / `#1b2459` / `#e2b54a`), and `favicon.svg` is a copy of the light one; check them in both colour schemes. Change the geometry in a vector editor,
-  not by hand-editing path data. Restyle rule: keep aria-labels, roles, and real semantic elements stable — e2e and unit tests locate by role/name.
+- **Stele** shows Hammurabi standing before the seated Shamash above two rows of cuneiform-inspired wedges.
+  The stone forms the outline of `public/logo-{light,dark}.svg`. Both use the same geometry and colours from
+  the `hammurabi` palette in `src/theme.ts`. `BrandLogo` selects the app's theme variant at 28 px in the
+  header and 48 px on sign-in.
+- `index.html` declares `public/favicon.svg` for browser tabs in both schemes. At 16 px it keeps the
+  stele outline, the rod and ring from the relief, and two wedges.
+- Change the geometry in a vector editor and check the assets at their display sizes in both schemes.
+  Preserve the accessible roles and names when restyling.
 
 ### Changelog rendering & UI wiring
 

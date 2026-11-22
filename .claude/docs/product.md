@@ -85,12 +85,13 @@ stele of the Code of Hammurabi on a lapis disc — the sun disc of Shamash crown
 - **Dates (1.0.0, decided while the owner was away, change on request):** every timestamp on an ADR page renders in the browser's own time zone (date-only values such as the expiry are calendar days and never shift); the telemetry panel stays UTC.
 - **Dead code (1.0.0, same):** Flow's team-manager guard, `jsonb`/canonical-JSON helpers, `insertRows`, `ftsMatchSql`, `repeatedLongs` and `useRovingGrid` were deleted with their tests because nothing here called them; the field cipher stays (its production boot check is live) and is recorded as having no consumer yet. The notice-volume bound (Adder's per-actor digest budget, C-SEC-4) followed in 1.2.0 (the "Mail budget" assumption below).
 - **Backup and restore (1.2.0, C-ARCH-2; the user's decision D4, change on request):** a manual runbook, not a scheduled job: `scripts/db-backup.sh` and `scripts/db-restore.sh` (Adder's, `HAMMURABI_PG_EXEC` for compose or `kubectl`) plus `scripts/db-drill.mjs`, a committed drill on a throwaway compose project that was run once at 1.2.0 and is recorded in `persistence.md` "Backup and restore". It does not run in CI; running it nightly in `e2e.yml` is a backlog item. A dump never holds `JWT_SECRET`, `DATA_ENCRYPTION_KEY` or the Postgres password, and a restore turns back time (revoked tokens, changed passwords).
+- **My work (1.3.0, the user approved replacing Home with it; the thresholds are proposed defaults, change on request):** a personal workspace at `/my-work` replaces Home. It groups the caller's DACI assignments into work that needs their action, developments worth watching, recent ADR activity and a list of open ADRs. The role filter applies to all sections. Proposed defaults adopted for the first version are seven days of recent activity, 14 days without progress in draft and seven days waiting for a review decision. Expiry follows the configured reminder window. See `adr-model.md` for the selection rules. **1.3.1:** "Returned for rework" means someone other than the current Driver sent the ADR back (a Driver's own pull-back ages into "no progress"), and `GET /adrs/my-work` has its own per-user bucket (120/min, `security.md`).
 - Flow's integration service tokens are not ported: nothing external writes ADRs yet.
 - The coverage floors were re-baselined at the 1.0.0 checkup to the measured actuals, rounded down (`testing.md`).
 
 ## Roadmap
 
-Each increment is built and gated on its own. The current version is **1.3.0** (My work).
+Each increment is built and gated on its own. **Current version: 1.3.1** (My work, tightened; the release commit bumps `APP_VERSION`).
 
 | Ver | Scope |
 |---|---|
@@ -130,11 +131,11 @@ port its implementation.
 Left in Flow on purpose: `ingest/`, `fetch/`, `jira/`, `gitlab/`, `norm/`, `identities/`, `metrics/`, `reports/`, `integration/` (service tokens),
 `infra/outbound/` (the SSRF guard — port it with the first server-initiated call other than SMTP), `plugins/Role.kt`, `EncryptedAtRest`/`Reencrypt`.
 
-## My work
-
-The user approved replacing Home with a personal workspace at `/my-work`. It groups the caller's DACI assignments into work that needs their action, developments worth watching, recent ADR activity and a list of open ADRs. The role filter applies to all sections. Proposed defaults adopted for the first version are seven days of recent activity, 14 days without progress in draft and seven days waiting for a review decision. Expiry follows the configured reminder window. See `adr-model.md` for the selection rules.
-
 ## Release history
+
+### v1.3.1 — My work, tightened (2026-11-22)
+
+A conformance pass over 1.2.2–1.3.0. "Returned for rework" no longer appears when the Driver pulled the ADR back themselves. My work keeps the current list on screen while another role loads, announces the new counts to screen readers and gives each reason one colour from the shared vocabulary (a returned draft is now orange). `GET /adrs/my-work` answers 429 past 120 calls a minute per user. Shared table and layout styling moved back into the theme (every table keeps the theme's card frame), the unsaved-change guards gained direct tests, and the docs were brought back in line with the code. **Upgrade:** no migration. A lens saved through the API before 1.2.2 whose `tag` filter is not a valid tag name (for example `#frontend`) now answers `400` when opened; re-save it with the registry's tag name.
 
 ### v1.3.0 — My work (2026-11-22)
 

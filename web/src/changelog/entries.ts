@@ -17,6 +17,20 @@ interface ChangelogEntry {
 
 export const CHANGELOG: readonly ChangelogEntry[] = [
   {
+    version: "1.3.1",
+    date: "2026-11-22",
+    en: `**Hammurabi 1.3.1 — My work, tightened.**
+
+- **Returned for rework** now appears only when someone else sent your ADR back. If you pull it back to the draft yourself, it shows "No progress" after a while, like any other draft.
+- Switching **My role** keeps the current list on screen until the new one arrives, and screen readers hear the new counts. A returned draft now has an orange badge, like other items that need rework.
+- When an active ADR can no longer be edited, the editor closes instead of staying open. Creating an ADR no longer reports a failure when only the follow-up refresh of the list fails.`,
+    pl: `**Hammurabi 1.3.1 — dopracowana Moja praca.**
+
+- Oznaczenie **Zwrócony do poprawy** pojawia się tylko wtedy, gdy ktoś inny cofnął Twój ADR. Jeśli sam/sama przeniesiesz go z powrotem do szkicu, po czasie pokaże „Brak postępu”, jak każdy inny szkic.
+- Po zmianie filtra **Moja rola** bieżąca lista zostaje na ekranie, dopóki nie przyjdzie nowa, a czytnik ekranu odczytuje nowe liczby. Zwrócony szkic ma teraz pomarańczową etykietę, jak inne sprawy wymagające poprawek.
+- Gdy obowiązującego ADR-u nie można już edytować, edytor się zamyka, zamiast zostać otwarty. Utworzenie ADR-u nie zgłasza już błędu, gdy nie powiedzie się tylko odświeżenie listy po zapisie.`,
+  },
+  {
     version: "1.3.0",
     date: "2026-11-22",
     en: `**Hammurabi 1.3.0 — My work.**

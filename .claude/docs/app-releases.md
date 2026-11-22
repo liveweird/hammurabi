@@ -36,6 +36,11 @@ the same commit. Gradle and npm package versions are separate: `web/package.json
    Exceptions so far: v0.1.0 (`6c4c0a2`), v0.2.0 (`606c5dc`) and v0.3.0 (`ddc1b87`) were tagged while the
    only `master` run was red or absent (run 44833044813 on `ddc1b87`, issue #10; checkup C-GATE-3); v0.4.0
    onwards are green. The nightly `e2e` workflow also runs green on the release candidate before 1.0.0 (C-GATE-1).
+   **From 1.2.0 on, the `e2e` workflow must also be green on that exact commit before the tag:** dispatch it
+   (`gh workflow run e2e.yml --ref master`, then `gh run watch <id> --exit-status`); a scheduled run on the same
+   SHA counts. Exceptions: v1.2.2, v1.2.3 and v1.3.0 were tagged without one (v1.3.0's ran green afterwards, run 45032144933).
+   **The release commit carries only release material** (the three version places, the changelog entry, `product.md`,
+   README, the `CLAUDE.md` roadmap line): the feature lands in its own commit first, so the tagged diff reads as a release.
 2. Create an annotated `v<APP_VERSION>` tag at that explicit SHA, then push that tag only.
    Never let a moving branch name choose the release commit. Existing published tags are
    immutable by convention: do not move, replace or force-push them.
